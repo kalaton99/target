@@ -1,0 +1,50 @@
+{
+  "summary": "Comprehensive backend (REST + WebSocket) and frontend smoke testing for TARGET v1 MVP. All 26 backend pytest tests pass — including the critical 15-second AUTO_STAND_TIMEOUT path, state_version validation (MISSING_STATE_VERSION + OUT_OF_SYNC), server-only action guard, two-player auto-start hand lifecycle, and idempotency. Frontend login -> menu -> quick-join -> /table/{id} flow renders correctly with WebSocket live state.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "WS hand_actions", "issue": "Spec calls for action_type 'TIMEOUT_AUTOSTAND' in hand_actions on turn timeout, but server stores 'AUTO_STAND_TIMEOUT' (intent type is reused as action_type in table_worker._process line ~182). Behavior is correct (STAND not FOLD); only the stored string differs from spec wording."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "WebSocket initial connect", "issue": "Console shows transient 'WebSocket is closed before the connection is established' warning on first navigation to /table/{id}; auto-reconnect then succeeds and STATE_UPDATE arrives correctly. Possible cause: ws.js connect() races with React StrictMode double-mount or initial token still hydrating. Cosmetic — does not break gameplay.", "affected_selectors": []}
+    ],
+    "design_issues": [
+      {"screen": "GamePage waiting state", "issues": ["When only 1 player is seated, footer shows 'WAITING' phase but the bottom betting panel area is mostly empty; could add a clearer 'Waiting for opponent' CTA."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_rest.py",
+    "/app/backend/tests/test_websocket.py",
+    "/app/backend/tests/pytest.ini",
+    "/app/test_reports/pytest/all_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Decide whether the action_type stored in hand_actions for auto-timeout should be renamed from 'AUTO_STAND_TIMEOUT' to 'TIMEOUT_AUTOSTAND' (per architecture v3.2 spec). One-line change in /app/backend/realtime/table_worker.py around line 182 — currently it uses intent['type'] verbatim.",
+    "(Optional) Investigate the brief WebSocket close-before-open warning on initial GamePage mount; could be eliminated by guarding createGameSocket against double-invocation under React StrictMode."
+  ],
+  "critical_code_review_comments": [
+    "ws_router.py uses asyncio.wait_for with timeout=120 on every receive — if a client is silent for 120s it will be force-closed even with valid PING/PONG happening every 25s. PING is 25s so this is fine, but the value is fragile if PING interval changes.",
+    "table_worker.py _process: client_action_id is only forwarded to wallet.mutate() for CALL/RAISE; STAND/HIT replays from same client_action_id are NOT idempotent at the reducer layer (they are only blocked by state_version mismatch on retry). Acceptable for MVP since state_version protects us, but worth documenting.",
+    "Worker registry _workers in /app/backend/realtime/table_worker.py is process-local — multi-instance backend scaling will require sticky table->worker routing or a Redis lock (already noted in spec as single-instance for MVP).",
+    "tables/service.create_table accepts unbounded 'name' length (max=40 via Pydantic OK) but no profanity / sanitization; minor.",
+    "auth/service.register: signup ledger entry uses account_type 'USER' with no matching counter-account row (single row, journal_id present). Spec says double-entry — for SIGNUP_BONUS the credit comes from house/treasury and there is no negative POT/HOUSE row. This is a journal asymmetry: the SIGNUP_BONUS journal_id has only one transaction row so sum != 0. Should be paired with a HOUSE/TREASURY negative entry to honor double-entry invariant."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py",
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/pytest.ini",
+    "/app/backend/tests/test_rest.py",
+    "/app/backend/tests/test_websocket.py"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% smoke (login, menu, quick-join, table render, WS connect)"},
+  "test_credentials": "player1@targetgame.app .. player4@targetgame.app / Target!2025 (verified). Also created several TEST_<rnd>@targetgame.app users during testing.",
+  "seed_data_creation": "No persistent seed needed; tests register fresh TEST_* users each run. The 4 standard players (player1..4) auto-register on first run via conftest if missing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests. Run with: `cd /app/backend/tests && REACT_APP_BACKEND_URL=https://target-poker.preview.emergentagent.com python -m pytest -v`. test_websocket.py exercises full DRAW->STAND->BETTING + 15s AUTO_STAND_TIMEOUT path. The 15s timeout test takes ~16s. Frontend external URL is https://target-poker.preview.emergentagent.com (NOT the one shown in original prompt). data-testid coverage is excellent (auth-form-login, auth-email/password/submit, play-btn, multiplayer-btn, balance-display, leave-table, game-top-bar, draw-deck, discard-pile, opponents-row, center-area, my-hand, game-bottom-bar). Special cards (2/10), lottery_pool collection, and multi-round betting are deferred per main agent note.",
+  "rca_of_the_issue": "N/A — no critical bugs. One minor naming discrepancy noted (AUTO_STAND_TIMEOUT vs TIMEOUT_AUTOSTAND) and one ledger asymmetry concern for SIGNUP_BONUS (no paired counter-account journal entry), but neither blocks v1 MVP."
+}
