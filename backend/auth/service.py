@@ -56,22 +56,37 @@ async def register(email: str, username: str, password: str) -> Dict[str, Any]:
     }
     await db.wallets.insert_one(wallet_doc)
 
-    # Signup bonus ledger entry
+    # Signup bonus ledger entry — double-entry: USER credit + HOUSE debit
     journal_id = f"j_{uuid.uuid4().hex[:20]}"
     tx_id = f"tx_{uuid.uuid4().hex[:20]}"
-    await db.transactions.insert_one({
-        "id": tx_id,
-        "journal_id": journal_id,
-        "user_id": user_id,
-        "account_type": "USER",
-        "amount": SIGNUP_BONUS,
-        "balance_after": SIGNUP_BONUS,
-        "reason": "SIGNUP_BONUS",
-        "ref_type": "SYSTEM",
-        "ref_id": None,
-        "idempotency_key_id": None,
-        "created_at": _now_iso(),
-    })
+    await db.transactions.insert_many([
+        {
+            "id": tx_id,
+            "journal_id": journal_id,
+            "user_id": user_id,
+            "account_type": "USER",
+            "amount": SIGNUP_BONUS,
+            "balance_after": SIGNUP_BONUS,
+            "reason": "SIGNUP_BONUS",
+            "ref_type": "SYSTEM",
+            "ref_id": None,
+            "idempotency_key_id": None,
+            "created_at": _now_iso(),
+        },
+        {
+            "id": f"tx_{uuid.uuid4().hex[:20]}",
+            "journal_id": journal_id,
+            "user_id": None,
+            "account_type": "HOUSE",
+            "amount": -SIGNUP_BONUS,
+            "balance_after": None,
+            "reason": "SIGNUP_BONUS",
+            "ref_type": "SYSTEM",
+            "ref_id": None,
+            "idempotency_key_id": None,
+            "created_at": _now_iso(),
+        },
+    ])
 
     token = create_token(user_id)
     return {

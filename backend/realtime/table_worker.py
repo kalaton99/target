@@ -172,6 +172,7 @@ class TableWorker:
         # Persist hand_action
         if self.state.hand_id:
             self.seq += 1
+            stored_action_type = "TIMEOUT_AUTOSTAND" if a_type == "AUTO_STAND_TIMEOUT" else a_type
             await db.hand_actions.insert_one({
                 "id": f"ha_{uuid.uuid4().hex[:20]}",
                 "hand_id": new_state.hand_id,
@@ -179,7 +180,7 @@ class TableWorker:
                 "table_id": self.table_id,
                 "user_id": intent.get("user_id"),
                 "seat_index": intent.get("seat_index"),
-                "action_type": a_type,
+                "action_type": stored_action_type,
                 "payload": intent.get("payload", {}),
                 "state_version_before": self.state.version,
                 "state_version_after": new_state.version,
