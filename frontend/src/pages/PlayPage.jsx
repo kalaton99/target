@@ -165,11 +165,13 @@ function PlayPage() {
           sv: m.state_version,
           phase: m.phase,
           pot: m.pot,
+          targetScore: m.target_score,
           currentTurnSeat: m.current_turn_seat,
           turnDeadlineMs: m.turn_deadline_ms,
           players: m.players || [],
           winners: m.winners || [],
           handNumber: m.hand_number || 0,
+          currentCallOwed: m.current_call_owed || 0,
         });
         return;
       }
@@ -227,6 +229,10 @@ function PlayPage() {
     view.phase === "DRAW" &&
     !me.busted &&
     !me.disqualified;
+  const myBettingTurn =
+    !!myPlayer &&
+    view.currentTurnSeat === myPlayer.seat &&
+    view.phase === "BETTING_R1";
 
   // ----- countdown -----
   const [now, setNow] = useState(Date.now());
@@ -278,6 +284,7 @@ function PlayPage() {
           <div className="flex items-center gap-2">
             <Pill testid="phase-pill" tone="gold">{view.phase || "—"}</Pill>
             <Pill testid="sv-pill">v{view.sv}</Pill>
+            <Pill tone="gold" testid="target-pill">TARGET {view.targetScore || "—"}</Pill>
             <Pill tone="gold" testid="pot-pill">POT {view.pot}</Pill>
             <Pill testid="ws-state-pill" tone={wsState === "open" ? "ok" : wsState === "error" ? "danger" : "default"}>
               WS {wsState}
@@ -366,7 +373,7 @@ function PlayPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <button
             data-testid="hit-btn"
             onClick={() => send("HIT")}
@@ -382,6 +389,30 @@ function PlayPage() {
             className="px-7 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
           >
             STAND
+          </button>
+          <button
+            data-testid="check-btn"
+            onClick={() => send("CHECK")}
+            disabled={!myBettingTurn || view.currentCallOwed > 0}
+            className="px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+          >
+            CHECK
+          </button>
+          <button
+            data-testid="call-btn"
+            onClick={() => send("CALL")}
+            disabled={!myBettingTurn || view.currentCallOwed === 0}
+            className="px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+          >
+            CALL {view.currentCallOwed > 0 ? `(${view.currentCallOwed})` : ""}
+          </button>
+          <button
+            data-testid="fold-btn"
+            onClick={() => send("FOLD")}
+            disabled={!myBettingTurn}
+            className="px-5 py-3 rounded-md border border-rose-700/60 text-rose-300 hover:bg-rose-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+          >
+            FOLD
           </button>
           {handFinished && (
             <button

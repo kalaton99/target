@@ -67,7 +67,7 @@ def _make_state(table_id: str = "t1") -> GameState:
 
 
 async def _start_hand(engine: TurnEngine) -> None:
-    """Drive the engine into DRAW phase via a server START_HAND intent."""
+    """Drive the engine into DRAW phase via START_HAND + auto-CHECKs."""
     await engine.submit({
         "type": "START_HAND",
         "source": "SERVER",
@@ -76,13 +76,27 @@ async def _start_hand(engine: TurnEngine) -> None:
         "server_seed": "0" * 64,
         "server_seed_hash": "h" * 64,
         "client_seeds": "",
+        "target_score": 30,
     })
-    # Wait for processing to complete.
+    # Wait until BETTING_R1 is set up.
+    deadline = asyncio.get_event_loop().time() + 2.0
+    while asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.005)
+        if engine.state.phase == "BETTING_R1":
+            break
+    # CHECK every player through BETTING_R1 → DRAW
     deadline = asyncio.get_event_loop().time() + 2.0
     while asyncio.get_event_loop().time() < deadline:
         await asyncio.sleep(0.005)
         if engine.state.phase == "DRAW":
             return
+        if engine.state.phase == "BETTING_R1" and engine.state.current_turn_seat is not None:
+            seat = engine.state.current_turn_seat
+            user = engine.state.players[seat].user_id
+            await engine.submit({
+                "type": "CHECK", "user_id": user, "source": "CLIENT",
+                "state_version": engine.state.version,
+            })
     raise AssertionError(f"engine did not reach DRAW: phase={engine.state.phase}")
 
 

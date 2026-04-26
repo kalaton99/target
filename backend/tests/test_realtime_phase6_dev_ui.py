@@ -70,7 +70,7 @@ class TestDevRouter:
         action_acked = False
 
         with client.websocket_connect(url) as ws:
-            for _ in range(20):
+            for _ in range(40):
                 m = ws.receive_json()
                 if m["type"] == "PING":
                     ws.send_json({"type": "PONG"})
@@ -85,24 +85,30 @@ class TestDevRouter:
                     for p in m["players"]:
                         assert "cards" not in p
                         assert "card_count" in p
-                    if m["phase"] == "DRAW" and not saw_my_turn_in_draw:
-                        my_seat = next(
-                            (p["seat"] for p in m["players"] if p["user_id"] == my_user_id),
-                            None,
-                        )
-                        if my_seat is not None and m["current_turn_seat"] == my_seat:
-                            ws.send_json({
-                                "type": "STAND",
-                                "state_version": m["state_version"],
-                                "payload": {},
-                            })
-                            saw_my_turn_in_draw = True
+                    my_seat = next(
+                        (p["seat"] for p in m["players"] if p["user_id"] == my_user_id),
+                        None,
+                    )
+                    is_my_turn = my_seat is not None and m["current_turn_seat"] == my_seat
+                    if is_my_turn and m["phase"] == "BETTING_R1":
+                        ws.send_json({
+                            "type": "CHECK",
+                            "state_version": m["state_version"],
+                            "payload": {},
+                        })
+                    elif is_my_turn and m["phase"] == "DRAW" and not saw_my_turn_in_draw:
+                        ws.send_json({
+                            "type": "STAND",
+                            "state_version": m["state_version"],
+                            "payload": {},
+                        })
+                        saw_my_turn_in_draw = True
                     continue
                 if m["type"] == "PRIVATE_STATE":
                     seen_private = True
                     assert m["user_id"] == my_user_id
                     assert isinstance(m["cards"], list)
-                    if cards_for_me is None and len(m["cards"]) >= 2:
+                    if cards_for_me is None and len(m["cards"]) >= 1:
                         cards_for_me = list(m["cards"])
                     continue
                 if m["type"] == "ACTION_ACK":
@@ -114,5 +120,6 @@ class TestDevRouter:
         assert seen_state_update, "no STATE_UPDATE received"
         assert seen_private, "no PRIVATE_STATE received"
         assert saw_my_turn_in_draw, "never saw my own DRAW turn"
-        assert cards_for_me is not None and len(cards_for_me) >= 2
-        assert action_acked, "STAND was never acked"
+        # Initial deal is now exactly 1 card
+        assert cards_for_me is not None and len(cards_for_me) >= 1
+        assert action_acked, "no action was acked"

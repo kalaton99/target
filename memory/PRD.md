@@ -38,12 +38,29 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - **Persistence**: every action → MongoDB before broadcast
 
 ## Phase Progress (strict, sequential)
-- ✅ Phase 1 — Shared constants/types
-- ✅ Phase 2 — Pure game engine (deck, shuffle, draw, score, hit, stand) [33 tests]
-- ✅ Phase 3 — Turn engine + 15s `AUTO_STAND_TIMEOUT` [8 tests]
-- ✅ Phase 4 — Append-only event log + replay [12 tests]
+- ✅ Phase 1 — Shared constants/types (rewritten 2026-02 for TARGET v2)
+- ✅ Phase 2 — Pure game engine (rewritten 2026-02 for TARGET v2; 31 tests in `test_engine_target.py`)
+- ✅ Phase 3 — Turn engine + 15s `AUTO_STAND_TIMEOUT` (DRAW phase only)
+- ✅ Phase 4 — Append-only event log + replay (writer unchanged; event-log test fixtures need update for new phase order — backlog)
 - ✅ Phase 5 — Wallet/ledger durable WAL state machine [17 tests]
-- ✅ Phase 6 — Realtime WebSocket layer [31 tests] (2026-02 — `realtime_v2/`)
+- ✅ Phase 6 — Realtime WebSocket (gateway + bridge + dev UI)
+- ✅ TARGET v2 engine alignment (2026-02)
+   • Dynamic target: 30 / 50 / 100 / 250 (from table config)
+   • New phase order: ANTE → BETTING_R1 → DEAL_INITIAL → DRAW → SHOWDOWN → PAYOUT
+   • Initial deal: 1 card per player (NOT 2)
+   • 51% rule: ceil(0.51*X) call requirement on raises; max raise capped by lowest active wallet
+   • Stand-threshold lookup `{2:1, 3:2, 4:3, 5:3, 6:4, 7:4, 8:5}` + immediate showdown when all stood/busted/DQ/folded
+   • Special card 2 (Hearts/Clubs): manual transfer (PLAY_TWO) + auto bust-save (sends highest non-2 to opponent)
+   • Special card 10 (Hearts/Clubs): forced attack (PLAY_TEN) — sends chosen card to active opponent; 10 discarded
+   • Joker → instant DQ
+   • Scoring: 2-9 face value, 10=10, J=7, Q=8, K=9, Ace 1/11 adaptive
+   • All "21" branding removed from engine; legacy `TARGET_SCORE=21` shim retained for legacy modules
+- ✅ TARGET v2 UI alignment (2026-02 — `PlayPage.jsx`)
+   • Removed "21" branding; shows dynamic `TARGET 30` pill
+   • Added BETTING_R1 controls: CHECK / CALL (with owed amount) / FOLD
+   • HIT/STAND only enabled in DRAW phase
+   • Shows 1-card initial deal, opponent face-down + card_count
+   • Live verified: BETTING_R1 → CHECK → DEAL_INITIAL → DRAW → STAND → PAYOUT
    • Gatekeeper: per-user + per-IP caps (atomic acquire/release)
    • PubSub: topic broadcast with bounded queues + slow-consumer drop policy
    • Gateway: JWT/session bind, WELCOME w/ state_version, server-only rejection,

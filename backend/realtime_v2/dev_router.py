@@ -94,8 +94,9 @@ class _BotDriver:
                 await asyncio.sleep(0.5)
                 if phase == "DRAW":
                     action = "STAND"
-                elif phase == "BETTING":
-                    action = "CHECK" if msg.get("current_bet", 0) == 0 else "FOLD"
+                elif phase == "BETTING_R1":
+                    # CHECK if no call owed; otherwise CALL (or auto-fold if can't pay)
+                    action = "CHECK" if msg.get("current_call_owed", 0) == 0 else "CALL"
                 else:
                     continue
                 try:
@@ -152,6 +153,7 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
             "server_seed": "0" * 64,
             "server_seed_hash": "h" * 64,
             "client_seeds": "",
+            "target_score": 30,
         })
 
         token = create_token(user_id)

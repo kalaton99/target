@@ -1,4 +1,4 @@
-"""TARGET hand scoring.
+"""TARGET hand scoring (target-parametric).
 
 Card values:
   Number 2..9 = face value
@@ -6,42 +6,39 @@ Card values:
   J            = 7
   Q            = 8
   K            = 9
-  Ace          = 1 or 11 (auto-resolved best non-bust)
+  Ace          = 1 or 11 (auto-resolved to highest non-bust value)
   Joker        = instant DISQUALIFICATION
-"""
-from typing import List, Dict, Any
 
-FACE_VALUES = {"J": 7, "Q": 8, "K": 9}
-TARGET = 21
+`target` is per-table (30 / 50 / 100 / 250) and must be passed explicitly.
+"""
+from typing import Any, Dict, List
+
+from core.constants import FACE_VALUES
 
 
 def card_base_value(rank: str) -> int:
     if rank == "JOKER":
         return 0
     if rank == "A":
-        return 1  # base; treated as 11 if upgrade fits
+        return 1  # base; promoted to 11 if it doesn't bust
     if rank in FACE_VALUES:
         return FACE_VALUES[rank]
     return int(rank)
 
 
-def score_hand(cards: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Returns dict: {total, soft, busted, disqualified}.
-
-    cards: list of {"rank":..., "suit":...} dicts.
-    """
+def score_hand(cards: List[Dict[str, Any]], target: int) -> Dict[str, Any]:
+    """Returns {total, soft, busted, disqualified} — relative to `target`."""
     if any(c["rank"] == "JOKER" for c in cards):
         return {"total": 0, "soft": False, "busted": False, "disqualified": True}
 
     total = sum(card_base_value(c["rank"]) for c in cards)
     aces = sum(1 for c in cards if c["rank"] == "A")
 
-    # Promote Aces 1 -> 11 (delta +10 each) while not busting
     soft = False
-    while aces > 0 and total + 10 <= TARGET:
+    while aces > 0 and total + 10 <= target:
         total += 10
         aces -= 1
         soft = True
 
-    busted = total > TARGET
+    busted = total > target
     return {"total": total, "soft": soft, "busted": busted, "disqualified": False}

@@ -52,11 +52,13 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
         "phase": state.phase,
         "hand_id": state.hand_id,
         "hand_number": state.hand_number,
+        "target_score": state.target_score,
         "current_turn_seat": state.current_turn_seat,
         "turn_started_at_ms": state.turn_started_at_ms,
         "turn_deadline_ms": state.turn_deadline_ms,
         "pot": state.pot,
-        "current_bet": state.current_bet,
+        "current_call_owed": state.current_call_owed,
+        "last_raise_amount": state.last_raise_amount,
         "winners": list(state.winners),
         "players": [
             {
@@ -67,6 +69,7 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
                 "soft": p.soft,
                 "current_bet": p.current_bet,
                 "total_contributed": p.total_contributed,
+                "available_balance": p.available_balance(),
                 "card_count": len(p.cards),
                 "busted": p.busted,
                 "stood": p.stood,
