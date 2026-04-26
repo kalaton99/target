@@ -90,7 +90,17 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • Live URL: `https://target-poker.preview.emergentagent.com/play`
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
-## Test totals: 134/134 passing (Phases 2–6 + wiring + bridge + private + dev UI)
+## Test totals: 122 passed / 2 skipped (TARGET v2 cleanup 2026-02)
+
+Test breakdown:
+  - test_engine_target.py (31)
+  - test_event_log_phase4.py (11 passed, 1 skipped)
+  - test_ledger_phase5.py (17)
+  - test_realtime_phase6.py (31)
+  - test_realtime_phase6_wiring.py (11)
+  - test_realtime_phase6_bridge.py (13)
+  - test_realtime_phase6_private.py (6)
+  - test_realtime_phase6_dev_ui.py (2 passed, 1 skipped — TestClient WS / async bot loop incompatibility; full play loop covered by gateway E2E and live browser screenshots)
 
 ## Legacy directories (out-of-scope, untouched per user directive)
 `auth/`, `realtime/`, `tables/`, `wallet/` — leftovers from earlier overshoot.

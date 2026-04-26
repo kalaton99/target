@@ -6,11 +6,7 @@ No fixed `21` target anymore — target_score is per-table from a fixed set.
 # ---------- Turn timing ----------
 TURN_TIMEOUT_MS = 15000          # 15 seconds, hard
 TURN_TIMEOUT_REASON = "TURN_TIMEOUT_15S"
-# ---------- Legacy compatibility (do not use in new code) ----------
-# Pre-2026-02 fixed-target shim — kept so legacy `tables/`, `realtime/`,
-# `wallet/` modules continue to import. New engine ignores this entirely.
-TARGET_SCORE = 21
-TIMEOUT_GRACE_MS = 500
+TIMEOUT_GRACE_MS = 500           # network jitter tolerance
 
 # ---------- Game rules ----------
 VALID_TARGET_SCORES = (30, 50, 100, 250)

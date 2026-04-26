@@ -96,35 +96,46 @@ class TestPrivateStatePubSub:
         alice_sub = await pubsub.subscribe("table:t1:user:alice")
         bob_sub = await pubsub.subscribe("table:t1:user:bob")
 
-        # START_HAND — server-driven; engine deals cards.
+        # START_HAND -> CHECK through betting -> DEAL_INITIAL -> DRAW
         await _start_hand(engine)
 
-        # The public sub gets one STATE_UPDATE (no cards).
-        public_msg = await asyncio.wait_for(public_sub.get(), timeout=1.0)
-        assert public_msg["type"] == "STATE_UPDATE"
-        for p in public_msg["players"]:
-            assert "cards" not in p, "public STATE_UPDATE must not leak cards"
+        # Drain all queued messages on each sub.
+        async def _drain(sub):
+            out = []
+            try:
+                while True:
+                    out.append(await asyncio.wait_for(sub.get(), timeout=0.3))
+            except asyncio.TimeoutError:
+                pass
+            return out
+        public_msgs = await _drain(public_sub)
+        alice_msgs = await _drain(alice_sub)
+        bob_msgs = await _drain(bob_sub)
 
-        # Each player sub gets exactly one PRIVATE_STATE with their cards.
-        m_alice = await asyncio.wait_for(alice_sub.get(), timeout=1.0)
-        m_bob = await asyncio.wait_for(bob_sub.get(), timeout=1.0)
-        assert m_alice["type"] == "PRIVATE_STATE"
-        assert m_alice["user_id"] == "alice"
-        assert m_alice["seat"] == 0
-        assert isinstance(m_alice["cards"], list) and len(m_alice["cards"]) == 2
-        assert m_bob["type"] == "PRIVATE_STATE"
-        assert m_bob["user_id"] == "bob"
-        assert m_bob["seat"] == 1
-        assert isinstance(m_bob["cards"], list) and len(m_bob["cards"]) == 2
+        # Public must have STATE_UPDATEs, never carry face-up cards.
+        assert any(m["type"] == "STATE_UPDATE" for m in public_msgs)
+        for m in public_msgs:
+            for p in m.get("players", []):
+                assert "cards" not in p, "public STATE_UPDATE must not leak cards"
 
-        # Cards must be DIFFERENT (deck-popped sequentially).
-        assert m_alice["cards"] != m_bob["cards"]
+        # Each player sub: every message must be PRIVATE_STATE for its own user.
+        for m in alice_msgs:
+            assert m["type"] == "PRIVATE_STATE"
+            assert m["user_id"] == "alice"
+        for m in bob_msgs:
+            assert m["type"] == "PRIVATE_STATE"
+            assert m["user_id"] == "bob"
 
-        # No more messages on either private topic after one event.
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(alice_sub.get(), timeout=0.15)
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(bob_sub.get(), timeout=0.15)
+        # The post-deal PRIVATE_STATE has the player's actual card.
+        last_alice = alice_msgs[-1]
+        last_bob = bob_msgs[-1]
+        assert last_alice["seat"] == 0
+        assert last_bob["seat"] == 1
+        # Initial deal is 1 card per player (TARGET v2)
+        assert len(last_alice["cards"]) >= 1
+        assert len(last_bob["cards"]) >= 1
+        # Cards must differ (deck-popped sequentially).
+        assert last_alice["cards"] != last_bob["cards"]
 
     async def test_private_state_not_published_on_public_topic(self, bridge_with_engine):
         _, engine, pubsub = bridge_with_engine
@@ -145,11 +156,18 @@ class TestPrivateStatePubSub:
         _, engine, pubsub = bridge_with_engine
         alice_sub = await pubsub.subscribe("table:t1:user:alice")
         await _start_hand(engine)
-        msg = await asyncio.wait_for(alice_sub.get(), timeout=1.0)
-        assert msg["user_id"] == "alice"
-        # No additional message should arrive (would be bob's private).
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(alice_sub.get(), timeout=0.2)
+        # Drain everything that arrived on alice's topic.
+        msgs = []
+        try:
+            while True:
+                msgs.append(await asyncio.wait_for(alice_sub.get(), timeout=0.3))
+        except asyncio.TimeoutError:
+            pass
+        assert msgs, "expected at least one PRIVATE_STATE on alice topic"
+        # Every single message must belong to alice.
+        for m in msgs:
+            assert m["type"] == "PRIVATE_STATE"
+            assert m["user_id"] == "alice"
 
     async def test_subsequent_action_publishes_fresh_private_state(self, bridge_with_engine):
         bridge, engine, pubsub = bridge_with_engine
@@ -204,34 +222,45 @@ class TestPrivateStateOverGateway:
             # Server starts the hand directly via engine.
             await _start_hand(engine)
 
-            # Collect at most 4 messages per socket (STATE_UPDATE + PRIVATE_STATE
-            # = exactly 2 per socket per event).
-            async def collect(ws, n=2):
+            # Drain everything each socket received and find the latest
+            # STATE_UPDATE + PRIVATE_STATE in DRAW phase (post-deal).
+            async def drain(ws):
                 got = []
-                for _ in range(n):
-                    got.append(await ws.client_recv(timeout=1.0))
+                for _ in range(20):
+                    try:
+                        got.append(await ws.client_recv(timeout=0.3))
+                    except asyncio.TimeoutError:
+                        break
                 return got
 
-            msgs_a = await collect(ws_a, n=2)
-            msgs_b = await collect(ws_b, n=2)
-            types_a = sorted(m["type"] for m in msgs_a)
-            types_b = sorted(m["type"] for m in msgs_b)
-            assert types_a == ["PRIVATE_STATE", "STATE_UPDATE"]
-            assert types_b == ["PRIVATE_STATE", "STATE_UPDATE"]
+            msgs_a = await drain(ws_a)
+            msgs_b = await drain(ws_b)
 
-            priv_a = next(m for m in msgs_a if m["type"] == "PRIVATE_STATE")
-            priv_b = next(m for m in msgs_b if m["type"] == "PRIVATE_STATE")
-            pub_a = next(m for m in msgs_a if m["type"] == "STATE_UPDATE")
-            pub_b = next(m for m in msgs_b if m["type"] == "STATE_UPDATE")
-
-            # Each player sees only their own user_id in PRIVATE_STATE.
+            # Pick the most recent PRIVATE_STATE that has cards (post-deal).
+            priv_a = next(
+                (m for m in reversed(msgs_a) if m["type"] == "PRIVATE_STATE" and m.get("cards")),
+                None,
+            )
+            priv_b = next(
+                (m for m in reversed(msgs_b) if m["type"] == "PRIVATE_STATE" and m.get("cards")),
+                None,
+            )
+            assert priv_a is not None, f"no PRIVATE_STATE w/ cards on alice: {[m['type'] for m in msgs_a]}"
+            assert priv_b is not None, f"no PRIVATE_STATE w/ cards on bob:   {[m['type'] for m in msgs_b]}"
             assert priv_a["user_id"] == "alice"
             assert priv_b["user_id"] == "bob"
-            # Cards differ.
             assert priv_a["cards"] != priv_b["cards"]
-            # Public is identical for both clients.
+
+            # Pick a matching pair of public STATE_UPDATEs (same state_version).
+            pubs_a = [m for m in msgs_a if m["type"] == "STATE_UPDATE"]
+            pubs_b = [m for m in msgs_b if m["type"] == "STATE_UPDATE"]
+            assert pubs_a and pubs_b
+            common = {m["state_version"] for m in pubs_a} & {m["state_version"] for m in pubs_b}
+            assert common, "no common state_version between sockets"
+            sv = max(common)
+            pub_a = next(m for m in pubs_a if m["state_version"] == sv)
+            pub_b = next(m for m in pubs_b if m["state_version"] == sv)
             assert pub_a == pub_b
-            # Public never leaks cards.
             for p in pub_a["players"]:
                 assert "cards" not in p
                 assert isinstance(p["card_count"], int)

@@ -187,7 +187,7 @@ class TestWriterContract:
         s1 = await _apply_and_log(writer, s1, _start_hand_intent(h1), h1, s1.table_id)
         s2 = await _apply_and_log(writer, s2, _start_hand_intent(h2), h2, s2.table_id)
         s2 = await _apply_and_log(writer, s2, {
-            "type": "STAND", "user_id": "u0", "source": "CLIENT",
+            "type": "CHECK", "user_id": "u0", "source": "CLIENT",
             "state_version": s2.version, "client_action_id": "x",
         }, h2, s2.table_id)
         d1 = await writer.list_for_hand(h1)
@@ -317,28 +317,30 @@ class TestReplay:
 
     @pytest.mark.asyncio
     async def test_replay_rebuilds_identical_state(self, writer):
-        """Run a full DRAW->BETTING->SHOWDOWN sequence; replay from a fresh
+        """Run a full BETTING_R1 -> DRAW -> SHOWDOWN sequence; replay from a fresh
         initial state and assert every deterministic field matches.
         """
         hand_id = f"h_{uuid.uuid4().hex[:8]}"
         s_initial = _initial_state()
         s = s_initial
         s = await _apply_and_log(writer, s, _start_hand_intent(hand_id), hand_id, s.table_id)
-        # Both players stand
-        s = await _apply_and_log(writer, s, {
-            "type": "STAND", "user_id": "u0", "source": "CLIENT",
-            "state_version": s.version, "client_action_id": "ca-stand-0",
-        }, hand_id, s.table_id)
-        s = await _apply_and_log(writer, s, {
-            "type": "STAND", "user_id": "u1", "source": "CLIENT",
-            "state_version": s.version, "client_action_id": "ca-stand-1",
-        }, hand_id, s.table_id)
-        # Now in BETTING phase. With the Phase-2 single-round reducer,
-        # one CHECK with all bets matched ends the round and goes to PAYOUT.
+        # BETTING_R1: both players CHECK -> DRAW
         s = await _apply_and_log(writer, s, {
             "type": "CHECK", "user_id": "u0", "source": "CLIENT",
             "state_version": s.version, "client_action_id": "ca-check-0",
         }, hand_id, s.table_id)
+        s = await _apply_and_log(writer, s, {
+            "type": "CHECK", "user_id": "u1", "source": "CLIENT",
+            "state_version": s.version, "client_action_id": "ca-check-1",
+        }, hand_id, s.table_id)
+        # DRAW: with 2 players, threshold=1 -> first STAND -> SHOWDOWN
+        if s.phase == "DRAW":
+            seat = s.current_turn_seat
+            user = s.players[seat].user_id
+            s = await _apply_and_log(writer, s, {
+                "type": "STAND", "user_id": user, "source": "CLIENT",
+                "state_version": s.version, "client_action_id": "ca-stand-0",
+            }, hand_id, s.table_id)
 
         # ---- replay ----
         docs = await writer.list_for_hand(hand_id)

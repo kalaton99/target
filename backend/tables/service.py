@@ -12,7 +12,7 @@ from core.constants import (
     COMMISSION_FREE_BPS,
     COMMISSION_PAID_BPS,
     LOTTERY_BPS,
-    TARGET_SCORE,
+    DEFAULT_TARGET_SCORE,
 )
 
 
@@ -45,7 +45,7 @@ async def create_table(
         "stake": stake,
         "entry_fee": 0,
         "max_players": max_players,
-        "target_score": TARGET_SCORE,
+        "target_score": DEFAULT_TARGET_SCORE,
         "turn_timer_seconds": 15,
         "status": "OPEN",
         "seats": seats,

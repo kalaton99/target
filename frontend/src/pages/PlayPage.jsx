@@ -253,7 +253,7 @@ function PlayPage() {
         <div className="max-w-xl w-full text-center">
           <div className="text-yellow-400/90 tracking-[0.5em] text-xs uppercase mb-3">TARGET</div>
           <div className="text-4xl sm:text-5xl font-bold tracking-widest text-zinc-100 mb-2">
-            <span className="text-yellow-400">▲</span> 21
+            <span className="text-yellow-400">▲</span> reach the target
           </div>
           <p className="text-zinc-500 text-sm mb-10">
             Server-authoritative card game. Click <span className="text-yellow-400">PLAY</span> to deal a hand against a bot.
