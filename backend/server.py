@@ -19,7 +19,9 @@ from wallet.router import router as wallet_router
 from tables.router import router as tables_router
 from realtime.ws_router import ws_router
 from realtime import table_worker
-from realtime_v2.asgi import build_v2_router
+from realtime_v2.asgi import RealtimeV2
+from realtime_v2.bridge import EngineBridge
+from realtime_v2.pubsub import PubSub as _V2PubSub
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -48,10 +50,9 @@ api_router.include_router(ws_router)  # WS endpoint at /api/ws/table/{id}
 # ----------------------------------------------------------------------
 # Phase 6 — realtime_v2 wiring (additive, legacy ws_router untouched).
 #
-# The gateway is transport-only. State-version and action-handler are
-# stubbed here; engine integration is deferred to a later phase per the
-# strict phase plan. Authentication reuses the existing JWT decoder
-# (we do not write new auth code in this phase).
+# Engine ↔ Realtime bridge is mounted: `EngineBridge` owns the pubsub-
+# bound TurnEngine registry. Authentication reuses the existing JWT
+# decoder (we do not write new auth code in this phase).
 # ----------------------------------------------------------------------
 async def _v2_authenticate(token: str):
     if not token:
@@ -62,23 +63,26 @@ async def _v2_authenticate(token: str):
         return None
 
 
-async def _v2_get_state_version(table_id: str):
-    # Stub: any table appears at version 0 until engine is wired.
-    # Returning None would emit TABLE_NOT_FOUND to the client.
-    return 0
+_v2_pubsub = _V2PubSub()
+engine_bridge = EngineBridge(_v2_pubsub)
 
 
-async def _v2_handle_action(table_id, user_id, action, payload, sv):
-    # Stub: engine not yet wired in this phase.
-    return {"accepted": False, "reason": "ENGINE_NOT_WIRED"}
-
-
-v2_router = build_v2_router(
+_v2_realtime = RealtimeV2(
     authenticate=_v2_authenticate,
-    get_state_version=_v2_get_state_version,
-    handle_action=_v2_handle_action,
+    get_state_version=engine_bridge.get_state_version,
+    handle_action=engine_bridge.handle_action,
 )
+# Replace the asgi-built pubsub with the bridge's pubsub so the gateway
+# and bridge share the same broadcast bus.
+_v2_realtime.pubsub = _v2_pubsub
+_v2_realtime.gateway._ps = _v2_pubsub  # type: ignore[attr-defined]
+v2_router = _v2_realtime.build_router()
+v2_router.realtime_v2 = _v2_realtime  # type: ignore[attr-defined]
 api_router.include_router(v2_router)
+
+# Expose for tests / future engine-spawning code.
+app.state.engine_bridge = engine_bridge  # type: ignore[attr-defined]
+app.state.v2_pubsub = _v2_pubsub  # type: ignore[attr-defined]
 
 app.include_router(api_router)
 

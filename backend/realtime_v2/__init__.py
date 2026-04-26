@@ -15,6 +15,7 @@ authorizes Phase 11 / app-wiring).
 from .gatekeeper import Gatekeeper, UserCapExceeded, IpCapExceeded, GatekeeperError  # noqa: F401
 from .pubsub import PubSub  # noqa: F401
 from .gateway import WebSocketGateway, WebSocketLike  # noqa: F401
+from .bridge import EngineBridge  # noqa: F401
 from .protocol import (  # noqa: F401
     CLIENT_ACTIONS,
     SERVER_ONLY_TYPES,

@@ -63,7 +63,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
-## Test totals: 112/112 passing (Phases 2–6 + wiring)
+## Test totals: 125/125 passing (Phases 2–6 + wiring + bridge)
 
 ## Legacy directories (out-of-scope, untouched per user directive)
 `auth/`, `realtime/`, `tables/`, `wallet/` — leftovers from earlier overshoot.
@@ -118,6 +118,19 @@ lives in `realtime_v2/` to keep the legacy untouched.
 - Lottery pool persistence (commission split is computed; pool not yet stored)
 
 ### P2 (per architecture v3.2)
+- Telegram linking + notifications + wallet bridge
+- Web3 deposit / withdrawal pipeline
+- Reward points ledger + granter
+- Token claim boundary (compliance-gated, disabled by default)
+- Compliance flags + admin kill switch
+- Anti-collusion logging
+- Worker heartbeat + supervisor (single-instance MVP — not strictly needed yet)
+
+## Next Action Items
+1. Run testing_agent_v3 to validate full backend + frontend e2e
+2. Address any P0 issues uncovered
+3. Iterate on UI polish per actual gameplay feel
+# P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
 - Reward points ledger + granter
