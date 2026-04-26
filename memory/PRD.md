@@ -61,6 +61,16 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ⬜ Phase 9  — Reward points ledger
 - ⬜ Phase 10 — Future token claim boundary
 - ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
+- ✅ Phase 11 MVP — Browser-playable React `/play` (2026-02 — `frontend/src/pages/PlayPage.jsx`)
+   • Landing screen with noir PLAY button; legacy routes untouched
+   • Click PLAY → spawn_solo_table → WS connect → render WELCOME, STATE_UPDATE,
+     PRIVATE_STATE, ACTION_ACK, OUT_OF_SYNC, PING/PONG
+   • Shows own face-up cards, opponent face-down + card_count only, phase pill,
+     pot, state_version, WS state, current-turn highlight, countdown timer,
+     HIT/STAND buttons (enabled only on own turn in DRAW), "Deal again" after PAYOUT
+   • Live verified: `/play` → PLAY → A♠Q♦ score 19 soft → STAND → bot auto-STAND
+     → DRAW→BETTING → state_version 1→3
+   • Live URL: `https://target-poker.preview.emergentagent.com/play`
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
 ## Test totals: 134/134 passing (Phases 2–6 + wiring + bridge + private + dev UI)

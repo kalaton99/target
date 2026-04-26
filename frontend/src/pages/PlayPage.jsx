@@ -1,0 +1,418 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+// Phase 11 MVP — browser-playable hand against a server bot.
+//
+// Flow:
+//   1. PLAY → POST /api/v2/dev/spawn_solo_table  (anonymous JWT + 2-player engine)
+//   2. open WS /api/v2/ws/table/{id}?token=...
+//   3. consume WELCOME / STATE_UPDATE / PRIVATE_STATE / ACTION_ACK / OUT_OF_SYNC / PING
+//   4. user clicks HIT/STAND; bot auto-acts on its turn
+//   5. when phase advances past DRAW (BETTING/SHOWDOWN/PAYOUT), the hand is over —
+//      offer "Deal again" which spawns a fresh table.
+
+const TURN_TIMEOUT_MS = 15000;
+
+const SUIT_GLYPH = { H: "♥", D: "♦", S: "♠", C: "♣" };
+const SUIT_TONE = { H: "text-rose-400", D: "text-rose-400", S: "text-zinc-100", C: "text-zinc-100" };
+
+function rankLabel(rank) {
+  if (rank === "JK") return "JOKER";
+  return rank;
+}
+
+function CardChip({ card }) {
+  if (!card) return null;
+  const rank = rankLabel(card.rank);
+  const suit = SUIT_GLYPH[card.suit] || "";
+  const tone = SUIT_TONE[card.suit] || "text-zinc-100";
+  return (
+    <div
+      data-testid="my-card"
+      className="inline-flex flex-col items-center justify-between w-16 h-24 rounded-lg border border-yellow-700/40 bg-zinc-900/90 text-zinc-100 shadow-[inset_0_0_20px_rgba(0,0,0,.6)] mr-3"
+    >
+      <div className={`mt-1 text-lg font-semibold ${tone}`}>{rank}</div>
+      <div className={`mb-2 text-3xl ${tone}`}>{suit}</div>
+    </div>
+  );
+}
+
+function FaceDown() {
+  return (
+    <div className="inline-block w-12 h-16 rounded-md border border-zinc-600 bg-gradient-to-br from-zinc-800 to-zinc-950 mr-2" />
+  );
+}
+
+function Pill({ children, tone = "default", testid }) {
+  const cls =
+    tone === "gold"
+      ? "border-yellow-600/60 text-yellow-300"
+      : tone === "danger"
+      ? "border-rose-700/60 text-rose-300"
+      : tone === "ok"
+      ? "border-emerald-700/60 text-emerald-300"
+      : "border-zinc-700/60 text-zinc-300";
+  return (
+    <span data-testid={testid} className={`inline-block text-xs uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/40 ${cls}`}>
+      {children}
+    </span>
+  );
+}
+
+function PlayPage() {
+  const [session, setSession] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const [wsState, setWsState] = useState("idle"); // idle | connecting | open | closed | error
+  const [view, setView] = useState({
+    sv: 0,
+    phase: null,
+    pot: 0,
+    currentTurnSeat: null,
+    turnDeadlineMs: null,
+    players: [],
+    winners: [],
+    handNumber: 0,
+  });
+  const [me, setMe] = useState({
+    cards: [],
+    score: 0,
+    soft: false,
+    busted: false,
+    disqualified: false,
+  });
+  const [statusLine, setStatusLine] = useState("Ready");
+  const [log, setLog] = useState([]);
+  const wsRef = useRef(null);
+  const myUserIdRef = useRef(null);
+
+  const appendLog = useCallback((s) => {
+    setLog((cur) => [...cur.slice(-29), s]);
+  }, []);
+
+  // ----- spawn + connect -----
+  const startPlay = useCallback(async () => {
+    setConnecting(true);
+    setStatusLine("Spawning table…");
+    try {
+      const r = await fetch("/api/v2/dev/spawn_solo_table", { method: "POST" });
+      if (!r.ok) throw new Error("spawn failed " + r.status);
+      const data = await r.json();
+      myUserIdRef.current = data.user_id;
+      setSession(data);
+      setView((v) => ({
+        ...v,
+        sv: 0,
+        phase: null,
+        pot: 0,
+        currentTurnSeat: null,
+        turnDeadlineMs: null,
+        players: [],
+        winners: [],
+        handNumber: (v.handNumber || 0) + 1,
+      }));
+      setMe({ cards: [], score: 0, soft: false, busted: false, disqualified: false });
+      setLog([`spawned ${data.table_id}`]);
+      setStatusLine("Connecting…");
+    } catch (e) {
+      setStatusLine("ERROR: " + (e?.message || e));
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  // open WebSocket once we have a session
+  useEffect(() => {
+    if (!session) return;
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const url = `${scheme}://${window.location.host}/api/v2/ws/table/${encodeURIComponent(
+      session.table_id,
+    )}?token=${encodeURIComponent(session.token)}`;
+
+    setWsState("connecting");
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setWsState("open");
+      setStatusLine("Connected — dealing…");
+      appendLog("ws open");
+    };
+    ws.onclose = (e) => {
+      setWsState("closed");
+      appendLog(`ws close ${e.code}`);
+    };
+    ws.onerror = () => {
+      setWsState("error");
+      appendLog("ws error");
+    };
+    ws.onmessage = (ev) => {
+      let m;
+      try {
+        m = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (m.type === "PING") {
+        try { ws.send(JSON.stringify({ type: "PONG" })); } catch (_) {}
+        return;
+      }
+      appendLog(`← ${m.type}${m.state_version != null ? " v" + m.state_version : ""}`);
+      if (m.type === "WELCOME") {
+        setView((v) => ({ ...v, sv: m.state_version }));
+        return;
+      }
+      if (m.type === "STATE_UPDATE") {
+        setView({
+          sv: m.state_version,
+          phase: m.phase,
+          pot: m.pot,
+          currentTurnSeat: m.current_turn_seat,
+          turnDeadlineMs: m.turn_deadline_ms,
+          players: m.players || [],
+          winners: m.winners || [],
+          handNumber: m.hand_number || 0,
+        });
+        return;
+      }
+      if (m.type === "PRIVATE_STATE") {
+        setMe({
+          cards: m.cards || [],
+          score: m.score,
+          soft: !!m.soft,
+          busted: !!m.busted,
+          disqualified: !!m.disqualified,
+        });
+        return;
+      }
+      if (m.type === "ACTION_ACK") {
+        setStatusLine(`ACK ${m.action}`);
+        return;
+      }
+      if (m.type === "OUT_OF_SYNC") {
+        setView((v) => ({ ...v, sv: m.current_state_version }));
+        setStatusLine(`OUT_OF_SYNC → resync v${m.current_state_version}`);
+        return;
+      }
+      if (m.type === "ERROR") {
+        setStatusLine(`ERROR ${m.code}`);
+        return;
+      }
+    };
+
+    return () => {
+      try { ws.close(); } catch (_) {}
+    };
+  }, [session, appendLog]);
+
+  // ----- send action -----
+  const send = useCallback((action) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: action, state_version: view.sv, payload: {} }));
+    setStatusLine(`→ ${action} @ v${view.sv}`);
+  }, [view.sv]);
+
+  // ----- derived: it's my turn if I'm at current_turn_seat AND DRAW phase -----
+  const myUserId = session?.user_id;
+  const myPlayer = useMemo(
+    () => view.players.find((p) => p.user_id === myUserId),
+    [view.players, myUserId],
+  );
+  const opponents = useMemo(
+    () => view.players.filter((p) => p.user_id !== myUserId),
+    [view.players, myUserId],
+  );
+  const myTurn =
+    !!myPlayer &&
+    view.currentTurnSeat === myPlayer.seat &&
+    view.phase === "DRAW" &&
+    !me.busted &&
+    !me.disqualified;
+
+  // ----- countdown -----
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(id);
+  }, []);
+  const remainingMs = view.turnDeadlineMs ? Math.max(0, view.turnDeadlineMs - now) : null;
+  const timerPct = remainingMs == null ? 0 : Math.max(0, Math.min(100, (remainingMs / TURN_TIMEOUT_MS) * 100));
+
+  const handFinished =
+    view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
+
+  // ============ render ============
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
+        <div className="max-w-xl w-full text-center">
+          <div className="text-yellow-400/90 tracking-[0.5em] text-xs uppercase mb-3">TARGET</div>
+          <div className="text-4xl sm:text-5xl font-bold tracking-widest text-zinc-100 mb-2">
+            <span className="text-yellow-400">▲</span> 21
+          </div>
+          <p className="text-zinc-500 text-sm mb-10">
+            Server-authoritative card game. Click <span className="text-yellow-400">PLAY</span> to deal a hand against a bot.
+          </p>
+          <button
+            data-testid="play-btn"
+            onClick={startPlay}
+            disabled={connecting}
+            className="px-12 py-4 rounded-md border border-yellow-600/60 bg-yellow-500/10 text-yellow-300 tracking-[0.4em] uppercase hover:bg-yellow-500/20 disabled:opacity-40 transition"
+          >
+            {connecting ? "…" : "PLAY"}
+          </button>
+          <div className="mt-6 text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-zinc-100 p-4 sm:p-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — phase 11 mvp</div>
+            <div className="text-zinc-100 text-lg" data-testid="my-username">{session.username}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Pill testid="phase-pill" tone="gold">{view.phase || "—"}</Pill>
+            <Pill testid="sv-pill">v{view.sv}</Pill>
+            <Pill tone="gold" testid="pot-pill">POT {view.pot}</Pill>
+            <Pill testid="ws-state-pill" tone={wsState === "open" ? "ok" : wsState === "error" ? "danger" : "default"}>
+              WS {wsState}
+            </Pill>
+          </div>
+        </div>
+
+        {/* Opponents */}
+        <div className="mb-8" data-testid="opponents">
+          <div className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Opponents</div>
+          <div className="flex gap-4 flex-wrap">
+            {opponents.length === 0 && (
+              <div className="text-zinc-600 italic" data-testid="opponents-empty">waiting for opponents…</div>
+            )}
+            {opponents.map((p) => {
+              const isTurn = view.currentTurnSeat === p.seat;
+              return (
+                <div
+                  key={p.seat}
+                  data-testid={`opponent-seat-${p.seat}`}
+                  className={`min-w-[220px] rounded-lg border p-4 bg-zinc-900/60 ${isTurn ? "border-yellow-500" : "border-zinc-800"}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold">{p.username}</div>
+                    {isTurn && <Pill tone="gold">turn</Pill>}
+                  </div>
+                  <div className="flex items-center mb-2">
+                    {Array.from({ length: p.card_count }).map((_, i) => (
+                      <FaceDown key={i} />
+                    ))}
+                    {p.card_count === 0 && <span className="text-zinc-600 text-sm">no cards</span>}
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    <Pill testid={`opponent-${p.seat}-cardcount`}>cards: {p.card_count}</Pill>
+                    <Pill>score: {p.score}{p.soft ? " soft" : ""}</Pill>
+                    {p.busted && <Pill tone="danger">BUST</Pill>}
+                    {p.stood && <Pill tone="ok">STOOD</Pill>}
+                    {p.folded && <Pill tone="danger">FOLD</Pill>}
+                    {p.disqualified && <Pill tone="danger">DQ</Pill>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* My hand */}
+        <div className="mb-6" data-testid="my-hand">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-zinc-500 text-xs uppercase tracking-widest">Your hand</div>
+            <div className="flex items-center gap-2">
+              <Pill testid="my-score" tone="gold">score {me.score}{me.soft ? " soft" : ""}</Pill>
+              {me.busted && <Pill tone="danger">BUST</Pill>}
+              {me.disqualified && <Pill tone="danger">DQ</Pill>}
+              {myTurn && <Pill testid="your-turn-pill" tone="gold">YOUR TURN</Pill>}
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
+            {me.cards.length === 0 ? (
+              <div className="text-zinc-600 italic" data-testid="my-cards-empty">no cards yet…</div>
+            ) : (
+              <div className="flex" data-testid="my-cards">
+                {me.cards.map((c, i) => (
+                  <CardChip key={i} card={c} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Turn timer */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-zinc-500 text-xs uppercase tracking-widest">Turn timer</div>
+            <div className="text-zinc-400 text-xs" data-testid="timer-text">
+              {remainingMs == null ? "—" : `${Math.ceil(remainingMs / 1000)}s`}
+            </div>
+          </div>
+          <div className="h-1.5 rounded-full bg-zinc-900 overflow-hidden">
+            <div
+              data-testid="timer-bar"
+              className="h-full bg-yellow-500 transition-all"
+              style={{ width: `${timerPct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            data-testid="hit-btn"
+            onClick={() => send("HIT")}
+            disabled={!myTurn}
+            className="px-7 py-3 rounded-md border border-yellow-600/50 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+          >
+            HIT
+          </button>
+          <button
+            data-testid="stand-btn"
+            onClick={() => send("STAND")}
+            disabled={!myTurn}
+            className="px-7 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+          >
+            STAND
+          </button>
+          {handFinished && (
+            <button
+              data-testid="deal-again-btn"
+              onClick={startPlay}
+              className="px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.3em] uppercase"
+            >
+              Deal again
+            </button>
+          )}
+          <span className="ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
+        </div>
+
+        {/* Winners panel */}
+        {view.winners && view.winners.length > 0 && (
+          <div className="mb-4 rounded-md border border-yellow-700/40 bg-yellow-500/5 p-4" data-testid="winners">
+            <div className="text-yellow-400 uppercase tracking-widest text-sm mb-1">Winner{view.winners.length > 1 ? "s" : ""}</div>
+            <div className="text-zinc-100">{view.winners.join(", ")}</div>
+          </div>
+        )}
+
+        {/* Event log */}
+        <div className="rounded-md border border-zinc-800 bg-black/60 p-3">
+          <div className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">event log</div>
+          <pre className="text-zinc-400 text-[11px] leading-5 max-h-40 overflow-auto" data-testid="event-log">
+{log.join("\n")}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default PlayPage;
