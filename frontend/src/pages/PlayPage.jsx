@@ -117,7 +117,11 @@ function PlayPage() {
     }
   }, []);
 
-  // ----- lobby mode auto-connect -----
+  // ----- lobby mode: poll table status + auto-connect when RUNNING -----
+  const [lobbyTable, setLobbyTable] = useState(null);
+  const [lobbyUser, setLobbyUser] = useState(null);
+  const [starting, setStarting] = useState(false);
+
   useEffect(() => {
     if (!lobbyMode) return;
     let user = null;
@@ -130,15 +134,70 @@ function PlayPage() {
       setStatusLine("Not logged in — go to /lobby first");
       return;
     }
+    setLobbyUser(user);
     myUserIdRef.current = user.user_id;
-    setSession({
-      table_id: lobbyTableId,
-      token: user.token,
-      user_id: user.user_id,
-      username: user.username,
-    });
-    setStatusLine("Connecting…");
-  }, [lobbyMode, lobbyTableId]);
+
+    let cancelled = false;
+    let intervalId = null;
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}`);
+        if (!r.ok) {
+          setStatusLine("Table not found");
+          return;
+        }
+        const t = await r.json();
+        if (cancelled) return;
+        setLobbyTable(t);
+        if (t.status === "RUNNING" && !session) {
+          // Engine is running — open WS now (only once).
+          setSession({
+            table_id: lobbyTableId,
+            token: user.token,
+            user_id: user.user_id,
+            username: user.username,
+          });
+          setStatusLine("Connecting…");
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
+      } catch {
+        // network blip — retry on next tick
+      }
+    };
+
+    poll();
+    intervalId = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [lobbyMode, lobbyTableId, session]);
+
+  const startLobbyTable = useCallback(async () => {
+    if (!lobbyUser) return;
+    setStarting(true);
+    setStatusLine("Starting hand…");
+    try {
+      const r = await fetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}/start`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${lobbyUser.token}` },
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        setStatusLine("start failed: " + t);
+        return;
+      }
+      // Poll loop will pick up RUNNING and open WS.
+    } catch (e) {
+      setStatusLine("start error: " + (e?.message || e));
+    } finally {
+      setStarting(false);
+    }
+  }, [lobbyTableId, lobbyUser]);
 
   // open WebSocket once we have a session
   useEffect(() => {
