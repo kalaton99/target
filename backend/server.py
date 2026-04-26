@@ -23,6 +23,7 @@ from realtime_v2.asgi import RealtimeV2
 from realtime_v2.bridge import EngineBridge
 from realtime_v2.dev_router import build_dev_router
 from realtime_v2.pubsub import PubSub as _V2PubSub
+from lobby.router import build_lobby_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ v2_router = _v2_realtime.build_router()
 v2_router.realtime_v2 = _v2_realtime  # type: ignore[attr-defined]
 api_router.include_router(v2_router)
 api_router.include_router(build_dev_router(engine_bridge))
+api_router.include_router(build_lobby_router(engine_bridge))
 
 # Expose for tests / future engine-spawning code.
 app.state.engine_bridge = engine_bridge  # type: ignore[attr-defined]

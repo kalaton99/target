@@ -78,6 +78,14 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ⬜ Phase 9  — Reward points ledger
 - ⬜ Phase 10 — Future token claim boundary
 - ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
+- ✅ Phase 11 P2 — Real lobby + multi-user (2026-02 — `lobby/`)
+   • `backend/lobby/service.py` — Mongo-backed table CRUD + lightweight guest auth (username only)
+   • `backend/lobby/router.py` — `/api/v2/lobby/*` endpoints: `auth`, `me`, `tables`, `tables/{id}/{join,leave,start}`
+   • Engine spawn on START: real seats from lobby; if creator is alone, 1 bot is added as fallback so 2-player game runs; bot driver auto-CHECKs in BETTING_R1 and STANDs in DRAW
+   • `frontend/src/pages/LobbyPage.jsx` — login, create-table form (target 30/50/100/250, stake, min/max), live-refreshing table list, JOIN/ENTER/START controls
+   • `frontend/src/pages/PlayPage.jsx` — dual-mode: `/play` (dev solo via spawn_solo_table) and `/play/:tableId` (lobby mode using persisted token from localStorage)
+   • App routes: `/` → `/lobby`, `/play`, `/play/:tableId`
+   • 17/17 lobby tests pass against live backend including: 2 real users connect via WS to the same table and both receive `STATE_UPDATE` (`target_score=30`, 2 humans, no bot) + their own `PRIVATE_STATE`; solo START spawns bot fallback with bot user_id starting `u_bot_*`
 - ✅ Phase 11 MVP — Browser-playable React `/play` (2026-02 — `frontend/src/pages/PlayPage.jsx`)
    • Landing screen with noir PLAY button; legacy routes untouched
    • Click PLAY → spawn_solo_table → WS connect → render WELCOME, STATE_UPDATE,
@@ -90,7 +98,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • Live URL: `https://target-poker.preview.emergentagent.com/play`
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
-## Test totals: 122 passed / 2 skipped (TARGET v2 cleanup 2026-02)
+## Test totals: 139 passed / 2 skipped (incl. 17 live-backend lobby tests, 2026-02)
 
 Test breakdown:
   - test_engine_target.py (31)

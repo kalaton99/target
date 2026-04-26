@@ -8,6 +8,7 @@ import { MenuPage } from "@/pages/MenuPage";
 import { TablesPage } from "@/pages/TablesPage";
 import { GamePage } from "@/pages/GamePage";
 import PlayPage from "@/pages/PlayPage";
+import LobbyPage from "@/pages/LobbyPage";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -28,8 +29,10 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/play" replace />} />
+          <Route path="/" element={<Navigate to="/lobby" replace />} />
+          <Route path="/lobby" element={<LobbyPage />} />
           <Route path="/play" element={<PlayPage />} />
+          <Route path="/play/:tableId" element={<PlayPage />} />
           <Route path="/login" element={<PublicOnly><AuthPage mode="login" /></PublicOnly>} />
           <Route path="/register" element={<PublicOnly><AuthPage mode="register" /></PublicOnly>} />
           <Route path="/menu" element={<Protected><MenuPage /></Protected>} />

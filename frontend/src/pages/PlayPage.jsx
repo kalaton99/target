@@ -1,14 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 
-// Phase 11 MVP — browser-playable hand against a server bot.
-//
-// Flow:
-//   1. PLAY → POST /api/v2/dev/spawn_solo_table  (anonymous JWT + 2-player engine)
-//   2. open WS /api/v2/ws/table/{id}?token=...
-//   3. consume WELCOME / STATE_UPDATE / PRIVATE_STATE / ACTION_ACK / OUT_OF_SYNC / PING
-//   4. user clicks HIT/STAND; bot auto-acts on its turn
-//   5. when phase advances past DRAW (BETTING/SHOWDOWN/PAYOUT), the hand is over —
-//      offer "Deal again" which spawns a fresh table.
+// Phase 11 P2 — supports two modes:
+//   /play           → dev solo mode (POST /api/v2/dev/spawn_solo_table)
+//   /play/:tableId  → lobby mode (uses persisted token from /lobby; reuses
+//                     existing already-started table; no spawn)
 
 const TURN_TIMEOUT_MS = 15000;
 
@@ -59,6 +55,8 @@ function Pill({ children, tone = "default", testid }) {
 }
 
 function PlayPage() {
+  const { tableId: lobbyTableId } = useParams();
+  const lobbyMode = !!lobbyTableId;
   const [session, setSession] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [wsState, setWsState] = useState("idle"); // idle | connecting | open | closed | error
@@ -118,6 +116,29 @@ function PlayPage() {
       setConnecting(false);
     }
   }, []);
+
+  // ----- lobby mode auto-connect -----
+  useEffect(() => {
+    if (!lobbyMode) return;
+    let user = null;
+    try {
+      user = JSON.parse(localStorage.getItem("target_user") || "null");
+    } catch {
+      user = null;
+    }
+    if (!user || !user.token) {
+      setStatusLine("Not logged in — go to /lobby first");
+      return;
+    }
+    myUserIdRef.current = user.user_id;
+    setSession({
+      table_id: lobbyTableId,
+      token: user.token,
+      user_id: user.user_id,
+      username: user.username,
+    });
+    setStatusLine("Connecting…");
+  }, [lobbyMode, lobbyTableId]);
 
   // open WebSocket once we have a session
   useEffect(() => {
@@ -248,6 +269,24 @@ function PlayPage() {
 
   // ============ render ============
   if (!session) {
+    if (lobbyMode) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
+          <div className="text-center max-w-md">
+            <div className="text-yellow-400 mb-4">Not signed in</div>
+            <p className="text-zinc-500 mb-6 text-sm">You need to register a guest username at the lobby before joining a table.</p>
+            <a
+              data-testid="go-lobby-link"
+              href="/lobby"
+              className="inline-block px-7 py-3 rounded-md border border-yellow-600/60 text-yellow-300 hover:bg-yellow-500/10 tracking-[0.3em] uppercase"
+            >
+              Go to lobby
+            </a>
+            <div className="mt-4 text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
         <div className="max-w-xl w-full text-center">
@@ -256,16 +295,23 @@ function PlayPage() {
             <span className="text-yellow-400">▲</span> reach the target
           </div>
           <p className="text-zinc-500 text-sm mb-10">
-            Server-authoritative card game. Click <span className="text-yellow-400">PLAY</span> to deal a hand against a bot.
+            Server-authoritative card game. Click <span className="text-yellow-400">PLAY</span> for a quick game vs a bot, or visit the <a className="text-yellow-400 underline" href="/lobby">lobby</a> to play with friends.
           </p>
           <button
             data-testid="play-btn"
             onClick={startPlay}
             disabled={connecting}
-            className="px-12 py-4 rounded-md border border-yellow-600/60 bg-yellow-500/10 text-yellow-300 tracking-[0.4em] uppercase hover:bg-yellow-500/20 disabled:opacity-40 transition"
+            className="px-12 py-4 rounded-md border border-yellow-600/60 bg-yellow-500/10 text-yellow-300 tracking-[0.4em] uppercase hover:bg-yellow-500/20 disabled:opacity-40 transition mr-3"
           >
             {connecting ? "…" : "PLAY"}
           </button>
+          <a
+            data-testid="lobby-link"
+            href="/lobby"
+            className="inline-block px-12 py-4 rounded-md border border-zinc-600 text-zinc-200 tracking-[0.4em] uppercase hover:bg-zinc-200/10"
+          >
+            Lobby
+          </a>
           <div className="mt-6 text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
         </div>
       </div>
