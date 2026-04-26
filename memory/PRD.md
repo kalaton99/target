@@ -37,7 +37,33 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - **State**: in-memory per-table TableWorker + serial FIFO intent queue
 - **Persistence**: every action → MongoDB before broadcast
 
-## What's Been Implemented (2026-04-25)
+## Phase Progress (strict, sequential)
+- ✅ Phase 1 — Shared constants/types
+- ✅ Phase 2 — Pure game engine (deck, shuffle, draw, score, hit, stand) [33 tests]
+- ✅ Phase 3 — Turn engine + 15s `AUTO_STAND_TIMEOUT` [8 tests]
+- ✅ Phase 4 — Append-only event log + replay [12 tests]
+- ✅ Phase 5 — Wallet/ledger durable WAL state machine [17 tests]
+- ✅ Phase 6 — Realtime WebSocket layer [31 tests] (2026-02 — `realtime_v2/`)
+   • Gatekeeper: per-user + per-IP caps (atomic acquire/release)
+   • PubSub: topic broadcast with bounded queues + slow-consumer drop policy
+   • Gateway: JWT/session bind, WELCOME w/ state_version, server-only rejection,
+     state_version OUT_OF_SYNC, ping/pong heartbeat, disconnect cleanup
+   • Transport-agnostic (FastAPI WS or test fakes); not yet wired into `server.py`
+- ⬜ Phase 7  — Telegram link/notify boundary
+- ⬜ Phase 8  — Web3 deposit/withdraw boundary
+- ⬜ Phase 9  — Reward points ledger
+- ⬜ Phase 10 — Future token claim boundary
+- ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
+- ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
+
+## Test totals: 101/101 passing (Phases 2–6)
+
+## Legacy directories (out-of-scope, untouched per user directive)
+`auth/`, `realtime/`, `tables/`, `wallet/` — leftovers from earlier overshoot.
+Will be refactored or removed during Phase 11 (UI wiring). Phase 6 deliberately
+lives in `realtime_v2/` to keep the legacy untouched.
+
+## What's Been Implemented (legacy notes — pre-strict-phase build)
 
 ### Backend
 - ✅ Auth (JWT register/login/me) — bcrypt + pyjwt
