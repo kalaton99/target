@@ -60,6 +60,8 @@ ActionHandler = Callable[
     [str, str, str, Dict[str, Any], int],
     Awaitable[Dict[str, Any]],
 ]
+# Optional: (table_id, user_id) -> [catch-up messages] sent right after WELCOME
+SnapshotProvider = Callable[[str, str], list]
 
 
 # ---------- gateway ----------
@@ -75,6 +77,7 @@ class WebSocketGateway:
         authenticate: Authenticator,
         get_state_version: StateVersionProvider,
         handle_action: ActionHandler,
+        get_snapshot: Optional[SnapshotProvider] = None,
         ping_interval: float = 15.0,
         ping_timeout: float = 10.0,
     ) -> None:
@@ -83,6 +86,7 @@ class WebSocketGateway:
         self._authenticate = authenticate
         self._get_state_version = get_state_version
         self._handle_action = handle_action
+        self._get_snapshot = get_snapshot
         self._ping_interval = float(ping_interval)
         self._ping_timeout = float(ping_timeout)
 
@@ -112,8 +116,10 @@ class WebSocketGateway:
             await self._reject(ws, make_error("IP_CAP_EXCEEDED"))
             return
 
-        topic = f"table:{table_id}"
-        queue = await self._ps.subscribe(topic)
+        table_topic = f"table:{table_id}"
+        user_topic = f"table:{table_id}:user:{user_id}"
+        table_queue = await self._ps.subscribe(table_topic)
+        user_queue = await self._ps.subscribe(user_topic)
         accepted = False
         try:
             await ws.accept()
@@ -122,14 +128,28 @@ class WebSocketGateway:
             sv = await self._get_state_version(table_id)
             await ws.send_json(make_welcome(user_id, table_id, sv if sv is not None else 0))
 
+            # Send catch-up snapshot so the client receives the current
+            # state even if it connected after the most recent broadcast.
+            if self._get_snapshot is not None:
+                try:
+                    snap = self._get_snapshot(table_id, user_id) or []
+                except Exception:  # noqa: BLE001
+                    snap = []
+                for msg in snap:
+                    try:
+                        await ws.send_json(msg)
+                    except Exception:  # noqa: BLE001
+                        break
+
             await self._run_session(
                 ws=ws,
                 user_id=user_id,
                 table_id=table_id,
-                queue=queue,
+                queues=[table_queue, user_queue],
             )
         finally:
-            await self._ps.unsubscribe(topic, queue)
+            await self._ps.unsubscribe(table_topic, table_queue)
+            await self._ps.unsubscribe(user_topic, user_queue)
             await self._gk.release(slot_token)
             try:
                 if accepted:
@@ -156,12 +176,26 @@ class WebSocketGateway:
         ws: WebSocketLike,
         user_id: str,
         table_id: str,
-        queue: asyncio.Queue,
+        queues: list,
     ) -> None:
         loop = asyncio.get_event_loop()
         stop = asyncio.Event()
         # `last_pong` is a 1-element list so inner closures can mutate it.
         last_pong = [loop.time()]
+
+        # Fan-in: merge multiple subscription queues into one out-stream.
+        out_queue: asyncio.Queue = asyncio.Queue()
+
+        async def fan_in(src: asyncio.Queue) -> None:
+            try:
+                while not stop.is_set():
+                    try:
+                        msg = await src.get()
+                    except asyncio.CancelledError:
+                        return
+                    await out_queue.put(msg)
+            finally:
+                pass
 
         async def reader() -> None:
             try:
@@ -186,7 +220,7 @@ class WebSocketGateway:
             try:
                 while not stop.is_set():
                     try:
-                        message = await asyncio.wait_for(queue.get(), timeout=0.25)
+                        message = await asyncio.wait_for(out_queue.get(), timeout=0.25)
                     except asyncio.TimeoutError:
                         continue
                     try:
@@ -223,6 +257,8 @@ class WebSocketGateway:
             asyncio.create_task(writer(), name="ws_writer"),
             asyncio.create_task(heartbeat(), name="ws_heartbeat"),
         ]
+        for q in queues:
+            tasks.append(asyncio.create_task(fan_in(q), name="ws_fanin"))
         try:
             await stop.wait()
         finally:

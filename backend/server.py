@@ -21,6 +21,7 @@ from realtime.ws_router import ws_router
 from realtime import table_worker
 from realtime_v2.asgi import RealtimeV2
 from realtime_v2.bridge import EngineBridge
+from realtime_v2.dev_router import build_dev_router
 from realtime_v2.pubsub import PubSub as _V2PubSub
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -71,6 +72,7 @@ _v2_realtime = RealtimeV2(
     authenticate=_v2_authenticate,
     get_state_version=engine_bridge.get_state_version,
     handle_action=engine_bridge.handle_action,
+    get_snapshot=engine_bridge.snapshot,
 )
 # Replace the asgi-built pubsub with the bridge's pubsub so the gateway
 # and bridge share the same broadcast bus.
@@ -79,6 +81,7 @@ _v2_realtime.gateway._ps = _v2_pubsub  # type: ignore[attr-defined]
 v2_router = _v2_realtime.build_router()
 v2_router.realtime_v2 = _v2_realtime  # type: ignore[attr-defined]
 api_router.include_router(v2_router)
+api_router.include_router(build_dev_router(engine_bridge))
 
 # Expose for tests / future engine-spawning code.
 app.state.engine_bridge = engine_bridge  # type: ignore[attr-defined]

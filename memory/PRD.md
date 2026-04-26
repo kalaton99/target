@@ -63,7 +63,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
-## Test totals: 125/125 passing (Phases 2–6 + wiring + bridge)
+## Test totals: 134/134 passing (Phases 2–6 + wiring + bridge + private + dev UI)
 
 ## Legacy directories (out-of-scope, untouched per user directive)
 `auth/`, `realtime/`, `tables/`, `wallet/` — leftovers from earlier overshoot.

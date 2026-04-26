@@ -42,8 +42,8 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
     """Minimal, privacy-safe state snapshot for broadcast.
 
     Cards are NOT exposed in the broadcast (face-down for everyone). A
-    later phase can layer per-viewer views on top via dedicated unicast
-    messages — but the broadcast envelope itself stays public.
+    per-viewer PRIVATE_STATE message is sent separately to each player
+    on their dedicated `table:{id}:user:{user_id}` topic.
     """
     return {
         "type": "STATE_UPDATE",
@@ -80,6 +80,25 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
         ],
         "events": list(events),
         "last_action": state.last_action_summary,
+    }
+
+
+def _private_state_payload(table_id: str, state: GameState, player) -> Dict[str, Any]:
+    """Per-viewer private envelope. Carries the viewer's face-up cards
+    plus a tag binding it to a specific state_version for ordering with
+    public STATE_UPDATEs on the client side.
+    """
+    return {
+        "type": "PRIVATE_STATE",
+        "table_id": table_id,
+        "state_version": state.version,
+        "user_id": player.user_id,
+        "seat": player.seat_index,
+        "cards": list(player.cards),
+        "score": player.score,
+        "soft": player.soft,
+        "busted": player.busted,
+        "disqualified": player.disqualified,
     }
 
 
@@ -176,6 +195,24 @@ class EngineBridge:
     def has_engine(self, table_id: str) -> bool:
         return table_id in self._engines
 
+    def snapshot(self, table_id: str, user_id: str) -> List[Dict[str, Any]]:
+        """Return the catch-up messages a freshly-connecting client needs:
+            [public STATE_UPDATE,  PRIVATE_STATE for `user_id` if seated]
+
+        Empty list if the table has no engine. The list is safe to send
+        in order before any further pubsub broadcasts.
+        """
+        engine = self._engines.get(table_id)
+        if engine is None:
+            return []
+        state = engine.state
+        out: List[Dict[str, Any]] = [_public_state_payload(table_id, state, [])]
+        for p in state.players:
+            if p.user_id == user_id:
+                out.append(_private_state_payload(table_id, state, p))
+                break
+        return out
+
     # ---- gateway-facing callables ----
 
     async def get_state_version(self, table_id: str) -> Optional[int]:
@@ -222,5 +259,16 @@ class EngineBridge:
     async def _publish_state(
         self, table_id: str, state: GameState, events: List[Dict[str, Any]],
     ) -> None:
-        msg = _public_state_payload(table_id, state, events)
-        await self._pubsub.publish(f"table:{table_id}", msg)
+        # 1) Public broadcast — face-down cards for everyone.
+        public = _public_state_payload(table_id, state, events)
+        await self._pubsub.publish(f"table:{table_id}", public)
+
+        # 2) Per-viewer unicast — each player gets their own face-up cards
+        #    on their dedicated topic. No other player can subscribe to it.
+        for p in state.players:
+            if p.sitting_out:
+                continue
+            priv = _private_state_payload(table_id, state, p)
+            await self._pubsub.publish(
+                f"table:{table_id}:user:{p.user_id}", priv,
+            )

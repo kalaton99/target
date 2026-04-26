@@ -45,6 +45,7 @@ class RealtimeV2:
         authenticate: Authenticator,
         get_state_version: StateVersionProvider,
         handle_action: ActionHandler,
+        get_snapshot=None,
         max_per_user: int = 2,
         max_per_ip: int = 8,
         ping_interval: float = 15.0,
@@ -60,6 +61,7 @@ class RealtimeV2:
             authenticate=authenticate,
             get_state_version=get_state_version,
             handle_action=handle_action,
+            get_snapshot=get_snapshot,
             ping_interval=ping_interval,
             ping_timeout=ping_timeout,
         )
