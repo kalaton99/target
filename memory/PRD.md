@@ -48,7 +48,14 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • PubSub: topic broadcast with bounded queues + slow-consumer drop policy
    • Gateway: JWT/session bind, WELCOME w/ state_version, server-only rejection,
      state_version OUT_OF_SYNC, ping/pong heartbeat, disconnect cleanup
-   • Transport-agnostic (FastAPI WS or test fakes); not yet wired into `server.py`
+   • Transport-agnostic (FastAPI WS or test fakes)
+- ✅ Phase 6 — FastAPI wiring [11 tests] (2026-02 — `realtime_v2/asgi.py`)
+   • `build_v2_router()` mounts `/api/v2/ws/table/{id}?token=<jwt>` + `/api/v2/realtime/health`
+   • Wired into `server.py` additively (legacy `/api/ws/table/{id}` untouched)
+   • Real JWT decoding via existing `core.security.decode_token` (no new auth code)
+   • Engine integration is stubbed: state_version=0, action_handler returns
+     `{accepted: false, reason: "ENGINE_NOT_WIRED"}`
+   • Live verified at `https://target-poker.preview.emergentagent.com/api/v2/realtime/health`
 - ⬜ Phase 7  — Telegram link/notify boundary
 - ⬜ Phase 8  — Web3 deposit/withdraw boundary
 - ⬜ Phase 9  — Reward points ledger
@@ -56,7 +63,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ⬜ Phase 11 — Minimal UI (auth, menu, table, bet panel, timer)
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
-## Test totals: 101/101 passing (Phases 2–6)
+## Test totals: 112/112 passing (Phases 2–6 + wiring)
 
 ## Legacy directories (out-of-scope, untouched per user directive)
 `auth/`, `realtime/`, `tables/`, `wallet/` — leftovers from earlier overshoot.
