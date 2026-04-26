@@ -72,7 +72,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • Real JWT decoding via existing `core.security.decode_token` (no new auth code)
    • Engine integration is stubbed: state_version=0, action_handler returns
      `{accepted: false, reason: "ENGINE_NOT_WIRED"}`
-   • Live verified at `https://target-poker.preview.emergentagent.com/api/v2/realtime/health`
+   • Live verified at `https://gracious-raman-3.preview.emergentagent.com/api/v2/realtime/health`
 - ⬜ Phase 7  — Telegram link/notify boundary
 - ⬜ Phase 8  — Web3 deposit/withdraw boundary
 - ⬜ Phase 9  — Reward points ledger
@@ -95,7 +95,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
      HIT/STAND buttons (enabled only on own turn in DRAW), "Deal again" after PAYOUT
    • Live verified: `/play` → PLAY → A♠Q♦ score 19 soft → STAND → bot auto-STAND
      → DRAW→BETTING → state_version 1→3
-   • Live URL: `https://target-poker.preview.emergentagent.com/play`
+   • Live URL: `https://gracious-raman-3.preview.emergentagent.com/play`
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
 ## Test totals: 139 passed / 2 skipped (incl. 17 live-backend lobby tests, 2026-02)

@@ -26,7 +26,7 @@ from websockets.sync.client import connect as ws_connect
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://target-poker.preview.emergentagent.com",
+    "https://gracious-raman-3.preview.emergentagent.com",
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 WS_BASE = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")
