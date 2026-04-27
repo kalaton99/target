@@ -163,7 +163,11 @@ function PlayPage() {
         if (cancelled) return;
         if (r.status === 401) {
           // token expired or invalid → clear and bounce to lobby with msg
-          try { localStorage.removeItem("target_user"); } catch (_) {}
+          try {
+            localStorage.removeItem("target_user");
+          } catch (e) {
+            console.warn("PlayPage: failed to clear target_user from localStorage", e);
+          }
           setLobbyUser(null);
           setAuthChecked(true);
           navigate("/lobby?msg=session_expired", { replace: true });
@@ -218,8 +222,10 @@ function PlayPage() {
         } else if (t.status === "LOBBY") {
           setStatusLine("Waiting for players…");
         }
-      } catch {
-        // network blip — retry on next tick
+      } catch (e) {
+        // network blip — retry on next tick. Logged at debug level so the
+        // console isn't spammed during normal flaky polling.
+        console.debug("PlayPage: lobby table poll failed (will retry)", e);
       }
     };
 
@@ -282,11 +288,16 @@ function PlayPage() {
       let m;
       try {
         m = JSON.parse(ev.data);
-      } catch {
+      } catch (e) {
+        console.warn("PlayPage: malformed WS message dropped", e);
         return;
       }
       if (m.type === "PING") {
-        try { ws.send(JSON.stringify({ type: "PONG" })); } catch (_) {}
+        try {
+          ws.send(JSON.stringify({ type: "PONG" }));
+        } catch (e) {
+          console.warn("PlayPage: failed to send PONG", e);
+        }
         return;
       }
       appendLog(`← ${m.type}${m.state_version != null ? " v" + m.state_version : ""}`);
@@ -335,7 +346,11 @@ function PlayPage() {
     };
 
     return () => {
-      try { ws.close(); } catch (_) {}
+      try {
+        ws.close();
+      } catch (e) {
+        console.warn("PlayPage: error while closing WS on unmount", e);
+      }
     };
   }, [session, appendLog]);
 
@@ -584,7 +599,9 @@ function PlayPage() {
                   </div>
                   <div className="flex items-center mb-2">
                     {Array.from({ length: p.card_count }).map((_, i) => (
-                      <FaceDown key={i} />
+                      // Face-down placeholders have no inherent identity; the
+                      // composite key keeps it stable under seat changes.
+                      <FaceDown key={`facedown-${p.seat}-${i}`} />
                     ))}
                     {p.card_count === 0 && <span className="text-zinc-600 text-sm">no cards</span>}
                   </div>
@@ -619,7 +636,10 @@ function PlayPage() {
             ) : (
               <div className="flex" data-testid="my-cards">
                 {me.cards.map((c, i) => (
-                  <CardChip key={i} card={c} />
+                  // rank+suit is unique within a single hand (single deck);
+                  // index suffix is a defensive fallback in case the engine
+                  // ever deals from a multi-deck shoe.
+                  <CardChip key={`${c.rank}-${c.suit}-${i}`} card={c} />
                 ))}
               </div>
             )}

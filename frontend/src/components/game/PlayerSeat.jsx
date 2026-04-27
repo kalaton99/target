@@ -1,13 +1,34 @@
 import React from "react";
 import { PlayingCard } from "./PlayingCard";
 
+// --- helpers -------------------------------------------------------------
+// Extracted from inline nested-ternaries to keep the JSX readable.
+
+function panelClass(player, isCurrentTurn, isLocal) {
+  if (player.folded) return "panel-folded";
+  if (!isCurrentTurn) return "panel";
+  return isLocal ? "panel-active-self animate-pulse-cyan" : "panel-active-opponent";
+}
+
+function PlayerStatusBadge({ player }) {
+  if (player.folded) return <span className="text-red-target">FOLDED</span>;
+  if (player.busted) return <span className="text-red-target">BUST</span>;
+  if (player.disqualified) return <span className="text-red-target">DQ</span>;
+  if (player.stood) return <span className="text-cyan">STOOD</span>;
+  return <span className="text-green-target">ACTIVE</span>;
+}
+
+function shouldShowCardStack(player) {
+  // Either the local player has explicit cards, or any player has a non-zero
+  // card_count (face-down for opponents).
+  return (player.cards && player.cards.length > 0) || (player.card_count || 0) > 0;
+}
+
+// --- component -----------------------------------------------------------
+
 export function PlayerSeat({ player, isMe, isCurrentTurn, isLocal }) {
   if (!player) return null;
-  const stateClass = player.folded
-    ? "panel-folded"
-    : isCurrentTurn
-    ? (isLocal ? "panel-active-self animate-pulse-cyan" : "panel-active-opponent")
-    : "panel";
+  const stateClass = panelClass(player, isCurrentTurn, isLocal);
 
   return (
     <div className={`${stateClass} px-4 py-3 min-w-[180px]`} data-testid={`seat-${player.seat_index}`}>
@@ -20,24 +41,16 @@ export function PlayerSeat({ player, isMe, isCurrentTurn, isLocal }) {
             {player.username || `P${player.seat_index + 1}`}{isMe ? " (YOU)" : ""}
           </div>
           <div className="text-xs text-neutral-mid uppercase tracking-widest">
-            {player.folded ? <span className="text-red-target">FOLDED</span>
-              : player.busted ? <span className="text-red-target">BUST</span>
-              : player.disqualified ? <span className="text-red-target">DQ</span>
-              : player.stood ? <span className="text-cyan">STOOD</span>
-              : <span className="text-green-target">ACTIVE</span>}
+            <PlayerStatusBadge player={player} />
           </div>
         </div>
         {/* Card stack indicator */}
         <div className="relative w-10 h-12 flex items-end justify-end">
-          {player.cards && player.cards.length > 0 ? (
+          {shouldShowCardStack(player) && (
             <div className="absolute right-0 bottom-0 scale-50 origin-bottom-right">
               <PlayingCard faceDown />
             </div>
-          ) : player.card_count > 0 ? (
-            <div className="absolute right-0 bottom-0 scale-50 origin-bottom-right">
-              <PlayingCard faceDown />
-            </div>
-          ) : null}
+          )}
           <span className="absolute -bottom-1 -right-1 bg-black/80 border border-gold/50 text-gold text-[10px] font-num px-1 rounded">
             {(isMe ? player.cards?.length : player.card_count) || 0}
           </span>

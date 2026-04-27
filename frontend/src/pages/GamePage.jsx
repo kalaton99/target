@@ -61,7 +61,13 @@ export function GamePage() {
   };
 
   const leave = async () => {
-    try { await api.post(`/tables/${tableId}/leave`); } catch {}
+    try {
+      await api.post(`/tables/${tableId}/leave`);
+    } catch (e) {
+      // Best-effort leave; user is navigating away anyway. Surface so we
+      // can trace 401/network drops in dev tools.
+      console.warn("GamePage: leave-table call failed (proceeding anyway)", e);
+    }
     sockRef.current?.close();
     nav("/menu");
   };
@@ -136,7 +142,14 @@ export function GamePage() {
             {/* Hand */}
             <div className="flex gap-2 mt-4" data-testid="my-hand">
               {(me.cards || []).map((c, i) => (
-                <PlayingCard key={i} rank={c.rank} suit={c.suit} code={c.code} />
+                // Prefer the engine-provided card code (stable per-card id);
+                // fall back to rank+suit+index for older payloads.
+                <PlayingCard
+                  key={c.code || `${c.rank}-${c.suit}-${i}`}
+                  rank={c.rank}
+                  suit={c.suit}
+                  code={c.code}
+                />
               ))}
               {(me.cards?.length || 0) === 0 && (
                 <div className="text-neutral-mid font-luxe tracking-widest">NO CARDS</div>

@@ -1,5 +1,8 @@
 import axios from "axios";
 
+// MVP storage trade-off: legacy /auth/* endpoints keep the JWT in
+// localStorage["target_token"]. See /app/memory/THREAT_MODEL.md for the
+// full reasoning. Lobby flow uses localStorage["target_user"] (different key).
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 

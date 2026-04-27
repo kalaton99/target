@@ -1,5 +1,29 @@
 import React, { useEffect, useState } from "react";
 
+// --- helpers -------------------------------------------------------------
+// Extracted from inline ternaries to keep the JSX readable.
+
+function turnLabelText(secondsLeft) {
+  return `${secondsLeft}s`;
+}
+
+function turnLabelTone(secondsLeft) {
+  return secondsLeft <= 5 ? "text-red-target" : "text-cyan";
+}
+
+function turnBarTone(secondsLeft) {
+  return secondsLeft <= 5 ? "bg-red-500" : "bg-cyan-400";
+}
+
+function idlePhaseLabel(phase) {
+  switch (phase) {
+    case "WAITING": return "WAITING FOR PLAYERS...";
+    case "ENDED":   return "HAND COMPLETE";
+    case "PAYOUT":  return "PAYING OUT...";
+    default:        return "·";
+  }
+}
+
 /**
  * BettingPanel — renders FOLD / CALL / BET-RAISE controls.
  * Also renders HIT / STAND for DRAW phase.
@@ -39,11 +63,11 @@ export function BettingPanel({ phase, isMyTurn, currentBet, myBet, balance, minR
         <div className="mb-3" data-testid="turn-timer">
           <div className="flex justify-between text-[10px] uppercase tracking-widest text-neutral-mid">
             <span>Time</span>
-            <span className={secondsLeft <= 5 ? "text-red-target" : "text-cyan"}>{secondsLeft}s</span>
+            <span className={turnLabelTone(secondsLeft)}>{turnLabelText(secondsLeft)}</span>
           </div>
           <div className="h-1 bg-black rounded-full overflow-hidden mt-1">
             <div
-              className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? "bg-red-500" : "bg-cyan-400"}`}
+              className={`h-full transition-[width] duration-200 ${turnBarTone(secondsLeft)}`}
               style={{ width: `${Math.min(100, (secondsLeft / 15) * 100)}%` }}
             />
           </div>
@@ -100,10 +124,7 @@ export function BettingPanel({ phase, isMyTurn, currentBet, myBet, balance, minR
         </>
       ) : (
         <div className="text-center py-4 text-neutral-mid font-luxe tracking-widest" data-testid="phase-idle">
-          {phase === "WAITING" ? "WAITING FOR PLAYERS..." :
-           phase === "ENDED" ? "HAND COMPLETE" :
-           phase === "PAYOUT" ? "PAYING OUT..." :
-           "·"}
+          {idlePhaseLabel(phase)}
         </div>
       )}
     </div>
