@@ -179,9 +179,69 @@ Policy:
 }
 ```
 
+### Verified-correct hook deps (do not re-flag)
+
+The following hooks have been audited and are confirmed correct on the
+current commit. If a future audit re-flags them, the audit is wrong.
+
+| File                                              | Hook              | Deps                                               | Why correct                                                                                              |
+| ------------------------------------------------- | ----------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `frontend/src/pages/PlayPage.jsx`                 | `useEffect` (auth)| `[lobbyMode, navigate]`                            | Reads localStorage (browser global) + setters (stable). No reactive values omitted.                       |
+| `frontend/src/pages/PlayPage.jsx`                 | `useEffect` (poll)| `[lobbyMode, lobbyUser, lobbyTableId, session]`    | All reactive reads listed; `fetch` is a global.                                                          |
+| `frontend/src/pages/PlayPage.jsx`                 | `useEffect` (ws)  | `[session, appendLog]`                             | `appendLog` is `useCallback([])`; setters stable.                                                        |
+| `frontend/src/pages/PlayPage.jsx`                 | `useCallback` (`appendLog`) | `[]`                                     | Uses functional setter `setLog(prev => …)`; no reactive closures.                                        |
+| `frontend/src/pages/PlayPage.jsx`                 | `useCallback` (`startPlay`) | `[]`                                     | Only calls setters and `fetch`; no reactive closures.                                                    |
+| `frontend/src/pages/PlayPage.jsx`                 | `useCallback` (`startLobbyTable`) | `[lobbyTableId, lobbyUser]`        | Both reactive reads listed.                                                                              |
+| `frontend/src/pages/PlayPage.jsx`                 | `useCallback` (`send`) | `[view.sv]`                                   | Reads `view.sv` and `wsRef.current` (refs are stable).                                                   |
+| `frontend/src/pages/PlayPage.jsx`                 | `useMemo` (`myPlayer`) | `[view.players, myUserId]`                    | Both reads listed.                                                                                       |
+| `frontend/src/pages/PlayPage.jsx`                 | `useMemo` (`opponents`)| `[view.players, myUserId]`                    | Both reads listed.                                                                                       |
+| `frontend/src/pages/GamePage.jsx`                 | `useEffect`       | `[tableId, token]`                                 | `createGameSocket` is an imported function (stable); `data` and `e` are local to the callback.           |
+| `frontend/src/pages/LobbyPage.jsx`                | `useCallback` (`refresh`) | (per source)                              | `api`, `localStorage` are globals; setters stable.                                                       |
+| `frontend/src/pages/LobbyPage.jsx`                | `useEffect` (poll)| (per source)                                       | Same as above; reactive values are in deps.                                                              |
+| `frontend/src/lib/auth.jsx`                       | `useCallback` (`refresh`) | `[]`                                      | `api` and `localStorage` are module-level / browser-global; `data` and `e` are *local* to the callback body — they are not reactive values. |
+| `frontend/src/components/game/BettingPanel.jsx`   | `useEffect`       | `[turnDeadlineMs]`                                 | Only reactive value referenced is `turnDeadlineMs`. `setSecondsLeft` is a stable setter; `Date.now`, `Math.*`, `setInterval`, `clearInterval` are globals. |
+
 ---
 
-## 5) Big-refactor decisions — formally deferred
+## 7) Console statements added in cycle 1 — keep, do not remove
+
+Cycle 1 of the audit flagged **empty catch blocks** in:
+- `frontend/src/pages/PlayPage.jsx`
+- `frontend/src/pages/GamePage.jsx`
+- `frontend/src/lib/ws.js`
+- `frontend/src/lib/auth.jsx`
+
+The approved low-risk fix was to add **contextual logging** (`console.warn`,
+`console.debug`) inside each catch — see cycle 1's commit. Cycle 3 of the
+same auditor now flags those exact same lines as "Console statements -
+Remove before production".
+
+The two recommendations are **directly contradictory**. The decision:
+
+- **Keep the console statements.** Reverting them would re-introduce the
+  silent-failure issue cycle 1 flagged.
+- **Replacing with `winston` / `pino` / a hosted logger (Sentry, LogRocket,
+  Datadog) is a deferred feature**, not a code-quality fix. For an MVP
+  guest-game with no real-money assets, browser `console.warn` is an
+  acceptable destination for transient client-side warnings (network
+  blips, malformed WS messages, close-after-error).
+- **Trigger to revisit:** when production logging is wired (Phase 8+ when
+  Web3 lands and we need real audit trails), drop a thin logger module
+  (`frontend/src/lib/log.js`) that wraps `console.*` and pipes to the
+  hosted service. Until then, `console.*` is the right destination.
+
+### Affected lines that auditors should not flag
+
+| File                               | Line(s)                       | Purpose                                              |
+| ---------------------------------- | ----------------------------- | ---------------------------------------------------- |
+| `frontend/src/pages/PlayPage.jsx`  | 169, 228, 292, 299, 352       | Contextual catch warnings (cycle 1 fix)              |
+| `frontend/src/pages/GamePage.jsx`  | 64                            | Legacy `leave()` best-effort warning (cycle 1 fix)   |
+| `frontend/src/lib/ws.js`           | 55, 82, 95, 102, 117, 134     | WS lifecycle warnings (cycle 1 fix)                  |
+| `frontend/src/lib/auth.jsx`        | (per source)                  | `refresh()` 401-recovery warning (cycle 1 fix)       |
+
+---
+
+## 8) Big-refactor decisions — formally deferred
 
 The auditor flags the following functions/components for size and
 complexity. Each was reviewed and **deliberately deferred** because:
@@ -206,7 +266,7 @@ Re-flagging these without an explicit user decision to proceed is noise.
 
 ---
 
-## 6) Frontend auth storage — accepted MVP risk
+## 9) Frontend auth storage — accepted MVP risk
 
 Auditors keep flagging `localStorage["target_user"]` / `localStorage["target_token"]`
 as XSS-exfiltrable. The full reasoning for accepting this risk for the MVP
@@ -227,13 +287,14 @@ Triggers to revisit:
 
 ---
 
-## 7) Duplicate-audit log
+## 10) Duplicate-audit log
 
-| Date         | Audit cycle           | Outcome                                                     |
-| ------------ | --------------------- | ----------------------------------------------------------- |
-| 2026-04-26   | Initial               | Applied low-risk fixes (catches, keys, ternaries, ws.js).   |
-| 2026-04-27   | Re-run, identical     | No code changes — same decisions still apply.               |
+| Date         | Cycle              | Outcome                                                                                          |
+| ------------ | ------------------ | ------------------------------------------------------------------------------------------------ |
+| 2026-04-26   | Initial audit      | Applied low-risk fixes (catches, keys, ternaries, ws.js refactor).                               |
+| 2026-04-27   | Re-run, identical  | No code changes — same decisions still apply.                                                    |
+| 2026-04-27   | Third re-run       | No code changes. Two genuinely-new flags (`BettingPanel.jsx:36` hook-deps, "console statements") added to §4 and §7 as closed items. The console-statement flag directly contradicts cycle 1; kept to honour cycle 1's approved fix. |
 
-If the same auditor is rerun a third time without changes to its rule set,
+If the same auditor is rerun a fourth time without changes to its rule set,
 the expected outcome is **another identical report**. Tune the auditor per
 this document to break the loop.

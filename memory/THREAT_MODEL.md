@@ -78,6 +78,7 @@ become worth the rework cost.
 | ------------ | ------------------ | ---------------------------------------------------------------- |
 | 2026-04-26   | Initial audit      | Applied low-risk fixes (catches, keys, ternaries, ws.js refactor). |
 | 2026-04-27   | Re-run, identical  | No code changes — same decisions still apply. See [`AUDIT_POLICY.md`](./AUDIT_POLICY.md). |
+| 2026-04-27   | Third re-run       | No code changes. Two genuinely-new auditor flags (`BettingPanel.jsx:36` hook-deps, "console statements added in cycle 1") closed in [`AUDIT_POLICY.md`](./AUDIT_POLICY.md) §4 and §7. The "console statements" flag directly contradicts cycle 1 — the catches were *empty*; cycle 1 added contextual logging precisely to satisfy that audit. Kept. |
 
 **Why two identical audits in a row?** The external auditor's rule set is
 not yet tuned for this repo. The decisions captured in this document and
