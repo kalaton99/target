@@ -258,7 +258,14 @@ complexity. Each was reviewed and **deliberately deferred** because:
 | `backend/game_engine/reducer.py`      | `reduce()`         | Deferred — 31 engine tests pin behaviour |
 | `backend/ledger/service.py`           | `mutate()`         | Deferred — 17 ledger tests pin behaviour |
 | `backend/realtime/table_worker.py`    | `_process()`       | Out-of-scope (legacy directory) |
+| `backend/realtime/table_worker.py`    | `_maybe_start_hand()` | Out-of-scope (legacy directory) |
+| `backend/auth/service.py`             | `register()`       | Out-of-scope (legacy directory) |
+| `backend/lobby/router.py`             | `build_lobby_router()` | Not complex — 79 lines because it nests 9 trivial `@router.post|.get` wrappers inside a single closure to capture the `bridge` arg. Each handler is a 1–3 line call into `service.*`. Tested by 17 lobby tests. **Re-flagging without an explicit user decision is noise.** |
+| `backend/game_engine/reducer.py`      | `_attempt_bust_save()` | Deferred — same rationale as `reduce()`; pinned by engine tests. |
+| `backend/realtime_v2/gateway.py`      | message-handler bodies | Deferred — they look "long" because every WS branch must terminate the connection cleanly; splitting would obscure the lifecycle. |
+| `frontend/src/lib/ws.js`              | `createGameSocket()` | Already split in cycle 1 — `dispatch`, `handleStateUpdate`, `handleActionRejected`, `startPings`, `stopPings`, `onMessage`, `onSocketClose`, `onSocketError`, `connect`, `send`, `close` are all named helpers. Re-flagging is stale. |
 | `frontend/src/pages/PlayPage.jsx`     | `PlayPage()`       | Deferred — active path, 9 regression tests pin behaviour |
+| `frontend/src/pages/PlayPage.jsx`     | WS `onmessage` handler | Already split — sub-handlers per type; nesting is intentional to keep `setView`/`setMe` reactive closures tight. |
 | `frontend/src/pages/LobbyPage.jsx`    | `LobbyPage()`      | Deferred — 17 lobby tests pin behaviour |
 | `frontend/src/pages/GamePage.jsx`     | `GamePage()`       | Out-of-scope (legacy view)      |
 
@@ -294,6 +301,7 @@ Triggers to revisit:
 | 2026-04-26   | Initial audit      | Applied low-risk fixes (catches, keys, ternaries, ws.js refactor).                               |
 | 2026-04-27   | Re-run, identical  | No code changes — same decisions still apply.                                                    |
 | 2026-04-27   | Third re-run       | No code changes. Two genuinely-new flags (`BettingPanel.jsx:36` hook-deps, "console statements") added to §4 and §7 as closed items. The console-statement flag directly contradicts cycle 1; kept to honour cycle 1's approved fix. |
+| 2026-04-27   | Fourth re-run      | No code changes. Report uses **stale line numbers** (claims `PlayPage.jsx` is 777 lines — actual: 843; `LobbyPage.jsx` 337 — actual: 370). ESLint with `react-hooks/exhaustive-deps` re-run on the active source: **zero violations** on `PlayPage.jsx`, `LobbyPage.jsx`, `ws.js`, `auth.jsx`. All "hardcoded secret" lines verified as `token="tok-alice\|tok-bob\|invalid\|ip-test"` fixture identifiers (§2). Added `lobby/router.py:build_lobby_router()`, `_maybe_start_hand`, `auth/service.py:register`, `_attempt_bust_save`, `ws.js:createGameSocket`, and the WS `onmessage` handler to the deferred/legacy list at §8 to short-circuit future re-flags. Cycle-1 console-statement decision still stands. |
 
 If the same auditor is rerun a fourth time without changes to its rule set,
 the expected outcome is **another identical report**. Tune the auditor per
