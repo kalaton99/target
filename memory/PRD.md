@@ -181,10 +181,30 @@ External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.
 - Anti-collusion logging
 - Worker heartbeat + supervisor (single-instance MVP — not strictly needed yet)
 
+## 2026-02 — UX fixes batch 2 verified
+- Defensive null-card filtering added to `PlayPage.jsx` (PRIVATE_STATE
+  intake + `me.cards.map` render) so a malformed PRIVATE_STATE payload
+  cannot crash the card key expression `${c.rank}-${c.suit}-${i}`.
+- E2E re-verified on `/play`: BETTING_R1 → CHECK → DRAW (A♠ rendered,
+  score 11 soft) → STAND → PAYOUT.
+- Winner banner shows `username` (`You_xxxxxx`), not `user_id`.
+- Payout delta `data-testid="my-net-delta"` shows `You won +50` in green.
+- LobbyPage CREATE TABLE form (target select + numeric inputs) loads
+  with no React hydration warnings in the console.
+- AUTO_STAND_TIMEOUT notice path lives in `PlayPage.jsx` STATE_UPDATE
+  handler (events[].type==="STAND" && auto), surfaces a transient
+  amber banner with `data-testid="event-notice"` for 4s.
+- Canonical pytest suite: 148 passed / 2 skipped (legacy
+  `test_websocket.py` and `test_rest.py` are excluded per
+  `AUDIT_POLICY.md`; their 3 pre-existing failures hit the legacy
+  `/api/ws/*` route, not `/api/v2/*`).
+
 ## Next Action Items
-1. Run testing_agent_v3 to validate full backend + frontend e2e
-2. Address any P0 issues uncovered
-3. Iterate on UI polish per actual gameplay feel
+1. P0: Multi-round betting (FLOP / TURN / RIVER analog).
+2. P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN.
+3. P0: Portrait/mobile layout.
+4. P0: Replay client_seed contribution to RNG.
+5. P0: Reconnect grace timer (20–30s) with sitting_out flag.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

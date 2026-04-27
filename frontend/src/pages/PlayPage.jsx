@@ -341,8 +341,14 @@ function PlayPage() {
         return;
       }
       if (m.type === "PRIVATE_STATE") {
+        // Defensively drop any null/undefined entries from the cards array
+        // before they reach render, so a malformed payload cannot crash
+        // the card-loop key expression (`${c.rank}-${c.suit}-${i}`).
+        const safeCards = Array.isArray(m.cards)
+          ? m.cards.filter((c) => c && typeof c === "object")
+          : [];
         setMe({
-          cards: m.cards || [],
+          cards: safeCards,
           score: m.score,
           soft: !!m.soft,
           busted: !!m.busted,
@@ -686,12 +692,15 @@ function PlayPage() {
               <div className="text-zinc-600 italic" data-testid="my-cards-empty">no cards yet…</div>
             ) : (
               <div className="flex" data-testid="my-cards">
-                {me.cards.map((c, i) => (
-                  // rank+suit is unique within a single hand (single deck);
-                  // index suffix is a defensive fallback in case the engine
-                  // ever deals from a multi-deck shoe.
-                  <CardChip key={`${c.rank}-${c.suit}-${i}`} card={c} />
-                ))}
+                {me.cards.map((c, i) => {
+                  // Defensive: skip any null/undefined entry so the key
+                  // expression (and CardChip render) cannot crash if the
+                  // server ever emits a sparse array. rank+suit is unique
+                  // within a single hand (single deck); the index suffix is
+                  // a fallback in case of a future multi-deck shoe.
+                  if (!c) return null;
+                  return <CardChip key={`${c.rank}-${c.suit}-${i}`} card={c} />;
+                })}
               </div>
             )}
           </div>
