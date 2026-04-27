@@ -88,6 +88,9 @@ function PlayPage() {
   });
   const [statusLine, setStatusLine] = useState("Ready");
   const [log, setLog] = useState([]);
+  // Transient banner for engine-emitted user-visible notices (currently:
+  // AUTO_STAND on turn timeout). Auto-dismisses after 4s.
+  const [notice, setNotice] = useState(null); // { kind, text, ts }
   const wsRef = useRef(null);
   const myUserIdRef = useRef(null);
 
@@ -306,6 +309,7 @@ function PlayPage() {
         return;
       }
       if (m.type === "STATE_UPDATE") {
+        const players = m.players || [];
         setView({
           sv: m.state_version,
           phase: m.phase,
@@ -313,11 +317,27 @@ function PlayPage() {
           targetScore: m.target_score,
           currentTurnSeat: m.current_turn_seat,
           turnDeadlineMs: m.turn_deadline_ms,
-          players: m.players || [],
+          players,
           winners: m.winners || [],
           handNumber: m.hand_number || 0,
           currentCallOwed: m.current_call_owed || 0,
         });
+        // Surface user-visible engine events (currently: auto-stand on
+        // timeout). The events array carries one entry per intent applied
+        // since the last broadcast.
+        if (Array.isArray(m.events)) {
+          for (const ev of m.events) {
+            if (ev.type === "STAND" && ev.auto) {
+              const owner =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const name = owner?.username || `seat ${ev.seat}`;
+              const text = `${name} auto-stand (timeout)`;
+              appendLog(text);
+              setNotice({ kind: "auto-stand", text, ts: Date.now() });
+            }
+          }
+        }
         return;
       }
       if (m.type === "PRIVATE_STATE") {
@@ -391,6 +411,18 @@ function PlayPage() {
   }, []);
   const remainingMs = view.turnDeadlineMs ? Math.max(0, view.turnDeadlineMs - now) : null;
   const timerPct = remainingMs == null ? 0 : Math.max(0, Math.min(100, (remainingMs / TURN_TIMEOUT_MS) * 100));
+
+  // ----- notice auto-dismiss -----
+  // The transient banner (e.g. "alice auto-stand (timeout)") clears itself
+  // after 4 seconds. Re-firing while a notice is visible just resets the
+  // timer to the latest event.
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => {
+      setNotice((cur) => (cur && cur.ts === notice.ts ? null : cur));
+    }, 4000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   const handFinished =
     view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
@@ -578,6 +610,25 @@ function PlayPage() {
           </div>
         </div>
 
+        {/* Transient engine-event banner (e.g. AUTO_STAND on timeout). */}
+        {notice && (
+          <div
+            data-testid="event-notice"
+            data-notice-kind={notice.kind}
+            role="status"
+            className="mb-4 rounded-md border border-amber-700/50 bg-amber-500/10 px-4 py-2 text-amber-200 text-sm flex items-center justify-between"
+          >
+            <span data-testid="event-notice-text">{notice.text}</span>
+            <button
+              data-testid="event-notice-dismiss"
+              onClick={() => setNotice(null)}
+              className="text-amber-300/70 hover:text-amber-200 text-xs uppercase tracking-widest ml-4"
+            >
+              dismiss
+            </button>
+          </div>
+        )}
+
         {/* Opponents */}
         <div className="mb-8" data-testid="opponents">
           <div className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Opponents</div>
@@ -717,13 +768,56 @@ function PlayPage() {
           <span className="ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
         </div>
 
-        {/* Winners panel */}
-        {view.winners && view.winners.length > 0 && (
-          <div className="mb-4 rounded-md border border-yellow-700/40 bg-yellow-500/5 p-4" data-testid="winners">
-            <div className="text-yellow-400 uppercase tracking-widest text-sm mb-1">Winner{view.winners.length > 1 ? "s" : ""}</div>
-            <div className="text-zinc-100">{view.winners.join(", ")}</div>
-          </div>
-        )}
+        {/* Winners panel — map winner user_ids → usernames via view.players,
+            and show the local player's net delta (payout - total_contributed)
+            during PAYOUT/SHOWDOWN. The delta uses public-view fields that
+            reach every client; nothing private is leaked. */}
+        {view.winners && view.winners.length > 0 && (() => {
+          const idToUsername = Object.fromEntries(
+            (view.players || []).map((p) => [p.user_id, p.username])
+          );
+          const winnerNames = view.winners.map((uid) => idToUsername[uid] || uid);
+          const meRow = (view.players || []).find((p) => p.user_id === myUserId);
+          const myDelta = meRow ? (meRow.payout || 0) - (meRow.total_contributed || 0) : 0;
+          const iWon = !!myUserId && view.winners.includes(myUserId);
+          let deltaLine = null;
+          if (meRow) {
+            if (myDelta > 0) {
+              deltaLine = (
+                <span data-testid="my-net-delta" className="text-emerald-300 font-semibold">
+                  You won +{myDelta}
+                </span>
+              );
+            } else if (myDelta < 0) {
+              deltaLine = (
+                <span data-testid="my-net-delta" className="text-rose-300 font-semibold">
+                  You lost {myDelta}
+                </span>
+              );
+            } else {
+              deltaLine = (
+                <span data-testid="my-net-delta" className="text-zinc-400">
+                  Push (no change)
+                </span>
+              );
+            }
+          }
+          return (
+            <div className="mb-4 rounded-md border border-yellow-700/40 bg-yellow-500/5 p-4" data-testid="winners">
+              <div className="text-yellow-400 uppercase tracking-widest text-sm mb-1">
+                Winner{winnerNames.length > 1 ? "s" : ""}
+              </div>
+              <div className="text-zinc-100" data-testid="winners-names">
+                {winnerNames.join(", ")}
+              </div>
+              {meRow && (
+                <div className="mt-2 text-sm" data-testid={iWon ? "you-won" : "you-lost"}>
+                  {deltaLine}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Event log */}
         <div className="rounded-md border border-zinc-800 bg-black/60 p-3">

@@ -248,9 +248,17 @@ export default function LobbyPage() {
               onChange={(e) => setTarget(Number(e.target.value))}
               className="bg-zinc-900 border border-zinc-700 rounded p-2"
             >
-              {TARGETS.map((t) => (
-                <option key={t} value={t}>target {t}</option>
-              ))}
+              {/*
+                Hardcoded options (instead of TARGETS.map(...)) to avoid the
+                Emergent dev-tool wrapping the dynamic `{t}` expression in a
+                <span style={{display:"contents"}} />, which is invalid HTML
+                inside <option> and produces a hydration warning. Static
+                children = no expression to wrap.
+              */}
+              <option value={30}>target 30</option>
+              <option value={50}>target 50</option>
+              <option value={100}>target 100</option>
+              <option value={250}>target 250</option>
             </select>
             <input
               data-testid="stake-input"
