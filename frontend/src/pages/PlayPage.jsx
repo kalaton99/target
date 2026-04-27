@@ -19,6 +19,15 @@ const TURN_TIMEOUT_MS = 15000;
 const SUIT_GLYPH = { H: "♥", D: "♦", S: "♠", C: "♣" };
 const SUIT_TONE = { H: "text-rose-400", D: "text-rose-400", S: "text-zinc-100", C: "text-zinc-100" };
 
+// Special-card detection — keep in sync with backend/core/constants.py.
+// Defense (2H, 2C) → enables PLAY_TWO. Attack (10H, 10C) → enables PLAY_TEN.
+function isDefenseTwo(card) {
+  return !!card && card.rank === "2" && (card.suit === "H" || card.suit === "C");
+}
+function isAttackTen(card) {
+  return !!card && card.rank === "10" && (card.suit === "H" || card.suit === "C");
+}
+
 function rankLabel(rank) {
   if (rank === "JK") return "JOKER";
   return rank;
@@ -336,6 +345,26 @@ function PlayPage() {
               appendLog(text);
               setNotice({ kind: "auto-stand", text, ts: Date.now() });
             }
+            if (ev.type === "PLAY_TWO" || ev.type === "PLAY_TEN") {
+              const fromP =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const toP =
+                players.find((p) => p.user_id === ev.to_user_id) ||
+                players.find((p) => p.seat === ev.to_seat);
+              const fromName = fromP?.username || `seat ${ev.seat}`;
+              const toName = toP?.username || `seat ${ev.to_seat}`;
+              const card = ev.transferred_card || ev.sent_card || {};
+              const cardLabel = card.rank ? `${card.rank}${card.suit || ""}` : "card";
+              const verb = ev.type === "PLAY_TWO" ? "transferred (2)" : "attacked with (10)";
+              const text = `${fromName} ${verb} → ${toName}: ${cardLabel}`;
+              appendLog(text);
+              setNotice({
+                kind: ev.type === "PLAY_TWO" ? "play-two" : "play-ten",
+                text,
+                ts: Date.now(),
+              });
+            }
           }
         }
         return;
@@ -388,6 +417,16 @@ function PlayPage() {
     setStatusLine(`→ ${action} @ v${view.sv}`);
   }, [view.sv]);
 
+  // Special-card intent: same protocol as `send`, but with a structured
+  // payload (target_user_id + transfer_card_index | attack_card_index).
+  // Engine path: backend/game_engine/reducer.py PLAY_TWO / PLAY_TEN.
+  const sendSpecial = useCallback((action, payload) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: action, state_version: view.sv, payload }));
+    setStatusLine(`→ ${action} @ v${view.sv}`);
+  }, [view.sv]);
+
   // ----- derived: it's my turn if I'm at current_turn_seat AND DRAW phase -----
   const myUserId = session?.user_id;
   const myPlayer = useMemo(
@@ -408,6 +447,46 @@ function PlayPage() {
     !!myPlayer &&
     view.currentTurnSeat === myPlayer.seat &&
     view.phase === "BETTING_R1";
+
+  // ----- special-card derived state -----
+  // Trigger-card indices in the local player's hand. -1 if not held.
+  const defenseTwoIdx = useMemo(
+    () => me.cards.findIndex(isDefenseTwo),
+    [me.cards],
+  );
+  const attackTenIdx = useMemo(
+    () => me.cards.findIndex(isAttackTen),
+    [me.cards],
+  );
+  // Active opponents are valid targets: still in hand, not folded/busted/DQ.
+  const activeOpponents = useMemo(
+    () => opponents.filter((p) => !p.folded && !p.busted && !p.disqualified),
+    [opponents],
+  );
+  const canPlayTwo = myTurn && defenseTwoIdx >= 0 && me.cards.length >= 2 && activeOpponents.length > 0;
+  const canPlayTen = myTurn && attackTenIdx >= 0 && me.cards.length >= 2 && activeOpponents.length > 0;
+
+  // Special-card picker: when open, the user chooses (target_user_id, send_card_index).
+  // `kind` is "PLAY_TWO" or "PLAY_TEN"; null when closed.
+  const [picker, setPicker] = useState(null); // { kind, targetUserId, cardIdx }
+  const openPicker = useCallback((kind) => {
+    const triggerIdx = kind === "PLAY_TWO" ? defenseTwoIdx : attackTenIdx;
+    // Default target = first active opponent. Default card = first non-trigger card.
+    const defaultTarget = activeOpponents[0]?.user_id || null;
+    const defaultCardIdx = me.cards.findIndex((_, i) => i !== triggerIdx);
+    setPicker({ kind, targetUserId: defaultTarget, cardIdx: defaultCardIdx });
+  }, [defenseTwoIdx, attackTenIdx, activeOpponents, me.cards]);
+  const cancelPicker = useCallback(() => setPicker(null), []);
+  const confirmPicker = useCallback(() => {
+    if (!picker) return;
+    const { kind, targetUserId, cardIdx } = picker;
+    if (!targetUserId || cardIdx == null || cardIdx < 0) return;
+    const payload = kind === "PLAY_TWO"
+      ? { target_user_id: targetUserId, transfer_card_index: cardIdx }
+      : { target_user_id: targetUserId, attack_card_index: cardIdx };
+    sendSpecial(kind, payload);
+    setPicker(null);
+  }, [picker, sendSpecial]);
 
   // ----- countdown -----
   const [now, setNow] = useState(Date.now());
@@ -741,6 +820,36 @@ function PlayPage() {
           >
             STAND
           </button>
+          {/* Special-card actions. Buttons are mounted only when the
+              local player is in a state that could plausibly use them
+              (DRAW + my turn + I hold the trigger card + at least one
+              active opponent). They're explicitly disabled if any of
+              those are missing so screen readers can still observe
+              their existence in tests. */}
+          {(canPlayTwo || (myTurn && defenseTwoIdx >= 0)) && (
+            <button
+              data-testid="play-two-btn"
+              data-special="defense"
+              onClick={() => openPicker("PLAY_TWO")}
+              disabled={!canPlayTwo}
+              title="Send a card from your hand to an opponent (uses your 2)"
+              className="px-5 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            >
+              PLAY 2
+            </button>
+          )}
+          {(canPlayTen || (myTurn && attackTenIdx >= 0)) && (
+            <button
+              data-testid="play-ten-btn"
+              data-special="attack"
+              onClick={() => openPicker("PLAY_TEN")}
+              disabled={!canPlayTen}
+              title="Force an opponent to take a card from your hand (uses your 10)"
+              className="px-5 py-3 rounded-md border border-fuchsia-600/60 text-fuchsia-300 hover:bg-fuchsia-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            >
+              PLAY 10
+            </button>
+          )}
           <button
             data-testid="check-btn"
             onClick={() => send("CHECK")}
@@ -776,6 +885,136 @@ function PlayPage() {
           )}
           <span className="ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
         </div>
+
+        {/* Special-card picker — appears only while the user is choosing
+            (target, card-to-send) for PLAY_TWO / PLAY_TEN. The trigger
+            card itself is filtered out of the card-to-send list per
+            engine rules (PLAY_TWO_CANT_SEND_DEFENSE_ITSELF /
+            PLAY_TEN_CANT_SEND_TRIGGER_ITSELF in reducer.py). */}
+        {picker && (() => {
+          const triggerIdx = picker.kind === "PLAY_TWO" ? defenseTwoIdx : attackTenIdx;
+          const triggerCard = me.cards[triggerIdx];
+          const isPlayTwo = picker.kind === "PLAY_TWO";
+          // Tailwind's JIT only sees static class strings, so we pre-bake
+          // the two accent variants here instead of interpolating colors.
+          const styles = isPlayTwo
+            ? {
+                wrap: "border-emerald-700/40 bg-emerald-500/5",
+                heading: "text-emerald-300",
+                targetSelected: "border-emerald-500 text-emerald-200 bg-emerald-500/15",
+                cardSelected: "border-emerald-500 bg-emerald-500/15",
+                confirm: "border-emerald-600/60 text-emerald-200 hover:bg-emerald-500/10",
+              }
+            : {
+                wrap: "border-fuchsia-700/40 bg-fuchsia-500/5",
+                heading: "text-fuchsia-300",
+                targetSelected: "border-fuchsia-500 text-fuchsia-200 bg-fuchsia-500/15",
+                cardSelected: "border-fuchsia-500 bg-fuchsia-500/15",
+                confirm: "border-fuchsia-600/60 text-fuchsia-200 hover:bg-fuchsia-500/10",
+              };
+          const sendableCards = me.cards
+            .map((c, i) => ({ card: c, idx: i }))
+            .filter(({ idx }) => idx !== triggerIdx);
+          const canConfirm =
+            !!picker.targetUserId &&
+            picker.cardIdx != null &&
+            picker.cardIdx >= 0 &&
+            picker.cardIdx !== triggerIdx;
+          return (
+            <div
+              data-testid={`special-picker-${isPlayTwo ? "two" : "ten"}`}
+              className={`mb-4 rounded-md border ${styles.wrap} p-4`}
+              role="dialog"
+              aria-label={isPlayTwo ? "Play Two — pick target and card" : "Play Ten — pick target and card"}
+            >
+              <div className={`${styles.heading} uppercase tracking-widest text-xs mb-2`}>
+                {isPlayTwo ? "Play 2 — transfer a card" : "Play 10 — force an opponent to take a card"}
+              </div>
+              <div className="text-zinc-400 text-xs mb-3">
+                {isPlayTwo ? "Your 2" : "Your 10"}
+                {triggerCard ? ` (${triggerCard.rank}${triggerCard.suit})` : ""} will be discarded.
+                Pick an opponent and a card from your hand to send to them.
+              </div>
+
+              {/* Target opponent selector */}
+              <div className="mb-3" data-testid="picker-targets">
+                <div className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Target</div>
+                <div className="flex gap-2 flex-wrap">
+                  {activeOpponents.length === 0 && (
+                    <div className="text-zinc-600 text-xs italic" data-testid="picker-targets-empty">no active opponents</div>
+                  )}
+                  {activeOpponents.map((p) => {
+                    const selected = picker.targetUserId === p.user_id;
+                    return (
+                      <button
+                        key={p.user_id}
+                        data-testid={`picker-target-${p.seat}`}
+                        data-selected={selected ? "1" : "0"}
+                        onClick={() => setPicker((cur) => cur && { ...cur, targetUserId: p.user_id })}
+                        className={`px-3 py-1.5 rounded-md border text-xs uppercase tracking-widest ${
+                          selected
+                            ? styles.targetSelected
+                            : "border-zinc-700 text-zinc-400 hover:bg-zinc-200/5"
+                        }`}
+                      >
+                        {p.username}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card-to-send selector */}
+              <div className="mb-3" data-testid="picker-cards">
+                <div className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Card to send</div>
+                <div className="flex gap-2 flex-wrap">
+                  {sendableCards.length === 0 && (
+                    <div className="text-zinc-600 text-xs italic" data-testid="picker-cards-empty">
+                      no other cards in hand — HIT to draw one first
+                    </div>
+                  )}
+                  {sendableCards.map(({ card, idx }) => {
+                    const selected = picker.cardIdx === idx;
+                    const tone = SUIT_TONE[card.suit] || "text-zinc-100";
+                    return (
+                      <button
+                        key={`pick-${card.rank}-${card.suit}-${idx}`}
+                        data-testid={`picker-card-${idx}`}
+                        data-selected={selected ? "1" : "0"}
+                        onClick={() => setPicker((cur) => cur && { ...cur, cardIdx: idx })}
+                        className={`px-3 py-1.5 rounded-md border text-sm font-mono ${
+                          selected
+                            ? styles.cardSelected
+                            : "border-zinc-700 hover:bg-zinc-200/5"
+                        } ${tone}`}
+                      >
+                        {rankLabel(card.rank)}{SUIT_GLYPH[card.suit] || ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  data-testid="picker-confirm-btn"
+                  onClick={confirmPicker}
+                  disabled={!canConfirm}
+                  className={`px-5 py-2 rounded-md border ${styles.confirm} disabled:opacity-30 disabled:cursor-not-allowed text-xs uppercase tracking-widest`}
+                >
+                  Confirm {picker.kind === "PLAY_TWO" ? "PLAY 2" : "PLAY 10"}
+                </button>
+                <button
+                  data-testid="picker-cancel-btn"
+                  onClick={cancelPicker}
+                  className="px-5 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-200/5 text-xs uppercase tracking-widest"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Winners panel — map winner user_ids → usernames via view.players,
             and show the local player's net delta (payout - total_contributed)

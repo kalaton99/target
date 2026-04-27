@@ -23,7 +23,13 @@ CLIENT_ACTIONS: FrozenSet[str] = frozenset({
     "CALL",
     "CHECK",
     "FOLD",
-    # Special card actions (placeholders for later phases; allowed here)
+    # Special card actions — DRAW-phase intents the engine handles via
+    # reducer.reduce(). The active engine names are PLAY_TWO (defense / manual
+    # transfer when holding 2H/2C) and PLAY_TEN (attack when holding 10H/10C).
+    # ATTACK / PROTECT were earlier placeholder names; kept for backward
+    # compatibility with any older client builds in the wild.
+    "PLAY_TWO",
+    "PLAY_TEN",
     "ATTACK",
     "PROTECT",
     # Heartbeat

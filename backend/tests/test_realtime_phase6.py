@@ -441,6 +441,42 @@ class TestGatewayActions:
         await ws.client_disconnect()
         await asyncio.wait_for(task, timeout=2)
 
+    async def test_play_two_and_play_ten_are_accepted_by_gateway(self):
+        # Phase 11 P1 — special-card intents must be on the CLIENT_ACTIONS
+        # whitelist so the gateway forwards them to the engine. The engine
+        # itself enforces phase / turn / hand contents.
+        gw, _, _, record = make_gateway()
+        ws = FakeWebSocket()
+        task = await _start(gw, ws)
+        await ws.client_recv()  # WELCOME
+        await ws.client_send({
+            "type": "PLAY_TWO",
+            "state_version": 5,
+            "payload": {"target_user_id": "u_other", "transfer_card_index": 0},
+        })
+        ack1 = await ws.client_recv()
+        assert ack1["type"] == "ACTION_ACK"
+        assert ack1["action"] == "PLAY_TWO"
+        await ws.client_send({
+            "type": "PLAY_TEN",
+            "state_version": 5,
+            "payload": {"target_user_id": "u_other", "attack_card_index": 0},
+        })
+        ack2 = await ws.client_recv()
+        assert ack2["type"] == "ACTION_ACK"
+        assert ack2["action"] == "PLAY_TEN"
+        # Both intents reached the action handler with their structured payload.
+        assert len(record) == 2
+        types_seen = [r["action"] for r in record]
+        assert "PLAY_TWO" in types_seen and "PLAY_TEN" in types_seen
+        # Payload survives the round trip (gateway must not strip it).
+        play_two = next(r for r in record if r["action"] == "PLAY_TWO")
+        assert play_two["payload"] == {"target_user_id": "u_other", "transfer_card_index": 0}
+        play_ten = next(r for r in record if r["action"] == "PLAY_TEN")
+        assert play_ten["payload"] == {"target_user_id": "u_other", "attack_card_index": 0}
+        await ws.client_disconnect()
+        await asyncio.wait_for(task, timeout=2)
+
     async def test_unknown_table_id(self):
         gw, _, _, _ = make_gateway(versions={})
         ws = FakeWebSocket()

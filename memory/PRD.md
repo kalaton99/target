@@ -194,14 +194,42 @@ External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.
 - AUTO_STAND_TIMEOUT notice path lives in `PlayPage.jsx` STATE_UPDATE
   handler (events[].type==="STAND" && auto), surfaces a transient
   amber banner with `data-testid="event-notice"` for 4s.
-- Canonical pytest suite: 148 passed / 2 skipped (legacy
+- Canonical pytest suite: 149 passed / 2 skipped (legacy
   `test_websocket.py` and `test_rest.py` are excluded per
   `AUDIT_POLICY.md`; their 3 pre-existing failures hit the legacy
   `/api/ws/*` route, not `/api/v2/*`).
 
+## 2026-02 — Phase 11 P1 special-card UI (PLAY_TWO / PLAY_TEN)
+- Added `PLAY_TWO` and `PLAY_TEN` to `realtime_v2/protocol.py::CLIENT_ACTIONS`
+  whitelist so the gateway forwards them to the engine. Engine handlers
+  already existed in `game_engine/reducer.py` (no engine change).
+- New test `test_play_two_and_play_ten_are_accepted_by_gateway` in
+  `tests/test_realtime_phase6.py` — verifies both intents reach the action
+  handler with their structured payload (`target_user_id` + `transfer_card_index`
+  / `attack_card_index`). Suite total: **149 passed / 2 skipped**.
+- `frontend/src/pages/PlayPage.jsx`:
+  - `isDefenseTwo` / `isAttackTen` helpers (mirrors `core/constants.py`).
+  - Conditional `PLAY 2` (`data-testid="play-two-btn"`) and `PLAY 10`
+    (`data-testid="play-ten-btn"`) buttons — render only in DRAW + my
+    turn + I hold the trigger card; disabled when no active opponents or
+    only the trigger card in hand.
+  - Inline picker dialog (`data-testid="special-picker-two"`/`-ten`) with
+    target selector (`picker-target-{seat}`), card-to-send selector
+    (`picker-card-{idx}`, trigger card filtered out), Confirm/Cancel.
+  - `sendSpecial(action, payload)` callback dispatches WS intent with
+    structured payload — separate from existing `send()`.
+  - STATE_UPDATE handler surfaces `PLAY_TWO`/`PLAY_TEN` events in the
+    event log and as a transient amber banner.
+- E2E verified live: HIT loop surfaced a 10♥, `PLAY 10` button appeared,
+  picker opened with default target = bot and card list `A♠, 3♦, A♦`
+  (10♥ correctly excluded), Confirm → engine accepted, banner read
+  `"You_c73b77 attacked with (10) → Bot_c73b77: AS"`, bot's hand grew
+  to 2 cards, phase advanced to PAYOUT, winner + delta still rendered.
+  No console errors. HIT/STAND/CHECK/CALL/FOLD regression: clean.
+
 ## Next Action Items
 1. P0: Multi-round betting (FLOP / TURN / RIVER analog).
-2. P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN.
+2. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 3. P0: Portrait/mobile layout.
 4. P0: Replay client_seed contribution to RNG.
 5. P0: Reconnect grace timer (20–30s) with sitting_out flag.
