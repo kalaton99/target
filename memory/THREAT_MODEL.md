@@ -69,3 +69,19 @@ become worth the rework cost.
 - `tests/test_websocket.py` — every `is`/`is not` operator in the file
   compares to `None`, which is the **PEP 8-mandated** Python idiom. Replacing
   with `==` would make the code less correct.
+
+---
+
+## Duplicate-audit log
+
+| Date         | Cycle              | Outcome                                                          |
+| ------------ | ------------------ | ---------------------------------------------------------------- |
+| 2026-04-26   | Initial audit      | Applied low-risk fixes (catches, keys, ternaries, ws.js refactor). |
+| 2026-04-27   | Re-run, identical  | No code changes — same decisions still apply. See [`AUDIT_POLICY.md`](./AUDIT_POLICY.md). |
+
+**Why two identical audits in a row?** The external auditor's rule set is
+not yet tuned for this repo. The decisions captured in this document and
+in [`AUDIT_POLICY.md`](./AUDIT_POLICY.md) (test-fixture allowlist, legacy
+directory excludes, `is None` PEP-8 conformance, deferred refactors,
+localStorage MVP acceptance) are stable. Until the auditor picks up those
+configs, expect identical reports — not new findings.

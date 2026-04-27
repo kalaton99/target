@@ -115,6 +115,16 @@ Test breakdown:
 Will be refactored or removed during Phase 11 (UI wiring). Phase 6 deliberately
 lives in `realtime_v2/` to keep the legacy untouched.
 
+## Audit / static-analysis policy
+External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.md):
+- Legacy dirs above are excluded from quality scans.
+- Test fixture identifiers (`token="tok-alice"` etc.) are not credentials.
+- `is None` / `is not None` are PEP-8 correct and must not be rewritten.
+- Hook-dep findings are validated against current source via ESLint, not stale line numbers.
+- Big-refactor flags on `reducer.reduce()`, `ledger.mutate()`, `PlayPage`, `LobbyPage`
+  are formally deferred — see policy doc for triggers.
+- localStorage auth storage is accepted MVP risk; rationale in [`THREAT_MODEL.md`](./THREAT_MODEL.md).
+
 ## What's Been Implemented (legacy notes — pre-strict-phase build)
 
 ### Backend
