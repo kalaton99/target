@@ -1,11 +1,22 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Phase 11 P2 — Lobby. Real users register with a username, see a list of
 // open tables, create a table, join one, and start the hand. After START,
 // the page navigates to /play/{tableId} which connects via WebSocket.
+//
+// localStorage contract:
+//   key "target_user" → JSON {user_id, username, token}
+//   - written here on /api/v2/lobby/auth success
+//   - read by PlayPage in lobby mode
+//   - cleared by PlayPage if /me returns 401 (token expired)
 
 const TARGETS = [30, 50, 100, 250];
+
+const REDIRECT_MESSAGES = {
+  session_expired: "Your session expired. Please sign in again.",
+  signin_required: "Please sign in to continue.",
+};
 
 function LS() {
   const get = () => {
@@ -22,12 +33,14 @@ function LS() {
 
 export default function LobbyPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const ls = LS();
   const [user, setUser] = useState(ls.get());
   const [username, setUsername] = useState("");
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const redirectMsg = REDIRECT_MESSAGES[searchParams.get("msg")] || "";
   // create-form state
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(30);
@@ -164,6 +177,14 @@ export default function LobbyPage() {
             <span className="text-yellow-400">▲</span> lobby
           </div>
           <p className="text-zinc-500 text-sm mb-8 text-center">Pick a guest username to enter.</p>
+          {redirectMsg && (
+            <div
+              data-testid="redirect-msg"
+              className="mb-4 rounded border border-yellow-700/40 bg-yellow-500/5 text-yellow-300 text-xs px-3 py-2 text-center"
+            >
+              {redirectMsg}
+            </div>
+          )}
           <input
             data-testid="username-input"
             value={username}
@@ -187,6 +208,14 @@ export default function LobbyPage() {
   return (
     <div className="min-h-screen bg-black text-zinc-100 p-6">
       <div className="max-w-4xl mx-auto">
+        {redirectMsg && (
+          <div
+            data-testid="redirect-msg"
+            className="mb-4 rounded border border-yellow-700/40 bg-yellow-500/5 text-yellow-300 text-xs px-3 py-2 text-center"
+          >
+            {redirectMsg}
+          </div>
+        )}
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
           <div>

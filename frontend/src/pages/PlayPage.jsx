@@ -1,10 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 // Phase 11 P2 — supports two modes:
 //   /play           → dev solo mode (POST /api/v2/dev/spawn_solo_table)
 //   /play/:tableId  → lobby mode (uses persisted token from /lobby; reuses
 //                     existing already-started table; no spawn)
+//
+// Auth persistence contract:
+//   localStorage key "target_user" stores {user_id, username, token}.
+//   LobbyPage writes it on /api/v2/lobby/auth success; PlayPage reads it
+//   in lobby mode. On 401 from /api/v2/lobby/me we clear it and redirect
+//   to /lobby?msg=session_expired. While the user is signed in but the
+//   table is still in LOBBY we show a waiting-room (NOT "Not signed in").
+//   The WebSocket is opened only once the table flips to RUNNING.
 
 const TURN_TIMEOUT_MS = 15000;
 
@@ -56,6 +64,7 @@ function Pill({ children, tone = "default", testid }) {
 
 function PlayPage() {
   const { tableId: lobbyTableId } = useParams();
+  const navigate = useNavigate();
   const lobbyMode = !!lobbyTableId;
   const [session, setSession] = useState(null);
   const [connecting, setConnecting] = useState(false);
@@ -120,8 +129,17 @@ function PlayPage() {
   // ----- lobby mode: poll table status + auto-connect when RUNNING -----
   const [lobbyTable, setLobbyTable] = useState(null);
   const [lobbyUser, setLobbyUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false); // becomes true once we know
+                                                         // for sure whether user is
+                                                         // signed in (avoids flashing
+                                                         // "Not signed in" during the
+                                                         // /me round-trip).
   const [starting, setStarting] = useState(false);
 
+  // Phase 1: read localStorage user, validate token via /api/v2/lobby/me.
+  // - missing user      → leave lobbyUser=null; render will show "Not signed in".
+  // - 401 (bad/expired) → clear localStorage and navigate to /lobby with a message.
+  // - ok                → set lobbyUser, which unblocks Phase 2 (table polling).
   useEffect(() => {
     if (!lobbyMode) return;
     let user = null;
@@ -131,12 +149,46 @@ function PlayPage() {
       user = null;
     }
     if (!user || !user.token) {
-      setStatusLine("Not logged in — go to /lobby first");
+      setLobbyUser(null);
+      setAuthChecked(true);
+      setStatusLine("Not signed in — go to /lobby first");
       return;
     }
-    setLobbyUser(user);
-    myUserIdRef.current = user.user_id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/v2/lobby/me", {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        if (cancelled) return;
+        if (r.status === 401) {
+          // token expired or invalid → clear and bounce to lobby with msg
+          try { localStorage.removeItem("target_user"); } catch (_) {}
+          setLobbyUser(null);
+          setAuthChecked(true);
+          navigate("/lobby?msg=session_expired", { replace: true });
+          return;
+        }
+        // 2xx (or transient 5xx) → trust the persisted user; polling will
+        // surface any further issues. We do NOT show "Not signed in" here.
+        setLobbyUser(user);
+        myUserIdRef.current = user.user_id;
+        setAuthChecked(true);
+      } catch {
+        // Network blip — keep the user signed in optimistically.
+        if (cancelled) return;
+        setLobbyUser(user);
+        myUserIdRef.current = user.user_id;
+        setAuthChecked(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lobbyMode, navigate]);
 
+  // Phase 2: once we have a confirmed lobbyUser, poll the table doc and
+  // open the WebSocket only when the table flips to RUNNING.
+  useEffect(() => {
+    if (!lobbyMode || !lobbyUser) return;
     let cancelled = false;
     let intervalId = null;
 
@@ -154,15 +206,17 @@ function PlayPage() {
           // Engine is running — open WS now (only once).
           setSession({
             table_id: lobbyTableId,
-            token: user.token,
-            user_id: user.user_id,
-            username: user.username,
+            token: lobbyUser.token,
+            user_id: lobbyUser.user_id,
+            username: lobbyUser.username,
           });
           setStatusLine("Connecting…");
           if (intervalId) {
             clearInterval(intervalId);
             intervalId = null;
           }
+        } else if (t.status === "LOBBY") {
+          setStatusLine("Waiting for players…");
         }
       } catch {
         // network blip — retry on next tick
@@ -175,7 +229,7 @@ function PlayPage() {
       cancelled = true;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [lobbyMode, lobbyTableId, session]);
+  }, [lobbyMode, lobbyUser, lobbyTableId, session]);
 
   const startLobbyTable = useCallback(async () => {
     if (!lobbyUser) return;
@@ -329,19 +383,131 @@ function PlayPage() {
   // ============ render ============
   if (!session) {
     if (lobbyMode) {
+      // Auth check still pending — show neutral spinner instead of flashing
+      // "Not signed in" while /api/v2/lobby/me is in flight.
+      if (!authChecked) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
+            <div className="text-zinc-500 text-xs uppercase tracking-widest" data-testid="auth-loading">
+              checking session…
+            </div>
+          </div>
+        );
+      }
+
+      // Definitely not signed in.
+      if (!lobbyUser) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
+            <div className="text-center max-w-md">
+              <div className="text-yellow-400 mb-4" data-testid="not-signed-in">Not signed in</div>
+              <p className="text-zinc-500 mb-6 text-sm">You need to register a guest username at the lobby before joining a table.</p>
+              <a
+                data-testid="go-lobby-link"
+                href="/lobby"
+                className="inline-block px-7 py-3 rounded-md border border-yellow-600/60 text-yellow-300 hover:bg-yellow-500/10 tracking-[0.3em] uppercase"
+              >
+                Go to lobby
+              </a>
+              <div className="mt-4 text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
+            </div>
+          </div>
+        );
+      }
+
+      // Signed in, no WS yet → show waiting room (LOBBY) or "Connecting…" (RUNNING).
+      const t = lobbyTable;
+      const seats = t?.seats || [];
+      const isCreator = !!t && t.creator_user_id === lobbyUser.user_id;
+      const isLobby = t?.status === "LOBBY";
+      const isRunning = t?.status === "RUNNING";
       return (
-        <div className="min-h-screen flex items-center justify-center bg-black text-zinc-100 p-6">
-          <div className="text-center max-w-md">
-            <div className="text-yellow-400 mb-4">Not signed in</div>
-            <p className="text-zinc-500 mb-6 text-sm">You need to register a guest username at the lobby before joining a table.</p>
-            <a
-              data-testid="go-lobby-link"
-              href="/lobby"
-              className="inline-block px-7 py-3 rounded-md border border-yellow-600/60 text-yellow-300 hover:bg-yellow-500/10 tracking-[0.3em] uppercase"
-            >
-              Go to lobby
-            </a>
-            <div className="mt-4 text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
+        <div className="min-h-screen bg-black text-zinc-100 p-6" data-testid="waiting-room">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — waiting room</div>
+                <div className="text-zinc-100 text-lg" data-testid="my-username">{lobbyUser.username}</div>
+              </div>
+              <a
+                data-testid="back-to-lobby-link"
+                href="/lobby"
+                className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 text-xs uppercase tracking-widest"
+              >
+                Back
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-5 mb-5">
+              {!t ? (
+                <div className="text-zinc-500 italic" data-testid="table-loading">loading table…</div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-zinc-100 text-xl font-semibold" data-testid="wr-table-name">{t.name}</div>
+                    <span
+                      data-testid="wr-status-pill"
+                      className={`text-xs uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                        isRunning
+                          ? "border-emerald-700/60 text-emerald-300"
+                          : "border-yellow-700/60 text-yellow-300"
+                      }`}
+                    >
+                      {t.status}
+                    </span>
+                  </div>
+                  <div className="text-zinc-500 text-xs mb-4" data-testid="wr-meta">
+                    target {t.target_score} · stake {t.stake} · {seats.length}/{t.max_players} seated · min {t.min_players}
+                  </div>
+
+                  <div className="text-zinc-400 text-xs uppercase tracking-widest mb-2">Seats</div>
+                  <div className="space-y-1 mb-5" data-testid="wr-seats">
+                    {seats.map((s, i) => (
+                      <div
+                        key={s.user_id}
+                        data-testid={`wr-seat-${i}`}
+                        className="flex items-center gap-3 text-sm bg-zinc-900/60 border border-zinc-800 rounded px-3 py-2"
+                      >
+                        <span className="text-zinc-500 text-xs w-6">#{i + 1}</span>
+                        <span className="text-zinc-100">{s.username}</span>
+                        {s.user_id === t.creator_user_id && (
+                          <span className="text-yellow-400 text-[10px] uppercase tracking-widest">creator</span>
+                        )}
+                        {s.user_id === lobbyUser.user_id && (
+                          <span className="text-emerald-400 text-[10px] uppercase tracking-widest">you</span>
+                        )}
+                      </div>
+                    ))}
+                    {seats.length === 0 && (
+                      <div className="text-zinc-600 italic">no seats</div>
+                    )}
+                  </div>
+
+                  {isLobby && isCreator && (
+                    <button
+                      data-testid="wr-start-btn"
+                      onClick={startLobbyTable}
+                      disabled={starting}
+                      className="px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.3em] uppercase disabled:opacity-40"
+                    >
+                      {starting ? "Starting…" : "Start hand"}
+                    </button>
+                  )}
+                  {isLobby && !isCreator && (
+                    <div className="text-zinc-500 text-sm" data-testid="wr-waiting-creator">
+                      Waiting for the creator to start the hand…
+                    </div>
+                  )}
+                  {isRunning && (
+                    <div className="text-emerald-400 text-sm" data-testid="wr-connecting">
+                      Hand started — connecting…
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="text-xs text-zinc-600" data-testid="status-line">{statusLine}</div>
           </div>
         </div>
       );

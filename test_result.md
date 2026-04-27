@@ -101,3 +101,97 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Verify the auth-persistence regression fix on the TARGET game frontend. Test login/register stores target_user, entering room shows waiting room (not 'Not signed in'), refresh keeps session, START transitions to game UI, session expired redirect, and not signed in branch."
+
+frontend:
+  - task: "Auth persistence - localStorage target_user storage"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/LobbyPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - Login/register correctly stores target_user in localStorage with user_id, username, and token. Verified with test username 'regtest_yh5jh'. All required fields present and username matches input."
+  
+  - task: "Auth persistence - waiting room display after login"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/PlayPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - After login and clicking ENTER ROOM, the waiting room is displayed correctly. 'Not signed in' element is NOT present. Waiting room shows status pill 'LOBBY', start button visible, and user's username appears in seats list."
+  
+  - task: "Auth persistence - session persistence on page reload"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/PlayPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - Full page reload on /play/:tableId maintains user session. 'Not signed in' element is NOT present after reload. Waiting room remains visible and my-username displays correct username (regtest_yh5jh)."
+  
+  - task: "Auth persistence - START game transition"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/PlayPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - Clicking START button from waiting room successfully transitions to game UI. Waiting room disappears, phase-pill appears with 'BETTING_R1', WebSocket opens successfully (ws-state-pill shows 'WS OPEN'), and game UI elements (my-cards, opponents) are visible."
+  
+  - task: "Auth persistence - session expired redirect"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/PlayPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - Invalid token correctly triggers session expired flow. After tampering localStorage with fake token and visiting /play/tbl_does_not_exist, page redirects to /lobby?msg=session_expired. Redirect message 'Your session expired. Please sign in again.' is displayed. localStorage.target_user is cleared (null)."
+  
+  - task: "Auth persistence - not signed in branch"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/PlayPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PASSED - With no localStorage user, visiting /play/tbl_does_not_exist correctly shows 'Not signed in' screen. 'Not signed in' element is visible with text 'Not signed in'. 'Go to lobby' link is present and visible."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+  test_date: "2026-04-27"
+  test_url: "https://gracious-raman-3.preview.emergentagent.com"
+
+test_plan:
+  current_focus:
+    - "All auth persistence tests completed successfully"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Completed comprehensive auth-persistence regression testing with 6 test scenarios. All tests PASSED successfully. Test username: regtest_yh5jh. Screenshots captured at key checkpoints. Console logs saved. No critical issues found. Auth persistence implementation is working correctly across all scenarios: login storage, waiting room display, session persistence on reload, game start transition, session expired redirect, and not signed in branch."
