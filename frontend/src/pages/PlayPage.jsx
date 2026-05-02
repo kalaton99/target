@@ -365,6 +365,28 @@ function PlayPage() {
                 ts: Date.now(),
               });
             }
+            if (ev.type === "PRESENCE" || ev.type === "PRESENCE_GRACE_EXPIRED") {
+              // Presence transitions are best surfaced on opponents
+              // (the local user's own connect/disconnect already shows
+              // up via wsState). We log every transition but only
+              // banner remote events to avoid self-flicker.
+              const owner =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const name = owner?.username || `seat ${ev.seat}`;
+              let text;
+              if (ev.type === "PRESENCE_GRACE_EXPIRED") {
+                text = `${name} sitting out (grace expired)`;
+              } else if (ev.connected === false) {
+                text = `${name} disconnected — reconnecting…`;
+              } else {
+                text = `${name} reconnected`;
+              }
+              appendLog(text);
+              if (ev.user_id !== myUserIdRef.current) {
+                setNotice({ kind: "presence", text, ts: Date.now() });
+              }
+            }
           }
         }
         return;
@@ -731,7 +753,18 @@ function PlayPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-semibold">{p.username}</div>
-                    {isTurn && <Pill tone="gold">turn</Pill>}
+                    <div className="flex items-center gap-1">
+                      {isTurn && <Pill tone="gold">turn</Pill>}
+                      {/* Phase 11 P1 — presence pill. SITTING OUT wins
+                          over OFFLINE because once the grace expired the
+                          player has been formally benched for the engine. */}
+                      {p.sitting_out && (
+                        <Pill testid={`opponent-${p.seat}-presence`} tone="default">SITTING OUT</Pill>
+                      )}
+                      {!p.sitting_out && p.connected === false && (
+                        <Pill testid={`opponent-${p.seat}-presence`} tone="danger">RECONNECTING…</Pill>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center mb-2">
                     {Array.from({ length: p.card_count }).map((_, i) => (

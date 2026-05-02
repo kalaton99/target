@@ -74,6 +74,8 @@ _v2_realtime = RealtimeV2(
     get_state_version=engine_bridge.get_state_version,
     handle_action=engine_bridge.handle_action,
     get_snapshot=engine_bridge.snapshot,
+    on_connect=engine_bridge.notify_connect,
+    on_disconnect=engine_bridge.notify_disconnect,
 )
 # Replace the asgi-built pubsub with the bridge's pubsub so the gateway
 # and bridge share the same broadcast bus.

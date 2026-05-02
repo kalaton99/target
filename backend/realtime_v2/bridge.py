@@ -16,6 +16,16 @@ The bridge owns:
 Public surface used by the gateway:
   - `get_state_version(table_id) -> int | None`
   - `handle_action(table_id, user_id, action, payload, sv) -> dict`
+  - `notify_connect(table_id, user_id)`     — Phase 11 P1 reconnect grace
+  - `notify_disconnect(table_id, user_id)`  — Phase 11 P1 reconnect grace
+
+The connect/disconnect hooks let the bridge maintain per-(table, user)
+presence: while a player is mid-disconnect we keep their seat and let
+the existing engine timers run (so AUTO_STAND_TIMEOUT still fires on a
+disconnected current-turn seat). After `grace_seconds` of silence we
+mark `player.sitting_out = True` so subsequent hands skip them. A
+reconnect inside the grace window cancels the timer and flips
+`connected` back to True without any state-machine side effects.
 
 Both of those are bound as the gateway's injected callables.
 
@@ -162,12 +172,34 @@ OnPublish = Callable[[str, Dict[str, Any]], Awaitable[None]]
 class EngineBridge:
     """Per-process registry connecting `TurnEngine`s to the realtime PubSub."""
 
-    def __init__(self, pubsub: PubSub, *, ack_timeout: float = 2.0) -> None:
+    # Reconnect-grace bounds (seconds). The PRD specifies 20–30s; we clamp
+    # to that range and default to 25s. The cap is there so a buggy caller
+    # cannot stall sitting_out indefinitely.
+    GRACE_MIN = 20.0
+    GRACE_MAX = 30.0
+    GRACE_DEFAULT = 25.0
+
+    def __init__(
+        self,
+        pubsub: PubSub,
+        *,
+        ack_timeout: float = 2.0,
+        grace_seconds: float = GRACE_DEFAULT,
+    ) -> None:
         self._pubsub = pubsub
         self._engines: Dict[str, TurnEngine] = {}
         self._pending: Dict[str, Dict[str, asyncio.Future]] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
         self._ack_timeout = float(ack_timeout)
+        # Clamp grace_seconds into [GRACE_MIN, GRACE_MAX] per PRD.
+        gs = float(grace_seconds)
+        if gs < self.GRACE_MIN:
+            gs = self.GRACE_MIN
+        elif gs > self.GRACE_MAX:
+            gs = self.GRACE_MAX
+        self._grace_seconds = gs
+        # (table_id, user_id) -> asyncio.Task running the grace expiry.
+        self._grace_tasks: Dict[tuple, asyncio.Task] = {}
 
     # ---- engine lifecycle ----
 
@@ -192,6 +224,12 @@ class EngineBridge:
         engine = self._engines.pop(table_id, None)
         self._pending.pop(table_id, None)
         self._locks.pop(table_id, None)
+        # Cancel any in-flight grace timers for this table.
+        for key in list(self._grace_tasks.keys()):
+            if key[0] == table_id:
+                task = self._grace_tasks.pop(key, None)
+                if task is not None and not task.done():
+                    task.cancel()
         if engine is not None:
             await engine.stop()
 
@@ -256,6 +294,128 @@ class EngineBridge:
         except asyncio.TimeoutError:
             self._pending[table_id].pop(cid, None)
             return {"accepted": False, "error": {"reason": "ENGINE_TIMEOUT"}}
+
+    # ---- presence / reconnect-grace ----
+
+    @property
+    def grace_seconds(self) -> float:
+        """Configured reconnect-grace window (clamped to 20-30s)."""
+        return self._grace_seconds
+
+    def _find_player(self, table_id: str, user_id: str):
+        """Return (engine, player_state) for the seated user, or (None, None)."""
+        engine = self._engines.get(table_id)
+        if engine is None:
+            return None, None
+        for p in engine.state.players:
+            if p.user_id == user_id:
+                return engine, p
+        return engine, None
+
+    async def notify_connect(self, table_id: str, user_id: str) -> None:
+        """Mark the user as connected; cancel any in-flight grace timer.
+
+        Called by the gateway right after a successful WS handshake. Safe
+        to call for users who are not currently disconnected — it's a
+        no-op in that case (no broadcast).
+        """
+        # Always cancel a pending grace timer for this user.
+        task = self._grace_tasks.pop((table_id, user_id), None)
+        if task is not None and not task.done():
+            task.cancel()
+
+        engine, player = self._find_player(table_id, user_id)
+        if engine is None or player is None:
+            return
+        if player.connected:
+            return  # already connected; nothing to broadcast.
+        player.connected = True
+        # Re-broadcast presence so other clients see them online again.
+        # We use a synthetic PRESENCE event so the UI can surface it
+        # alongside the regular STATE_UPDATE stream.
+        await self._publish_state(
+            table_id,
+            engine.state,
+            [{
+                "type": "PRESENCE",
+                "user_id": user_id,
+                "seat": player.seat_index,
+                "connected": True,
+                "sitting_out": player.sitting_out,
+            }],
+        )
+
+    async def notify_disconnect(self, table_id: str, user_id: str) -> None:
+        """Mark the user as disconnected and start a grace timer.
+
+        Called by the gateway when a WS session ends (close, error, idle
+        timeout, or abnormal). The seat is preserved during grace; the
+        existing engine 15s turn timer is unaffected, so a disconnected
+        current-turn seat will still trigger AUTO_STAND_TIMEOUT.
+        """
+        engine, player = self._find_player(table_id, user_id)
+        if engine is None or player is None:
+            return
+        # Start (or refresh) a grace timer regardless of current connected
+        # flag: an orderly close-then-reopen could otherwise leak a stale
+        # task on the table_id/user_id key.
+        prior = self._grace_tasks.pop((table_id, user_id), None)
+        if prior is not None and not prior.done():
+            prior.cancel()
+
+        if player.connected:
+            player.connected = False
+            await self._publish_state(
+                table_id,
+                engine.state,
+                [{
+                    "type": "PRESENCE",
+                    "user_id": user_id,
+                    "seat": player.seat_index,
+                    "connected": False,
+                    "sitting_out": player.sitting_out,
+                    "grace_seconds": self._grace_seconds,
+                }],
+            )
+
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self._grace_expiry(table_id, user_id))
+        self._grace_tasks[(table_id, user_id)] = task
+
+    async def _grace_expiry(self, table_id: str, user_id: str) -> None:
+        """Sleep `grace_seconds` then mark the player sitting_out=True.
+
+        The wait is cancellable: a `notify_connect` inside the window
+        cancels the task and the player keeps their seat with no further
+        side effects. If the engine is unregistered mid-sleep we exit
+        cleanly without touching state.
+        """
+        try:
+            await asyncio.sleep(self._grace_seconds)
+        except asyncio.CancelledError:
+            return
+        # Re-resolve the player; the table or seat may have gone away.
+        engine, player = self._find_player(table_id, user_id)
+        # Drop our own task entry first so re-entrant calls (if any) work.
+        self._grace_tasks.pop((table_id, user_id), None)
+        if engine is None or player is None:
+            return
+        if player.sitting_out:
+            return  # already sitting out; nothing to do.
+        player.sitting_out = True
+        # `connected` stays False; the gateway will flip it back on
+        # reconnect via notify_connect.
+        await self._publish_state(
+            table_id,
+            engine.state,
+            [{
+                "type": "PRESENCE_GRACE_EXPIRED",
+                "user_id": user_id,
+                "seat": player.seat_index,
+                "connected": False,
+                "sitting_out": True,
+            }],
+        )
 
     # ---- internal ----
 

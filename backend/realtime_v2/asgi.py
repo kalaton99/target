@@ -46,6 +46,8 @@ class RealtimeV2:
         get_state_version: StateVersionProvider,
         handle_action: ActionHandler,
         get_snapshot=None,
+        on_connect=None,
+        on_disconnect=None,
         max_per_user: int = 2,
         max_per_ip: int = 8,
         ping_interval: float = 15.0,
@@ -62,6 +64,8 @@ class RealtimeV2:
             get_state_version=get_state_version,
             handle_action=handle_action,
             get_snapshot=get_snapshot,
+            on_connect=on_connect,
+            on_disconnect=on_disconnect,
             ping_interval=ping_interval,
             ping_timeout=ping_timeout,
         )

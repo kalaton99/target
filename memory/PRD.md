@@ -227,12 +227,42 @@ External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.
   to 2 cards, phase advanced to PAYOUT, winner + delta still rendered.
   No console errors. HIT/STAND/CHECK/CALL/FOLD regression: clean.
 
+## 2026-02 — Phase 11 P1 reconnect-grace timer
+- `realtime_v2/bridge.py`: added `notify_connect`/`notify_disconnect`
+  presence hooks on `EngineBridge`. Default grace = 25s, clamped to
+  [20, 30] per PRD. On disconnect: `player.connected=False` + start
+  cancellable expiry task; on reconnect: cancel task + restore flag;
+  on expiry: `player.sitting_out=True`. Engine state-machine
+  untouched — `STATE_UPDATE` carries synthetic `PRESENCE` /
+  `PRESENCE_GRACE_EXPIRED` events for clients to render.
+- `realtime_v2/gateway.py`: optional `on_connect` / `on_disconnect`
+  hooks; called after WELCOME / in cleanup `finally`. Errors logged,
+  never raised — no impact on existing lifecycle.
+- `realtime_v2/asgi.py` + `server.py`: hooks bound to
+  `EngineBridge.notify_connect` / `notify_disconnect`.
+- `frontend/src/pages/PlayPage.jsx`: opponent panels show
+  `RECONNECTING…` or `SITTING OUT` pill (`data-testid="opponent-{seat}-presence"`).
+  STATE_UPDATE handler logs `PRESENCE` / `PRESENCE_GRACE_EXPIRED` to
+  the event log + transient banner (skipped for self).
+- New test file `tests/test_reconnect_grace_phase11_p1.py` (13 tests):
+  grace clamp, disconnect/reconnect/expiry lifecycle, engine
+  non-interference (AUTO_STAND_TIMEOUT still fires on disconnected
+  current-turn seat at the engine's own 15s budget), unregister
+  cancels in-flight tasks, safe-no-op for unknown table/user, double
+  disconnect idempotent. Suite total: **162 passed / 2 skipped**.
+- E2E verified live (`/tmp/e2e_reconnect.py`, 2 real users on a lobby
+  table): A disconnects → B receives `PRESENCE(connected=False)` for
+  A's seat, A's row reflects `connected=False sitting_out=False`.
+  A reconnects 2s later → B receives `PRESENCE(connected=True)`,
+  A's row back to `connected=True sitting_out=False`. Solo gameplay
+  regression smoke clean.
+
 ## Next Action Items
 1. P0: Multi-round betting (FLOP / TURN / RIVER analog).
 2. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 3. P0: Portrait/mobile layout.
 4. P0: Replay client_seed contribution to RNG.
-5. P0: Reconnect grace timer (20–30s) with sitting_out flag.
+5. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

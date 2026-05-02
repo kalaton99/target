@@ -62,6 +62,9 @@ ActionHandler = Callable[
 ]
 # Optional: (table_id, user_id) -> [catch-up messages] sent right after WELCOME
 SnapshotProvider = Callable[[str, str], list]
+# Optional presence hooks (Phase 11 P1 reconnect grace).
+# Bound to EngineBridge.notify_connect / notify_disconnect when wired.
+PresenceHook = Callable[[str, str], Awaitable[None]]
 
 
 # ---------- gateway ----------
@@ -78,6 +81,8 @@ class WebSocketGateway:
         get_state_version: StateVersionProvider,
         handle_action: ActionHandler,
         get_snapshot: Optional[SnapshotProvider] = None,
+        on_connect: Optional[PresenceHook] = None,
+        on_disconnect: Optional[PresenceHook] = None,
         ping_interval: float = 15.0,
         ping_timeout: float = 10.0,
     ) -> None:
@@ -87,6 +92,10 @@ class WebSocketGateway:
         self._get_state_version = get_state_version
         self._handle_action = handle_action
         self._get_snapshot = get_snapshot
+        # Phase 11 P1 — presence/reconnect-grace hooks. Both optional so
+        # existing tests + the realtime smoke harness keep working.
+        self._on_connect = on_connect
+        self._on_disconnect = on_disconnect
         self._ping_interval = float(ping_interval)
         self._ping_timeout = float(ping_timeout)
 
@@ -141,6 +150,18 @@ class WebSocketGateway:
                     except Exception:  # noqa: BLE001
                         break
 
+            # Phase 11 P1 — presence: announce the (table, user) is online.
+            # This cancels any in-flight reconnect-grace timer on the bridge
+            # side so the player's seat / sitting_out flag is preserved.
+            if self._on_connect is not None:
+                try:
+                    await self._on_connect(table_id, user_id)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "on_connect hook raised: table=%s user=%s",
+                        table_id, user_id,
+                    )
+
             await self._run_session(
                 ws=ws,
                 user_id=user_id,
@@ -148,6 +169,17 @@ class WebSocketGateway:
                 queues=[table_queue, user_queue],
             )
         finally:
+            # Phase 11 P1 — presence: announce the (table, user) went
+            # offline. The bridge starts a grace timer; if the client
+            # reconnects within the window the timer is cancelled.
+            if self._on_disconnect is not None:
+                try:
+                    await self._on_disconnect(table_id, user_id)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "on_disconnect hook raised: table=%s user=%s",
+                        table_id, user_id,
+                    )
             await self._ps.unsubscribe(table_topic, table_queue)
             await self._ps.unsubscribe(user_topic, user_queue)
             await self._gk.release(slot_token)
