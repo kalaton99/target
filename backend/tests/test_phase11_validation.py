@@ -134,11 +134,13 @@ def test_f1_lobby_config_and_seat_derivation():
     cfg = r.json()
     assert cfg["allow_bots"] is True
     seats = cfg["table_seats_by_target"]
-    # JSON keys are strings
+    # JSON keys are strings — locked targets 2026-05: 30/50/75/100
     assert str(seats.get("30", seats.get(30))) == "4"
     assert str(seats.get("50", seats.get(50))) == "4"
+    assert str(seats.get("75", seats.get(75))) == "5"
     assert str(seats.get("100", seats.get(100))) == "5"
-    assert str(seats.get("250", seats.get(250))) == "5"
+    # 250 was deprecated in the 2026-05 locked-rules migration.
+    assert seats.get("250", seats.get(250)) is None
 
     _, tok = _auth(_mk_name("F1a"))
     t30 = _create_table(tok, target=30, max_players=10)  # client value must be ignored

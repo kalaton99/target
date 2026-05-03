@@ -22,12 +22,13 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - Future: real-money player (deferred)
 
 ## Core Requirements (frozen)
-- **Table sizes are locked by target tier** (2026-05 rule update — see
+- **Table sizes are locked by target tier** (2026-05 v2 rule update — see
   [`GAME_RULES_LOCKED.md`](./GAME_RULES_LOCKED.md) for the single source of truth):
   - Target 30  → **4 seats**
   - Target 50  → **4 seats**
+  - Target 75  → **5 seats**
   - Target 100 → **5 seats**
-  - Target 250 → **5 seats**
+  - Target **250 has been removed** (deprecated in 2026-05 v2; replaced by 75).
 - Legacy `MAX_PLAYERS=8` / 6–8 seat assumptions are **deprecated**. Code
   must be migrated to the per-target caps above before the next real-money
   build.
@@ -56,7 +57,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - ✅ Phase 5 — Wallet/ledger durable WAL state machine [17 tests]
 - ✅ Phase 6 — Realtime WebSocket (gateway + bridge + dev UI)
 - ✅ TARGET v2 engine alignment (2026-02)
-   • Dynamic target: 30 / 50 / 100 / 250 (from table config)
+   • Dynamic target: 30 / 50 / 75 / 100 (from table config; 250 removed 2026-05 v2)
    • New phase order: ANTE → BETTING_R1 → DEAL_INITIAL → DRAW → SHOWDOWN → PAYOUT
    • Initial deal: 1 card per player (NOT 2)
    • 51% rule: ceil(0.51*X) call requirement on raises; max raise capped by lowest active wallet
@@ -93,7 +94,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • `backend/lobby/service.py` — Mongo-backed table CRUD + lightweight guest auth (username only)
    • `backend/lobby/router.py` — `/api/v2/lobby/*` endpoints: `auth`, `me`, `tables`, `tables/{id}/{join,leave,start}`
    • Engine spawn on START: real seats from lobby; if creator is alone, 1 bot is added as fallback so 2-player game runs; bot driver auto-CHECKs in BETTING_R1 and STANDs in DRAW
-   • `frontend/src/pages/LobbyPage.jsx` — login, create-table form (target 30/50/100/250, stake, min/max), live-refreshing table list, JOIN/ENTER/START controls
+   • `frontend/src/pages/LobbyPage.jsx` — login, create-table form (target 30/50/75/100, stake, min/max), live-refreshing table list, JOIN/ENTER/START controls
    • `frontend/src/pages/PlayPage.jsx` — dual-mode: `/play` (dev solo via spawn_solo_table) and `/play/:tableId` (lobby mode using persisted token from localStorage)
    • App routes: `/` → `/lobby`, `/play`, `/play/:tableId`
    • 17/17 lobby tests pass against live backend including: 2 real users connect via WS to the same table and both receive `STATE_UPDATE` (`target_score=30`, 2 humans, no bot) + their own `PRIVATE_STATE`; solo START spawns bot fallback with bot user_id starting `u_bot_*`
@@ -433,7 +434,7 @@ happens against the real table shape:
 - `backend/.env`: `TARGET_BOT_COUNT_MAX` raised from 3 to 4.
 - `frontend/src/pages/LobbyPage.jsx`:
   - `<input data-testid="bot-count-input" max>` is now **dynamic**:
-    3 for target 30/50, 4 for target 100/250.
+    3 for target 30/50, 4 for target 75/100.
   - Effect hook clamps the input value downward when the user switches
     from a 5-seat target to a 4-seat one.
 - `backend/tests/test_lobby_phase11_p2.py::TestBotsGated` updated with
@@ -446,14 +447,39 @@ happens against the real table shape:
   `<input max>` dynamic (3/4/4) confirmed; downward-clamp confirmed
   (value=4 on target-100 → switch to target-30 → auto-clamped to 3).
 
+## 2026-05 v2 — Target 250 removed + deck-refill + showdown reveal
+- **Valid target set locked to `{30, 50, 75, 100}`** — target 250 deprecated.
+  - `backend/core/constants.py::VALID_TARGET_SCORES = (30, 50, 75, 100)`
+  - `TABLE_SEATS_BY_TARGET = {30:4, 50:4, 75:5, 100:5}`
+  - Lobby config endpoint, `LobbyPage.jsx` target options, and all tests
+    now reference 75 in place of 250.
+- **Deck-exhaustion refill** — when the initial 54-card deck empties
+  mid-hand, the engine refills with a fresh **52-card jokerless** deck
+  (`backend/game_engine/deck.py::build_fresh_deck(include_jokers=False)`).
+  `GameState.deck_refills` counter tracks refills per hand. Unit-test
+  coverage in `tests/test_deck_refill_2026_05.py`.
+- **Opponent cards reveal at SHOWDOWN / PAYOUT** — `realtime_v2/bridge.py`
+  includes `players[*].cards` in public `STATE_UPDATE` broadcasts **only**
+  when `state.phase ∈ {SHOWDOWN, PAYOUT}`; pre-showdown privacy preserved
+  (F9 card-privacy test still green).
+- **Stuck-state fix (5-seat + 4 bots)** — verified live: target=100 with
+  4 bots progresses `BETTING_R1 → DRAW_1 → BETTING_R2 → DRAW_2 →
+  BETTING_R3 → PAYOUT` without stalling, and all 4 opponent hands reveal
+  at payout.
+- **Test suite: 224 passed / 2 skipped** against live backend (legacy
+  `test_websocket.py` excluded — tests `backend/realtime/` deprecated
+  single-DRAW path per PRD legacy directive).
+- Docs updated: `memory/GAME_RULES_LOCKED.md` §2 seat table + §8 rule-log;
+  `memory/PRD.md` core requirements section.
+
 ## Next Action Items
-1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
 5. P0: Replay client_seed contribution to RNG.
 6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.
+8. ✅ P0: Target 250 → 75 migration + deck-exhaustion refill + showdown reveal — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

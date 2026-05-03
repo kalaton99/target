@@ -28,8 +28,14 @@ table below.
 |-------------:|:-----:|:-------------------:|:------|
 | 30           | 4     | 2                   | Low-stake fast hand |
 | 50           | 4     | 2                   | Low-stake fast hand |
-| 100          | 5     | 2                   | Mid-stake |
-| 250          | 5     | 2                   | High-stake |
+| 75           | 5     | 2                   | Mid-stake |
+| 100          | 5     | 2                   | Mid/high-stake |
+
+> **2026-05 v2:** Target **250 has been removed** from the valid target
+> set. The authoritative tuple is `VALID_TARGET_SCORES = (30, 50, 75, 100)`
+> in `backend/core/constants.py`. Any client-supplied `target_score`
+> outside this set must be rejected by `/api/v2/lobby/tables` with
+> `422 INVALID_TARGET_SCORE`.
 
 `min_players=2` remains the universal start threshold (a hand can
 always run with just 2 humans; empty seats stay empty).
@@ -187,3 +193,4 @@ up to 8 seats. With the new 4/5-seat cap:
 |------------|--------------------------------------------------------------------|--------------------|
 | 2026-02    | Initial `MAX_PLAYERS=8`, `STAND_THRESHOLD={2:1..8:5}` set in code. | Phase-2 rewrite    |
 | 2026-05    | Table sizes locked to `{30:4, 50:4, 100:5, 250:5}`. 6–8 seats deprecated. Bots configurable & dev-only. Stand-threshold for 5 active confirmed at 3. | User rule update (this doc) |
+| 2026-05 v2 | Target **250 deprecated**. Valid target set is now `{30, 50, 75, 100}` (75 replaces 250). Seat map: `{30:4, 50:4, 75:5, 100:5}`. Deck-refill rule added: when the initial 54-card deck exhausts mid-hand, the engine refills with a fresh **52-card jokerless** deck (`state.deck_refills` counter tracks refills per hand). Opponents' cards become public in `STATE_UPDATE.players[*].cards` at `SHOWDOWN` / `PAYOUT` phases only. | User rule update |

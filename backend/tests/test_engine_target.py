@@ -1,7 +1,7 @@
 """TARGET v2 engine tests — covers the 2026-02 rewrite.
 
 Scope:
-  - Dynamic target: 30 / 50 / 100 / 250
+  - Dynamic target: 30 / 50 / 75 / 100 (2026-05 v2 — 250 removed)
   - Phase order: ANTE -> BETTING_R1 -> DEAL_INITIAL -> DRAW -> SHOWDOWN -> PAYOUT
   - Initial deal: 1 card per player (NOT 2)
   - 51% rule (BET / RAISE / CALL / CHECK / FOLD)
@@ -107,7 +107,7 @@ class TestScoring:
 # =====================================================================
 
 class TestStartHand:
-    def test_start_hand_targets_30_50_100_250(self):
+    def test_start_hand_all_valid_targets(self):
         for tgt in VALID_TARGET_SCORES:
             state = make_state(2, target=tgt)
             new_state, events = start_hand(state, target=tgt)
