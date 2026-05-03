@@ -169,45 +169,142 @@ def _rescore(p: PlayerState, target: int) -> None:
 # Phase transitions (internal)
 # ============================================================
 
-def _end_betting_to_deal(state: GameState, events: List[Dict[str, Any]]) -> None:
-    """BETTING_R1 → DEAL_INITIAL → DRAW.
+def _enter_betting_round(state: GameState, events: List[Dict[str, Any]], round_n: int) -> None:
+    """Enter BETTING_R{round_n} (2026-05 multi-round extension).
 
-    DEAL_INITIAL deals exactly one card per still-in-hand player.
-    Then we transition straight to DRAW (DEAL_INITIAL is a transient phase).
+    Resets per-round betting bookkeeping so the round is independent of
+    earlier rounds:
+      - `current_call_owed` and `last_raise_amount` go back to 0 (new
+        round opens with no pending bet).
+      - `responded_seats` is cleared (everyone must respond again).
+      - Each in-hand player's `current_bet` resets — represents
+        commitment for THIS round only. `total_contributed` keeps
+        accumulating across rounds for the payout-delta UX math.
+
+    First turn = lowest-indexed in_hand seat. Mirrors the BETTING_R1
+    setup at START_HAND so client UX is identical for R2 / R3.
     """
-    in_hand = [i for i in _in_hand_seats(state)]
+    in_hand = _in_hand_seats(state)
     if len(in_hand) <= 1:
-        # Trivial case: everyone except one folded → that one wins
+        # Trivial — only one player left; jump to showdown.
         _enter_showdown(state, events)
         return
+    state.phase = f"BETTING_R{round_n}"
+    state.betting_round = round_n
+    state.current_call_owed = 0
+    state.last_raise_amount = 0
+    state.responded_seats = []
+    for i in in_hand:
+        state.players[i].current_bet = 0
+    first = in_hand[0]
+    _set_turn(state, first)
+    events.append({
+        "type": "PHASE",
+        "phase": state.phase,
+        "betting_round": round_n,
+        "first_seat": first,
+    })
 
-    state.phase = "DEAL_INITIAL"
-    events.append({"type": "PHASE", "phase": "DEAL_INITIAL"})
 
+def _run_auto_deal_round(state: GameState, events: List[Dict[str, Any]], draw_n: int) -> None:
+    """Server-driven auto-deal for DRAW_{draw_n} (2026-05 multi-round).
+
+    Each in_hand player (not folded / busted / disqualified / sitting_out)
+    receives exactly ONE card from the deck, in seat order. This mirrors
+    poker's FLOP/TURN/RIVER analog from the locked rules.
+
+    No HIT/STAND interactivity here — the phase is entered, all cards
+    are dealt synchronously, and the next phase (BETTING_R{draw_n+1} or
+    SHOWDOWN after DRAW_2) is entered before this helper returns. As a
+    result the wire-level client may briefly see `phase = DRAW_{n}` in
+    a single STATE_UPDATE alongside the per-card events; clients should
+    not expect to send actions while in DRAW_{n}.
+
+    Edge cases:
+      - DECK_EXHAUSTED — same hard error as DEAL_INITIAL. The deck is
+        54 cards (52 + 2 jokers) so 5 players × 3 cards (1 initial + 2
+        forced draws) × multi-rounds = 15 cards max — always safe.
+      - All-fold short-circuit handled by `_enter_betting_round` /
+        `_enter_showdown` callers, not here.
+    """
+    state.phase = f"DRAW_{draw_n}"
+    state.betting_round = 0
+    events.append({"type": "PHASE", "phase": state.phase, "draw_round": draw_n})
+
+    in_hand = _in_hand_seats(state)
     for i in in_hand:
         if not state.deck:
-            raise ReducerError("DECK_EXHAUSTED_AT_DEAL")
+            raise ReducerError("DECK_EXHAUSTED_AT_DRAW")
         p = state.players[i]
         p.cards.append(state.deck.pop(0))
         _rescore(p, state.target_score)
         events.append({
-            "type": "INITIAL_CARD",
+            "type": "DEAL_CARD",
+            "draw_round": draw_n,
             "seat": i, "user_id": p.user_id,
             "score": p.score,
             "busted": p.busted,
             "disqualified": p.disqualified,
         })
 
-    state.phase = "DRAW"
-    state.draw_active_count = sum(1 for i in in_hand if state.players[i].in_hand)
-    events.append({"type": "PHASE", "phase": "DRAW", "draw_active_count": state.draw_active_count})
 
-    # First DRAW seat is the lowest-indexed seat that can still draw
-    first = next((i for i in in_hand if state.players[i].can_draw), None)
-    if first is None:
+def _end_betting_to_deal(state: GameState, events: List[Dict[str, Any]]) -> None:
+    """End-of-betting transition.
+
+    The single entry-point used by `_maybe_end_betting`. Dispatches by
+    the current phase so the same hook drives all three rounds:
+
+      BETTING_R1 → DEAL_INITIAL (1 card each) → DRAW_1 (1 more card each
+                   via _run_auto_deal_round) → BETTING_R2
+      BETTING_R2 → DRAW_2 (1 card each) → BETTING_R3
+      BETTING_R3 → SHOWDOWN
+
+    `≤ 1 in_hand` short-circuits straight to SHOWDOWN regardless of
+    round (legacy behaviour preserved).
+    """
+    in_hand = [i for i in _in_hand_seats(state)]
+    if len(in_hand) <= 1:
         _enter_showdown(state, events)
-    else:
-        _set_turn(state, first)
+        return
+
+    if state.phase == "BETTING_R1":
+        # Existing DEAL_INITIAL flow — 1 card to each in_hand player.
+        state.phase = "DEAL_INITIAL"
+        events.append({"type": "PHASE", "phase": "DEAL_INITIAL"})
+        for i in in_hand:
+            if not state.deck:
+                raise ReducerError("DECK_EXHAUSTED_AT_DEAL")
+            p = state.players[i]
+            p.cards.append(state.deck.pop(0))
+            _rescore(p, state.target_score)
+            events.append({
+                "type": "INITIAL_CARD",
+                "seat": i, "user_id": p.user_id,
+                "score": p.score,
+                "busted": p.busted,
+                "disqualified": p.disqualified,
+            })
+        # Now run DRAW_1 (one MORE card per in_hand player) and step
+        # straight into BETTING_R2.
+        _run_auto_deal_round(state, events, 1)
+        # `draw_active_count` stays for any legacy stand-threshold
+        # tooling / metrics that still consult it.
+        state.draw_active_count = sum(1 for i in in_hand if state.players[i].in_hand)
+        _enter_betting_round(state, events, 2)
+        return
+
+    if state.phase == "BETTING_R2":
+        _run_auto_deal_round(state, events, 2)
+        _enter_betting_round(state, events, 3)
+        return
+
+    if state.phase == "BETTING_R3":
+        _enter_showdown(state, events)
+        return
+
+    # Defensive: any unexpected phase falls through to showdown so a
+    # bug in the state-machine never strands a hand mid-flight.
+    _enter_showdown(state, events)
 
 
 def _maybe_end_betting(state: GameState, events: List[Dict[str, Any]], current_seat: int) -> bool:
@@ -432,6 +529,7 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
 
         # → BETTING_R1
         state.phase = "BETTING_R1"
+        state.betting_round = 1
         first = next(
             (i for i, p in enumerate(state.players) if p.in_hand),
             None,
@@ -448,8 +546,11 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
     # BETTING actions: BET / CHECK / CALL / RAISE / FOLD
     # ============================================================
     if a_type in ("BET", "CHECK", "CALL", "RAISE", "FOLD"):
-        if state.phase != "BETTING_R1":
-            # FOLD is also accepted in DRAW (handled below); BETTING actions otherwise are wrong-phase
+        # 2026-05 multi-round betting: BETTING actions are accepted in
+        # any of the three betting rounds. FOLD is also accepted in DRAW
+        # (legacy single-draw flow) — preserved unchanged.
+        in_betting = state.phase in ("BETTING_R1", "BETTING_R2", "BETTING_R3")
+        if not in_betting:
             if not (a_type == "FOLD" and state.phase == "DRAW"):
                 raise ReducerError("WRONG_PHASE")
 
@@ -463,7 +564,7 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
         if a_type == "FOLD":
             p.folded = True
             events.append({"type": "FOLD", "seat": seat, "user_id": p.user_id})
-            if state.phase == "BETTING_R1":
+            if in_betting:
                 _maybe_end_betting(state, events, seat)
             else:
                 _maybe_end_draw(state, events, seat)

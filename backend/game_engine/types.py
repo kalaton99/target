@@ -44,16 +44,20 @@ class GameState:
     hand_id: Optional[str] = None
     hand_number: int = 0
     engine_version: str = "2.0.0"   # bumped: TARGET-aligned engine
-    phase: str = "WAITING"          # WAITING|ANTE|BETTING_R1|DEAL_INITIAL|DRAW|SHOWDOWN|PAYOUT|ENDED
+    phase: str = "WAITING"          # WAITING|ANTE|BETTING_R1|DEAL_INITIAL|DRAW|DRAW_1|BETTING_R2|DRAW_2|BETTING_R3|SHOWDOWN|PAYOUT|ENDED
     version: int = 0                # state_version
     players: List[PlayerState] = field(default_factory=list)
     deck: List[Dict[str, Any]] = field(default_factory=list)  # face-down to clients
     pot: int = 0
 
-    # ---- Betting (Phase 1: BETTING_R1) ----
+    # ---- Betting (Phase 1 → R1; 2026-05 multi-round → R1/R2/R3) ----
     current_call_owed: int = 0      # amount each non-responded player must pay to stay
     last_raise_amount: int = 0      # amount of most recent raise (or initial bet)
     responded_seats: List[int] = field(default_factory=list)  # seats that have answered the latest raise
+    # 2026-05 multi-round betting: 0 outside betting; 1/2/3 during BETTING_R{n}.
+    # Read by the bridge for client broadcast and by reducer transitions to
+    # decide whether the current betting round is the last (R3 → SHOWDOWN).
+    betting_round: int = 0
 
     # ---- Turn ----
     current_turn_seat: Optional[int] = None

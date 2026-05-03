@@ -84,7 +84,13 @@ PHASES = (
     "ANTE",
     "BETTING_R1",
     "DEAL_INITIAL",
-    "DRAW",
+    "DRAW",        # legacy interactive HIT/STAND phase — kept for engine
+                   # tests and any future single-draw variant. Not entered
+                   # by the canonical multi-round flow.
+    "DRAW_1",      # 2026-05 multi-round: auto-deal 1 card per in_hand
+    "BETTING_R2",  # 2026-05 multi-round
+    "DRAW_2",      # 2026-05 multi-round: auto-deal 1 card per in_hand
+    "BETTING_R3",  # 2026-05 multi-round
     "SHOWDOWN",
     "PAYOUT",
     "ENDED",
