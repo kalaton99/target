@@ -1,7 +1,20 @@
-"""TARGET game constants. Aligned to the real TARGET rules (2026-02 rewrite).
+"""TARGET game constants. Aligned to the real TARGET rules (2026-02 rewrite,
+2026-05 locked-rules migration).
 
 No fixed `21` target anymore — target_score is per-table from a fixed set.
+Authoritative rule doc: `/app/memory/GAME_RULES_LOCKED.md`.
 """
+import os
+from pathlib import Path
+
+# Load .env explicitly so env-driven constants below resolve correctly
+# regardless of import order (core.config also calls load_dotenv but
+# constants is sometimes imported before it). Idempotent.
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except Exception:  # noqa: BLE001
+    pass
 
 # ---------- Turn timing ----------
 TURN_TIMEOUT_MS = 15000          # 15 seconds, hard
@@ -14,13 +27,25 @@ DEFAULT_TARGET_SCORE = 30        # used by dev spawn; production must be explici
 JOKERS_IN_DECK = 2
 DECK_SIZE_WITH_JOKERS = 54
 
+# ---------- Table sizes locked per target tier (2026-05) ----------
+# Source of truth: GAME_RULES_LOCKED.md §2. Server derives `max_players`
+# from `target_score` at table-creation; client-supplied values are ignored.
+TABLE_SEATS_BY_TARGET = {
+    30: 4,
+    50: 4,
+    100: 5,
+    250: 5,
+}
+
 # ---------- Player limits ----------
 MIN_PLAYERS = 2
-MAX_PLAYERS = 8
+MAX_PLAYERS = 5                  # 2026-05: 6/7/8 deprecated per GAME_RULES_LOCKED.md §3
 
 # ---------- Stand threshold (number of stands that trigger SHOWDOWN) ----------
 # Indexed by the number of active players entering DRAW (post-betting folds).
-STAND_THRESHOLD = {2: 1, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4, 8: 5}
+# Note: keys 2..5 cover both seat caps AND mid-hand folds — e.g. a 4-seat
+# table where one player folds in BETTING_R1 enters DRAW with 3 active.
+STAND_THRESHOLD = {2: 1, 3: 2, 4: 3, 5: 3}
 
 # ---------- 51% call rule ----------
 CALL_PERCENT_NUM = 51
@@ -64,3 +89,19 @@ PHASES = (
     "PAYOUT",
     "ENDED",
 )
+
+# ---------- CPU/bot config (2026-05 — see GAME_RULES_LOCKED.md §5) ----------
+# Bots are a dev/testing affordance. Production must run all-human.
+# Both env vars default to OFF so production deploys are safe-by-default.
+ALLOW_BOTS = bool(int(os.environ.get("TARGET_ALLOW_BOTS", "0")))
+BOT_COUNT_MAX = max(0, min(3, int(os.environ.get("TARGET_BOT_COUNT_MAX", "3"))))
+
+
+def seats_for_target(target_score: int) -> int:
+    """Resolve the locked seat count for a given target score.
+
+    Raises KeyError if `target_score` is not in `VALID_TARGET_SCORES`.
+    Callers should validate `target_score` first; this helper is the
+    single point of truth for "target → seats".
+    """
+    return TABLE_SEATS_BY_TARGET[target_score]

@@ -9,11 +9,11 @@ Covers:
   - invalid username rejected
   - create / list / join / leave / start
   - join idempotency
-  - max_players enforcement
+  - per-target seat-cap enforcement (2026-05 locked-rules migration)
   - non-creator can't START
   - START transitions to RUNNING
   - end-to-end: 2 real users connect via WS to the same table
-  - solo creator START spawns a bot fallback
+  - solo creator START with explicit bot_count=1 spawns a bot
 """
 from __future__ import annotations
 
@@ -48,6 +48,17 @@ def _name(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
 
+def _allow_bots() -> bool:
+    """Read /api/v2/lobby/config to decide whether bot-dependent
+    tests should run. Production deploys advertise allow_bots=False
+    and the corresponding tests skip cleanly there."""
+    try:
+        r = requests.get(f"{API}/v2/lobby/config", timeout=TIMEOUT)
+        return bool(r.json().get("allow_bots"))
+    except Exception:
+        return False
+
+
 # ============================================================
 # Auth
 # ============================================================
@@ -80,6 +91,27 @@ class TestAuth:
 
 
 # ============================================================
+# Lobby config (2026-05 locked-rules migration)
+# ============================================================
+
+class TestLobbyConfig:
+    def test_config_exposes_seat_table_and_bot_flag(self):
+        r = requests.get(f"{API}/v2/lobby/config", timeout=TIMEOUT)
+        assert r.status_code == 200, r.text
+        cfg = r.json()
+        # Seat table is a hard contract — production must always
+        # advertise these locked-in values.
+        seats = cfg["table_seats_by_target"]
+        # JSON keys are strings; accept either.
+        assert int(seats.get("30", seats.get(30))) == 4
+        assert int(seats.get("50", seats.get(50))) == 4
+        assert int(seats.get("100", seats.get(100))) == 5
+        assert int(seats.get("250", seats.get(250))) == 5
+        assert isinstance(cfg["allow_bots"], bool)
+        assert isinstance(cfg["bot_count_max"], int)
+
+
+# ============================================================
 # Tables CRUD
 # ============================================================
 
@@ -88,8 +120,6 @@ def _create_table(token, name=None, **overrides):
         "name": name or _name("Room"),
         "target_score": 30,
         "stake": 100,
-        "max_players": 2,
-        "min_players": 2,
     }
     body.update(overrides)
     r = requests.post(
@@ -109,6 +139,28 @@ class TestTablesCRUD:
         assert len(t["seats"]) == 1
         assert t["seats"][0]["user_id"] == u["user_id"]
         assert t["target_score"] == 30
+        # Server-derived seat cap (locked rule): target 30 → 4 seats.
+        assert t["max_players"] == 4
+        assert t["min_players"] == 2
+
+    def test_create_table_target_100_has_5_seats(self):
+        u = _auth(_name("t100"))
+        t = _create_table(u["token"], target_score=100).json()
+        assert t["max_players"] == 5
+
+    def test_create_table_target_250_has_5_seats(self):
+        u = _auth(_name("t250"))
+        t = _create_table(u["token"], target_score=250).json()
+        assert t["max_players"] == 5
+
+    def test_create_table_ignores_client_supplied_max_players(self):
+        # Older clients still send max_players=8; server must ignore it
+        # and derive from target_score (locked-rules migration).
+        u = _auth(_name("legacy"))
+        r = _create_table(u["token"], target_score=30, max_players=8, min_players=2)
+        assert r.status_code == 201, r.text
+        t = r.json()
+        assert t["max_players"] == 4  # NOT 8
 
     def test_list_tables_includes_created(self):
         u = _auth(_name("lister"))
@@ -127,7 +179,7 @@ class TestTablesCRUD:
     def test_join_other_user(self):
         u1 = _auth(_name("j1"))
         u2 = _auth(_name("j2"))
-        t = _create_table(u1["token"], max_players=4).json()
+        t = _create_table(u1["token"], target_score=30).json()  # 4 seats
         r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                           headers=_h(u2["token"]), timeout=TIMEOUT)
         assert r.status_code == 200, r.text
@@ -143,27 +195,59 @@ class TestTablesCRUD:
         assert len(r.json()["seats"]) == 1
 
     def test_join_full_table_rejected(self):
-        u1 = _auth(_name("f1"))
-        u2 = _auth(_name("f2"))
-        u3 = _auth(_name("f3"))
-        t = _create_table(u1["token"], max_players=2).json()
-        requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
-                      headers=_h(u2["token"]), timeout=TIMEOUT)
-        r3 = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
-                           headers=_h(u3["token"]), timeout=TIMEOUT)
-        assert r3.status_code == 400
-        assert "TABLE_FULL" in r3.text
+        # Target 30 → 4 seats. Fill all 4, then a 5th join must be rejected.
+        creator = _auth(_name("f0"))
+        t = _create_table(creator["token"], target_score=30).json()
+        for i in range(1, 4):
+            u = _auth(_name(f"f{i}"))
+            r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
+                              headers=_h(u["token"]), timeout=TIMEOUT)
+            assert r.status_code == 200, r.text
+        u_extra = _auth(_name("f5"))
+        r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
+                          headers=_h(u_extra["token"]), timeout=TIMEOUT)
+        assert r.status_code == 400
+        assert "TABLE_FULL" in r.text
 
     def test_leave_table(self):
         u1 = _auth(_name("l1"))
         u2 = _auth(_name("l2"))
-        t = _create_table(u1["token"], max_players=4).json()
+        t = _create_table(u1["token"], target_score=30).json()
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                       headers=_h(u2["token"]), timeout=TIMEOUT)
         r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/leave",
                           headers=_h(u2["token"]), timeout=TIMEOUT)
         assert r.status_code == 200
         assert all(s["user_id"] != u2["user_id"] for s in r.json()["seats"])
+
+
+# ============================================================
+# Bot config gate (2026-05 locked-rules migration)
+# ============================================================
+
+class TestBotsGated:
+    def test_bot_count_zero_always_allowed(self):
+        u = _auth(_name("nb"))
+        r = _create_table(u["token"], bot_count=0)
+        assert r.status_code == 201, r.text
+
+    def test_bot_count_positive_requires_allow_bots(self):
+        # In environments where ALLOW_BOTS is True (dev/preview), the
+        # request succeeds. In production it is a 400.
+        u = _auth(_name("withbot"))
+        r = _create_table(u["token"], bot_count=1)
+        if _allow_bots():
+            assert r.status_code == 201, r.text
+            assert r.json().get("bot_count", 0) == 1
+        else:
+            assert r.status_code == 400
+            assert "BOTS_DISABLED" in r.text
+
+    def test_bot_count_above_max_rejected(self):
+        # Pydantic-level guard at le=3 — server must reject 4+.
+        u = _auth(_name("many"))
+        r = _create_table(u["token"], bot_count=4)
+        assert r.status_code in (400, 422), r.text
 
 
 # ============================================================
@@ -194,7 +278,7 @@ class TestStartLifecycle:
         u1 = _auth(_name("as1"))
         u2 = _auth(_name("as2"))
         u3 = _auth(_name("as3"))
-        t = _create_table(u1["token"], max_players=4).json()
+        t = _create_table(u1["token"], target_score=30).json()
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                       headers=_h(u2["token"]), timeout=TIMEOUT)
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/start",
@@ -204,10 +288,14 @@ class TestStartLifecycle:
         assert r.status_code == 400
         assert "TABLE_NOT_JOINABLE" in r.text
 
-    def test_solo_start_includes_bot_in_engine(self):
-        """When 1 human is at the table, start spawns a bot so 2-player game runs."""
+    def test_solo_start_with_bot_count_seats_a_bot(self):
+        """When 1 human creates a table with bot_count=1, START spawns a
+        bot so a 2-player game runs. Skips on production (allow_bots=False)."""
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server (ALLOW_BOTS=False)")
         u1 = _auth(_name("solo"))
-        t = _create_table(u1["token"]).json()
+        t = _create_table(u1["token"], bot_count=1).json()
+        assert t.get("bot_count") == 1
         r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/start",
                           headers=_h(u1["token"]), timeout=TIMEOUT)
         assert r.status_code == 200
@@ -229,6 +317,32 @@ class TestStartLifecycle:
                     seen_two_players = True
                     break
             assert seen_two_players
+
+    def test_solo_start_without_bot_count_does_not_seat_bot(self):
+        """Locked-rules migration: the old 'auto-bot if alone' shortcut
+        is removed. Solo start with bot_count=0 produces a 1-player engine."""
+        u1 = _auth(_name("alone"))
+        t = _create_table(u1["token"]).json()
+        assert t.get("bot_count", 0) == 0
+        r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/start",
+                          headers=_h(u1["token"]), timeout=TIMEOUT)
+        assert r.status_code == 200
+
+        url = f"{WS_BASE}/api/v2/ws/table/{t['table_id']}?token={u1['token']}"
+        with ws_connect(url, open_timeout=10, close_timeout=5) as ws:
+            for _ in range(10):
+                import json
+                m = json.loads(ws.recv(timeout=5))
+                if m.get("type") == "PING":
+                    ws.send(json.dumps({"type": "PONG"}))
+                    continue
+                if m.get("type") == "STATE_UPDATE":
+                    # No bots seated. Only the creator.
+                    assert len(m["players"]) == 1
+                    bots = [p for p in m["players"] if p["user_id"].startswith("u_bot_")]
+                    assert len(bots) == 0
+                    return
+            pytest.fail("never observed STATE_UPDATE")
 
 
 # ============================================================

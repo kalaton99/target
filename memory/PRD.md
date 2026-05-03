@@ -307,11 +307,62 @@ happens against the real table shape:
    fallback must pass `bot_count=1` or set `TARGET_ALLOW_BOTS=1` via
    `monkeypatch`.
 
+## 2026-05 — Locked-rules migration shipped
+- `backend/core/constants.py`:
+  - Added `TABLE_SEATS_BY_TARGET = {30: 4, 50: 4, 100: 5, 250: 5}` and
+    `seats_for_target()` helper.
+  - `MAX_PLAYERS: 8 → 5`. `STAND_THRESHOLD` trimmed to `{2:1, 3:2, 4:3, 5:3}`.
+  - Env-driven bot config: `ALLOW_BOTS` (default off) and `BOT_COUNT_MAX`
+    (clamped to `[0, 3]`). Module loads `.env` at import time so
+    constants resolve regardless of import order.
+- `backend/lobby/service.py::create_table`: ignores client-supplied
+  `max_players`/`min_players` (kept as optional kwargs for back-compat,
+  silently dropped); derives `max_players` from `target_score`. New
+  `bot_count` field stored on the table doc and surfaced through
+  `_public_table`.
+- `backend/lobby/router.py`:
+  - `CreateTableRequest`: `max_players`/`min_players` are
+    `Optional[int]` (server-ignored). New `bot_count: int = Field(0,
+    ge=0, le=3)`.
+  - `POST /v2/lobby/tables` rejects `bot_count > 0` when
+    `ALLOW_BOTS=False` (`400 BOTS_DISABLED`) or `> BOT_COUNT_MAX`
+    (`400 BOT_COUNT_EXCEEDED`).
+  - New `GET /v2/lobby/config` exposes `{allow_bots, bot_count_max,
+    table_seats_by_target}` for frontend feature-gating.
+  - `_spawn_engine_for_table` rewritten — legacy "auto-spawn 1 bot if
+    creator alone" is gone. Bots are seated only when `ALLOW_BOTS=True`
+    and `bot_count > 0`, clamped by `BOT_COUNT_MAX` and free seats.
+- `backend/realtime_v2/dev_router.py`:
+  - `/v2/dev/spawn_solo_table` returns `404 BOTS_DISABLED` when
+    `ALLOW_BOTS=False`.
+  - `_BotDriver` strategy upgraded to actually exercise HIT: DRAW
+    HITs while score < 60% of target, else STANDs.
+- `backend/.env`: added `TARGET_ALLOW_BOTS=1` + `TARGET_BOT_COUNT_MAX=3`
+  for the dev/preview environment. **Production deploys must omit these
+  or set `TARGET_ALLOW_BOTS=0`.**
+- `frontend/src/pages/LobbyPage.jsx`:
+  - Removed `minp-input` / `maxp-input` from the create-table form.
+  - Added read-only `seats-derived` widget.
+  - Added optional `bot-count-input` (rendered only when `/config`
+    advertises `allow_bots=true`).
+- `backend/tests/test_lobby_phase11_p2.py`: 8 new tests covering
+  `/config`, per-target seat-cap derivation, legacy `max_players`
+  ignored, bot-count gating, and the removed auto-bot fallback.
+
+**Tests**: canonical pytest suite **170 passed / 2 skipped** (was
+162; +8 new). ESLint on `LobbyPage.jsx`: clean. Ruff on backend: clean.
+
+**E2E smoke (live preview)**:
+- `/lobby`: target-30 → "4 seats", target-100 → "5 seats",
+  `bot-count-input` visible (dev), old min/max gone, created table
+  shows `1/4 seated`; full 4/4 table reachable.
+- `/play` regression: BETTING_R1 → CHECK → DRAW → STAND → PAYOUT,
+  winner + delta render, no console errors.
+
 ## Next Action Items
-1. 🔴 P0: Locked-rules migration — items 1–4 above, in order. Reducer
-   untouched. Gameplay stays stable throughout.
-2. P0: Multi-round betting (FLOP / TURN / RIVER analog) — **blocked on
-   #1** so it lands against 4/5-seat shapes, not 8.
+1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
+2. P0: Multi-round betting (FLOP / TURN / RIVER analog) — design ready;
+   implementation now lands against 4/5-seat shapes.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
 5. P0: Replay client_seed contribution to RNG.

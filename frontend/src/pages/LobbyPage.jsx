@@ -45,8 +45,19 @@ export default function LobbyPage() {
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(30);
   const [stake, setStake] = useState(100);
-  const [maxP, setMaxP] = useState(2);
-  const [minP, setMinP] = useState(2);
+  // 2026-05: max/min are server-derived from target_score (locked-rules
+  // migration). The form no longer collects them.
+  const [botCount, setBotCount] = useState(0);
+  // /api/v2/lobby/config tells us whether to render the dev-only bots
+  // input. In production deploys allow_bots=false and the control is
+  // hidden entirely so users can't even attempt to spawn one.
+  const [config, setConfig] = useState({ allow_bots: false, bot_count_max: 0, table_seats_by_target: { 30: 4, 50: 4, 100: 5, 250: 5 } });
+  useEffect(() => {
+    fetch("/api/v2/lobby/config")
+      .then((r) => r.json())
+      .then((d) => setConfig(d))
+      .catch(() => {});
+  }, []);
 
   const headers = useCallback(
     () => (user ? { Authorization: `Bearer ${user.token}` } : {}),
@@ -105,16 +116,18 @@ export default function LobbyPage() {
   const doCreate = async () => {
     setErr("");
     try {
+      const body = {
+        name,
+        target_score: Number(target),
+        stake: Number(stake),
+      };
+      if (config.allow_bots && Number(botCount) > 0) {
+        body.bot_count = Math.max(0, Math.min(Number(botCount), config.bot_count_max || 3));
+      }
       const r = await fetch("/api/v2/lobby/tables", {
         method: "POST",
         headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          target_score: Number(target),
-          stake: Number(stake),
-          max_players: Number(maxP),
-          min_players: Number(minP),
-        }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const t = await r.text();
@@ -269,24 +282,28 @@ export default function LobbyPage() {
               className="bg-zinc-900 border border-zinc-700 rounded p-2"
               placeholder="stake"
             />
-            <div className="flex gap-2">
-              <input
-                data-testid="minp-input"
-                type="number" min={2} max={8}
-                value={minP}
-                onChange={(e) => setMinP(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 rounded p-2 w-1/2"
-                placeholder="min"
-              />
-              <input
-                data-testid="maxp-input"
-                type="number" min={2} max={8}
-                value={maxP}
-                onChange={(e) => setMaxP(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 rounded p-2 w-1/2"
-                placeholder="max"
-              />
+            {/* 2026-05: derived seat count is shown read-only beside the
+                target select (locked-rules migration). max/min inputs are
+                gone — server derives `max_players` from `target_score`. */}
+            <div
+              data-testid="seats-derived"
+              className="bg-zinc-900 border border-zinc-700 rounded p-2 text-zinc-500 text-sm flex items-center"
+            >
+              {(config.table_seats_by_target?.[Number(target)] ?? "—")} seats
             </div>
+            {config.allow_bots && (
+              <input
+                data-testid="bot-count-input"
+                type="number"
+                min={0}
+                max={config.bot_count_max || 3}
+                value={botCount}
+                onChange={(e) => setBotCount(e.target.value)}
+                className="bg-zinc-900 border border-zinc-700 rounded p-2"
+                placeholder="bots"
+                title={`Dev: 0–${config.bot_count_max || 3} CPU bots`}
+              />
+            )}
           </div>
           <button
             data-testid="create-table-btn"

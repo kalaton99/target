@@ -22,7 +22,11 @@ from pydantic import BaseModel, Field
 
 from core import db as core_db
 from core.security import create_token, current_user_id
-from core.constants import DEFAULT_TARGET_SCORE
+from core.constants import (
+    ALLOW_BOTS,
+    BOT_COUNT_MAX,
+    DEFAULT_TARGET_SCORE,
+)
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
 from realtime_v2.bridge import EngineBridge
@@ -39,11 +43,24 @@ class AuthRequest(BaseModel):
 
 
 class CreateTableRequest(BaseModel):
+    """Create-table payload.
+
+    `max_players` / `min_players` are accepted but **ignored** — the
+    server derives the seat count from `target_score` per
+    GAME_RULES_LOCKED.md §2. Older clients still send them; we silently
+    drop their values to avoid a hard-break. Future deploys may delete
+    these fields entirely.
+
+    `bot_count` is dev-only (clamped to 0..BOT_COUNT_MAX). When
+    ALLOW_BOTS is False (production default), any positive value is
+    rejected with 400.
+    """
     name: str = Field(..., min_length=2, max_length=32)
     target_score: int = Field(default=DEFAULT_TARGET_SCORE)
     stake: int = Field(default=100, ge=0, le=1_000_000)
-    max_players: int = Field(default=2, ge=2, le=8)
-    min_players: int = Field(default=2, ge=2, le=8)
+    max_players: Optional[int] = Field(default=None)  # IGNORED (server-derived)
+    min_players: Optional[int] = Field(default=None)  # IGNORED (server-derived)
+    bot_count: int = Field(default=0, ge=0, le=3)
 
 
 # ---------- helper: spawn engine + start hand ----------
@@ -51,11 +68,19 @@ class CreateTableRequest(BaseModel):
 async def _spawn_engine_for_table(
     bridge: EngineBridge,
     table_doc: Dict[str, Any],
-    *,
-    spawn_bot_if_alone: bool = True,
 ) -> Dict[str, Any]:
     """Create a TurnEngine for a started table, register it in the bridge,
     and START_HAND. Returns the table_doc unchanged (with engine running).
+
+    Bot seating policy (2026-05, GAME_RULES_LOCKED.md §5):
+      - If `ALLOW_BOTS` is False, no bots are added under any circumstance.
+      - Otherwise, `bot_count` (clamped at table-creation to 0..BOT_COUNT_MAX)
+        determines how many `u_bot_*` seats are appended, capped by the
+        derived `max_players`.
+
+    Older Phase-11-MVP "auto-spawn 1 bot if alone" behaviour is gone.
+    Solo testing is now an explicit `bot_count >= 1` decision at table
+    create time.
     """
     from realtime_v2.dev_router import _BotDriver  # lazy import to avoid cycles
 
@@ -64,24 +89,30 @@ async def _spawn_engine_for_table(
         return table_doc
 
     seats = list(table_doc.get("seats", []))
-    bot_user_id: Optional[str] = None
-    bot_username: Optional[str] = None
-    if len(seats) < table_doc["min_players"] and spawn_bot_if_alone:
-        # Pad the seats with a single bot to reach min_players (MVP: 1 bot).
-        suffix = uuid.uuid4().hex[:6]
-        bot_user_id = f"u_bot_{suffix}"
-        bot_username = f"Bot_{suffix}"
-        seats.append({
-            "user_id": bot_user_id,
-            "username": bot_username,
-            "joined_at": None,
-        })
+    max_players = int(table_doc["max_players"])
+    bots_seated: List[Dict[str, str]] = []
+    if ALLOW_BOTS:
+        requested = int(table_doc.get("bot_count", 0))
+        # Clamp by free seats AND BOT_COUNT_MAX so we never exceed
+        # max_players or the env-imposed cap.
+        bots_to_add = max(0, min(requested, BOT_COUNT_MAX, max_players - len(seats)))
+        for _ in range(bots_to_add):
+            suffix = uuid.uuid4().hex[:6]
+            bot_user_id = f"u_bot_{suffix}"
+            bot_username = f"Bot_{suffix}"
+            seat_doc = {
+                "user_id": bot_user_id,
+                "username": bot_username,
+                "joined_at": None,
+            }
+            seats.append(seat_doc)
+            bots_seated.append(seat_doc)
 
     state = GameState(
         table_id=table_id,
         target_score=int(table_doc["target_score"]),
         stake=int(table_doc["stake"]),
-        max_players=int(table_doc["max_players"]),
+        max_players=max_players,
     )
     state.players = [
         PlayerState(
@@ -96,11 +127,10 @@ async def _spawn_engine_for_table(
     bridge.register_engine(table_id, engine)
     await engine.start()
 
-    if bot_user_id is not None:
-        # Find the bot's seat to drive it.
-        bot_seat = next(
-            i for i, s in enumerate(seats) if s["user_id"] == bot_user_id
-        )
+    # Drive each bot from its own _BotDriver task.
+    for bot_seat_doc in bots_seated:
+        bot_user_id = bot_seat_doc["user_id"]
+        bot_seat = next(i for i, s in enumerate(seats) if s["user_id"] == bot_user_id)
         bot = _BotDriver(bridge, table_id, bot_user_id, bot_seat=bot_seat)
         await bot.start()
 
@@ -141,12 +171,43 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
             raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
         return user
 
+    @router.get("/config")
+    async def config():
+        """Public lobby/feature config. Used by the frontend to decide
+        whether to render the (dev-only) bots input on the create-table
+        form. Production deploys advertise `allow_bots=false` so the
+        control is hidden.
+        """
+        return {
+            "allow_bots": bool(ALLOW_BOTS),
+            "bot_count_max": int(BOT_COUNT_MAX) if ALLOW_BOTS else 0,
+            "table_seats_by_target": {
+                30: 4, 50: 4, 100: 5, 250: 5,
+            },
+        }
+
     @router.get("/tables")
     async def list_tables() -> List[Dict[str, Any]]:
         return await service.list_tables(core_db.db, status="LOBBY")
 
     @router.post("/tables", status_code=status.HTTP_201_CREATED)
     async def create_table(body: CreateTableRequest, user_id: str = Depends(current_user_id)):
+        # Validate bot request against the env-locked policy. Older
+        # clients (or production deploys) MUST NOT be able to spawn bots
+        # by sending bot_count > 0.
+        if body.bot_count > 0:
+            if not ALLOW_BOTS:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "BOTS_DISABLED",
+                            "message": "bots are disabled on this server"},
+                )
+            if body.bot_count > BOT_COUNT_MAX:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "BOT_COUNT_EXCEEDED",
+                            "message": f"max {BOT_COUNT_MAX} bots per table"},
+                )
         try:
             return await service.create_table(
                 core_db.db,
@@ -154,8 +215,7 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
                 name=body.name,
                 target_score=body.target_score,
                 stake=body.stake,
-                max_players=body.max_players,
-                min_players=body.min_players,
+                bot_count=body.bot_count,
             )
         except service.LobbyError as e:
             raise _err(e)
@@ -195,7 +255,7 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
             t = await service.mark_table_running(core_db.db, table_id)
         except service.LobbyError as e:
             raise _err(e)
-        await _spawn_engine_for_table(bridge, t, spawn_bot_if_alone=True)
+        await _spawn_engine_for_table(bridge, t)
         return t
 
     return router

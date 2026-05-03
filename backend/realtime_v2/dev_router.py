@@ -32,6 +32,7 @@ from typing import Dict
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
+from core.constants import ALLOW_BOTS
 from core.security import create_token
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
@@ -46,11 +47,17 @@ logger = logging.getLogger("realtime_v2.dev")
 class _BotDriver:
     """Server-side bot that auto-acts on its turn.
 
-    Strategy (intentionally trivial):
-      - DRAW    -> STAND immediately
-      - BETTING -> CHECK if no current bet, otherwise FOLD
+    Strategy (intentionally simple, dev-only):
+      - DRAW    -> HIT while score < ceil(target_score * 0.6); else STAND
+      - BETTING -> CHECK if no current bet, otherwise CALL
 
-    Reacts to STATE_UPDATE broadcasts from the bridge's pubsub.
+    Reacts to STATE_UPDATE broadcasts from the bridge's pubsub. The
+    bot's score for the HIT/STAND decision is read from its own row
+    in the broadcast `players` array (public score, not private —
+    private cards are fine for face-up TARGET, all cards are public).
+
+    Per GAME_RULES_LOCKED.md §5 this driver only runs when the bridge
+    explicitly seats a bot via `bot_count`. There is no auto-spawn.
     """
 
     def __init__(
@@ -78,6 +85,22 @@ class _BotDriver:
                 pass
             self._task = None
 
+    def _decide_draw_action(self, msg: dict) -> str:
+        """HIT while score < 60% of target_score, else STAND.
+
+        We deliberately keep this trivial — bots are an opponent
+        stand-in for dev testing, not a tuned AI. The 60% rule just
+        ensures bots actually exercise the HIT path some of the time so
+        the human-vs-bot games aren't purely STAND-only walkovers.
+        """
+        target = int(msg.get("target_score") or 30)
+        for p in msg.get("players") or []:
+            if p.get("user_id") == self._bot_user_id:
+                score = int(p.get("score") or 0)
+                hit_below = (target * 6) // 10  # ceil-ish, integer-only
+                return "HIT" if score < hit_below else "STAND"
+        return "STAND"
+
     async def _run(self) -> None:
         topic = f"table:{self._table_id}"
         sub = await self._bridge._pubsub.subscribe(topic)
@@ -93,7 +116,7 @@ class _BotDriver:
                 # tiny natural pause so a human can see the bot's turn
                 await asyncio.sleep(0.5)
                 if phase == "DRAW":
-                    action = "STAND"
+                    action = self._decide_draw_action(msg)
                 elif phase == "BETTING_R1":
                     # CHECK if no call owed; otherwise CALL (or auto-fold if can't pay)
                     action = "CHECK" if msg.get("current_call_owed", 0) == 0 else "CALL"
@@ -117,6 +140,15 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
 
     @router.post("/spawn_solo_table")
     async def spawn_solo_table():
+        # 2026-05: solo tables pair the user with a bot. Per
+        # GAME_RULES_LOCKED.md §5 this MUST be off in production.
+        if not ALLOW_BOTS:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "BOTS_DISABLED",
+                        "message": "solo/bot tables are disabled on this server"},
+            )
         suffix = uuid.uuid4().hex[:6]
         user_id = f"u_anon_{suffix}"
         bot_user_id = f"u_bot_{suffix}"

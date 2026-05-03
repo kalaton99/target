@@ -23,6 +23,7 @@ from core.constants import (
     MAX_PLAYERS,
     MIN_PLAYERS,
     VALID_TARGET_SCORES,
+    seats_for_target,
 )
 
 
@@ -84,6 +85,7 @@ def _public_table(doc: Dict[str, Any]) -> Dict[str, Any]:
         "stake": doc["stake"],
         "max_players": doc["max_players"],
         "min_players": doc["min_players"],
+        "bot_count": int(doc.get("bot_count", 0)),
         "status": doc["status"],
         "seats": list(doc.get("seats", [])),
         "created_at": doc.get("created_at"),
@@ -98,8 +100,9 @@ async def create_table(
     name: str,
     target_score: int = DEFAULT_TARGET_SCORE,
     stake: int = 100,
-    max_players: int = 2,
-    min_players: int = 2,
+    max_players: int | None = None,  # IGNORED — kept for back-compat; server derives from target
+    min_players: int | None = None,  # IGNORED — always MIN_PLAYERS=2
+    bot_count: int = 0,              # 2026-05: dev-only, validated by router
 ) -> Dict[str, Any]:
     if not _TABLE_NAME_RE.match(name or ""):
         raise LobbyError("INVALID_TABLE_NAME", "letters/digits/space/_/-, 2–32 chars")
@@ -108,8 +111,11 @@ async def create_table(
             "INVALID_TARGET_SCORE",
             f"must be one of {sorted(VALID_TARGET_SCORES)}",
         )
-    if not (MIN_PLAYERS <= min_players <= max_players <= MAX_PLAYERS):
-        raise LobbyError("INVALID_PLAYER_LIMITS")
+    # Per GAME_RULES_LOCKED.md §2: seats are a function of target_score.
+    # Any client-supplied max_players/min_players is silently ignored to
+    # avoid breaking older clients during the migration window.
+    derived_max = seats_for_target(target_score)
+    derived_min = MIN_PLAYERS
     if stake < 0 or stake > 1_000_000:
         raise LobbyError("INVALID_STAKE")
 
@@ -124,8 +130,9 @@ async def create_table(
         "creator_user_id": creator_user_id,
         "target_score": target_score,
         "stake": stake,
-        "max_players": max_players,
-        "min_players": min_players,
+        "max_players": derived_max,
+        "min_players": derived_min,
+        "bot_count": int(bot_count),
         "status": "LOBBY",
         "seats": [{
             "user_id": creator_user_id,
