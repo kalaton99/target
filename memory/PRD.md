@@ -22,12 +22,23 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
 - Future: real-money player (deferred)
 
 ## Core Requirements (frozen)
-- 2–8 players per single table
+- **Table sizes are locked by target tier** (2026-05 rule update — see
+  [`GAME_RULES_LOCKED.md`](./GAME_RULES_LOCKED.md) for the single source of truth):
+  - Target 30  → **4 seats**
+  - Target 50  → **4 seats**
+  - Target 100 → **5 seats**
+  - Target 250 → **5 seats**
+- Legacy `MAX_PLAYERS=8` / 6–8 seat assumptions are **deprecated**. Code
+  must be migrated to the per-target caps above before the next real-money
+  build.
 - Phases: ANTE → DEAL → DRAW → BETTING → SHOWDOWN → PAYOUT → ENDED → loop
 - Card values: 2–9=face, J=7, Q=8, K=9, A=1|11, Joker=DQ
 - Server-authoritative (no client trust, no float math)
 - Premium cinematic noir UI (obsidian + gold + cyan + red)
 - 15s turn → AUTO_STAND_TIMEOUT (auto-stand only, never fold)
+- CPU/bot players are a **dev/testing affordance only** (0–3 per table,
+  via a config flag); production multiplayer must be all-human. See
+  `GAME_RULES_LOCKED.md §5` for the config contract.
 
 ## Architecture v3.2 (Option A — MongoDB)
 - **Backend**: FastAPI single instance, port 8001, /api prefix
@@ -257,12 +268,54 @@ External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.
   A's row back to `connected=True sitting_out=False`. Solo gameplay
   regression smoke clean.
 
+## 2026-05 — Locked game rules (documentation-only, no code change)
+- Added [`GAME_RULES_LOCKED.md`](./GAME_RULES_LOCKED.md) — authoritative
+  rule doc overriding older drafts.
+- **Table sizes now locked per target tier**: target 30/50 → 4 seats;
+  target 100/250 → 5 seats. Legacy `MAX_PLAYERS=8` and 6/7/8-seat paths
+  are deprecated pending a migration (see `GAME_RULES_LOCKED.md §7`).
+- **Stand-threshold for 5 active players confirmed at 3** — matches
+  existing `STAND_THRESHOLD[5]`. No constant change needed.
+- **CPU/bot players are dev-only**: 0–3 per table, gated by
+  `TARGET_ALLOW_BOTS` + `TARGET_BOT_COUNT_MAX` env vars. Production
+  default: 0 bots. Current "auto-spawn one bot if creator is alone"
+  behaviour is marked as Phase-11 MVP shortcut to be moved behind the
+  dev flag during migration.
+- No game code changed in this step — the rules doc is the migration
+  source-of-truth; implementation is sequenced in the section below.
+
+## Pending migration (from GAME_RULES_LOCKED.md §7)
+Must ship **before** multi-round betting implementation so later work
+happens against the real table shape:
+
+1. **Per-target seat cap**: `backend/core/constants.py` (new
+   `TABLE_SEATS_BY_TARGET`), `backend/lobby/router.py` +
+   `backend/lobby/service.py` (derive seats from target, ignore
+   client-supplied `max_players`/`min_players`),
+   `frontend/src/pages/LobbyPage.jsx` (drop Min/Max inputs).
+2. **Deprecate 6–8 seat code**: trim `MAX_PLAYERS` to 5 and
+   `STAND_THRESHOLD` to `{2:1, 3:2, 4:3, 5:3}` (runtime still keys on
+   active-in-DRAW, so `3` stays for mid-hand fold cases). Tighten
+   Pydantic validators from `le=8` to `le=5`.
+3. **Bots configurable & dev-only**: add `TARGET_ALLOW_BOTS` +
+   `TARGET_BOT_COUNT_MAX` env vars, add `bot_count` to
+   `CreateTableRequest`, move the auto-bot fallback behind
+   `ALLOW_BOTS`, guard `realtime_v2/dev_router.spawn_solo_table`,
+   surface the control in `LobbyPage.jsx` only when the backend
+   advertises `allow_bots=true`.
+4. **Test-fixture updates**: lobby tests that rely on the auto-bot
+   fallback must pass `bot_count=1` or set `TARGET_ALLOW_BOTS=1` via
+   `monkeypatch`.
+
 ## Next Action Items
-1. P0: Multi-round betting (FLOP / TURN / RIVER analog).
-2. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
-3. P0: Portrait/mobile layout.
-4. P0: Replay client_seed contribution to RNG.
-5. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
+1. 🔴 P0: Locked-rules migration — items 1–4 above, in order. Reducer
+   untouched. Gameplay stays stable throughout.
+2. P0: Multi-round betting (FLOP / TURN / RIVER analog) — **blocked on
+   #1** so it lands against 4/5-seat shapes, not 8.
+3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
+4. P0: Portrait/mobile layout.
+5. P0: Replay client_seed contribution to RNG.
+6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
