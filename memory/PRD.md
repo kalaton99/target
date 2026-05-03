@@ -472,7 +472,42 @@ happens against the real table shape:
 - Docs updated: `memory/GAME_RULES_LOCKED.md` §2 seat table + §8 rule-log;
   `memory/PRD.md` core requirements section.
 
+## 2026-05 v2 — Game-core stabilization (legacy WS out + deadlock guards)
+- **Legacy WebSocket path fully removed.**
+  - `backend/server.py` no longer imports or mounts
+    `backend/realtime/ws_router.py` or `backend/realtime/table_worker`.
+    Only `/api/v2/ws/table/{id}` (realtime_v2) serves live traffic.
+  - `backend/realtime/` stays on disk as quarantined dead code for one
+    more release (nothing imports it).
+  - `backend/tests/test_websocket.py` auto-skips via module-level
+    `pytestmark = pytest.mark.skip(...)` — 10 tests skipped, 0 fail.
+- **Bot-subscription race fixed** — `_BotDriver.start()` now awaits
+  `pubsub.subscribe()` before returning, so the lobby's subsequent
+  `START_HAND` submit can never race the bot's subscribe. `_run()`
+  also has a 2s watchdog poll that re-checks `engine.state` and acts
+  if the bot is authoritatively on-turn but no recent STATE_UPDATE
+  arrived (guards against slow-consumer drops).
+- **Betting-phase turn timer added** — `TurnEngine._maybe_arm_timeout`
+  now arms the 15s timer during `BETTING_R1/R2/R3` as well as DRAW.
+  On expiry it submits a server-source `CHECK` (no call owed) or
+  `FOLD` (call owed) for the stalled seat. Prevents indefinite
+  deadlock if a human disconnects or stalls during betting.
+  DRAW auto-timeout still fires `AUTO_STAND_TIMEOUT` — "never fold on
+  draw timeout" invariant preserved and explicitly re-tested
+  (`test_betting_timeout_2026_05.py::test_draw_1_still_auto_stands_never_folds`).
+- **New regression tests (all passing):**
+  - `test_betting_timeout_2026_05.py` — 3 unit tests for the new guards.
+  - `test_bot_stress_2026_05.py` — live E2E that runs **5 consecutive
+    hands** at target=100 + 4 bots, asserts every hand reaches PAYOUT,
+    no stalls (8s stall-detector), opponent cards revealed at showdown,
+    and ≥3/5 hands exercise the full multi-round fan
+    (R1 → DRAW_1 → R2 → DRAW_2 → R3 → PAYOUT).
+- **Suite total: 222 passed / 12 skipped** (10 legacy-ws skips + 2
+  pre-existing TestClient WS incompatibilities). The bot-stress E2E
+  test is gated behind `REACT_APP_BACKEND_URL` and takes ~2min.
+
 ## Next Action Items
+1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
@@ -480,6 +515,7 @@ happens against the real table shape:
 6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.
 8. ✅ P0: Target 250 → 75 migration + deck-exhaustion refill + showdown reveal — **DONE 2026-05 v2**.
+9. ✅ P0: Game-core stabilization (legacy WS out, betting-timeout, bot race fix) — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

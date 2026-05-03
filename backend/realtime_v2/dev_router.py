@@ -72,8 +72,15 @@ class _BotDriver:
         self._bot_user_id = bot_user_id
         self._bot_seat = bot_seat
         self._task: asyncio.Task | None = None
+        self._sub: asyncio.Queue | None = None
 
     async def start(self) -> None:
+        # 2026-05 stabilization: subscribe *before* returning so the
+        # caller (lobby spawn) can safely submit START_HAND knowing the
+        # bot will not miss the resulting STATE_UPDATE. The asyncio.Task
+        # is what processes the queue going forward.
+        topic = f"table:{self._table_id}"
+        self._sub = await self._bridge._pubsub.subscribe(topic)
         self._task = asyncio.create_task(self._run(), name=f"bot:{self._table_id}")
 
     async def stop(self) -> None:
@@ -84,6 +91,14 @@ class _BotDriver:
             except (asyncio.CancelledError, Exception):
                 pass
             self._task = None
+        if self._sub is not None:
+            try:
+                await self._bridge._pubsub.unsubscribe(
+                    f"table:{self._table_id}", self._sub,
+                )
+            except Exception:
+                pass
+            self._sub = None
 
     def _decide_draw_action(self, msg: dict) -> str:
         """HIT while score < 60% of target_score, else STAND.
@@ -102,12 +117,45 @@ class _BotDriver:
         return "STAND"
 
     async def _run(self) -> None:
+        # Subscription is owned by start() so there is no race with the
+        # initial STATE_UPDATE emitted on START_HAND.
+        assert self._sub is not None, "BotDriver._run called without start()"
+        sub = self._sub
         topic = f"table:{self._table_id}"
-        sub = await self._bridge._pubsub.subscribe(topic)
+        # Watchdog: if we do not receive a STATE_UPDATE for `poll_s`
+        # seconds we synthesize one from the current engine snapshot
+        # (delivered via bridge). This guards against a slow-consumer
+        # drop for this bot's queue and against any upstream race that
+        # would otherwise leave the bot idle while it's on turn.
+        poll_s = 2.0
         try:
             while True:
-                msg = await sub.get()
-                if msg.get("type") != "STATE_UPDATE":
+                msg: dict | None = None
+                try:
+                    msg = await asyncio.wait_for(sub.get(), timeout=poll_s)
+                except asyncio.TimeoutError:
+                    # Snapshot-based recovery: if we're on-turn per the
+                    # engine's authoritative state, act regardless.
+                    eng = self._bridge._engines.get(self._table_id)
+                    if eng is None:
+                        continue
+                    st = eng.state
+                    if st.current_turn_seat != self._bot_seat:
+                        continue
+                    msg = {
+                        "type": "STATE_UPDATE",
+                        "state_version": st.version,
+                        "phase": st.phase,
+                        "current_turn_seat": st.current_turn_seat,
+                        "current_call_owed": st.current_call_owed,
+                        "target_score": st.target_score,
+                        "players": [
+                            {"user_id": p.user_id, "seat": p.seat_index,
+                             "score": p.score}
+                            for p in st.players
+                        ],
+                    }
+                if msg is None or msg.get("type") != "STATE_UPDATE":
                     continue
                 if msg.get("current_turn_seat") != self._bot_seat:
                     continue
@@ -132,7 +180,10 @@ class _BotDriver:
                 except Exception:  # noqa: BLE001
                     logger.exception("bot action failed table=%s", self._table_id)
         finally:
-            await self._bridge._pubsub.unsubscribe(topic, sub)
+            try:
+                await self._bridge._pubsub.unsubscribe(topic, sub)
+            except Exception:
+                pass
 
 
 # ---------- factory ----------

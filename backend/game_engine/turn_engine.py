@@ -183,9 +183,17 @@ class TurnEngine:
                 pass
 
     def _maybe_arm_timeout(self) -> None:
-        """Arm the authoritative 15s timer if we are mid-turn in any DRAW phase."""
-        # 2026-05 multi-round: legacy "DRAW" plus the new DRAW_1/DRAW_2.
-        if self.state.phase not in ("DRAW", "DRAW_1", "DRAW_2"):
+        """Arm the authoritative turn timer.
+
+        DRAW / DRAW_1 / DRAW_2  → AUTO_STAND_TIMEOUT on expiry (never folds).
+        BETTING_R1 / R2 / R3    → AUTO_CHECK if no call owed, else AUTO_FOLD
+                                  (2026-05 stabilization: prevents indefinite
+                                  stall if a human stalls during betting).
+        """
+        phase = self.state.phase
+        draw_phases = ("DRAW", "DRAW_1", "DRAW_2")
+        betting_phases = ("BETTING_R1", "BETTING_R2", "BETTING_R3")
+        if phase not in draw_phases and phase not in betting_phases:
             return
         if self.state.current_turn_seat is None:
             return
@@ -198,6 +206,7 @@ class TurnEngine:
         bound_version = self.state.version
         bound_seat = self.state.current_turn_seat
         bound_user = self.state.players[bound_seat].user_id
+        is_betting = phase in betting_phases
 
         async def _waiter() -> None:
             try:
@@ -205,23 +214,42 @@ class TurnEngine:
             except asyncio.CancelledError:
                 return
             # Stale-fire check: if anything has changed, this timer is no-op.
-            # 2026-05 multi-round: legacy "DRAW" plus the new DRAW_1/DRAW_2.
+            current_phase = self.state.phase
+            if is_betting:
+                still_live = current_phase in betting_phases
+            else:
+                still_live = current_phase in draw_phases
             if (
                 self.state.version != bound_version
                 or self.state.current_turn_seat != bound_seat
-                or self.state.phase not in ("DRAW", "DRAW_1", "DRAW_2")
+                or not still_live
             ):
                 self.timeout_no_ops += 1
                 return
             self.timeout_fires += 1
-            await self._queue.put({
-                "type": "AUTO_STAND_TIMEOUT",
-                "source": "SERVER",
-                "user_id": bound_user,
-                "seat_index": bound_seat,
-                "state_version": bound_version,
-                "payload": {"reason": TURN_TIMEOUT_REASON, "source": "SERVER"},
-            })
+            if is_betting:
+                # Betting auto-action: CHECK if no call owed, else FOLD.
+                # We emit a normal CHECK/FOLD action with source=SERVER so
+                # the reducer handles it via its existing path. Seat-index
+                # is bound so the reducer's NOT_YOUR_TURN check passes.
+                auto_type = "CHECK" if self.state.current_call_owed == 0 else "FOLD"
+                await self._queue.put({
+                    "type": auto_type,
+                    "source": "SERVER",
+                    "user_id": bound_user,
+                    "seat_index": bound_seat,
+                    "state_version": bound_version,
+                    "payload": {"reason": "BETTING_TIMEOUT_15S", "auto": True},
+                })
+            else:
+                await self._queue.put({
+                    "type": "AUTO_STAND_TIMEOUT",
+                    "source": "SERVER",
+                    "user_id": bound_user,
+                    "seat_index": bound_seat,
+                    "state_version": bound_version,
+                    "payload": {"reason": TURN_TIMEOUT_REASON, "source": "SERVER"},
+                })
 
         self._timeout_task = asyncio.create_task(_waiter())
 

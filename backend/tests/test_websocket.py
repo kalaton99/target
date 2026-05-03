@@ -1,10 +1,23 @@
-"""WebSocket realtime tests covering hand lifecycle, state_version, and 15s timeout."""
+"""WebSocket realtime tests covering hand lifecycle, state_version, and 15s timeout.
+
+DEPRECATED 2026-05 v2: This entire test module targets the legacy
+`backend/realtime/ws_router.py` path at `/api/ws/table/{id}`, which was
+removed when the game core was stabilized on `realtime_v2` only. All
+tests in this file are auto-skipped. The file is retained as a frozen
+reference for the pre-migration behaviour; canonical realtime tests
+live in `test_realtime_phase6*.py` and `test_phase11_validation.py`.
+"""
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="Legacy /api/ws/ path removed in 2026-05 v2; see realtime_v2.",
+)
+
 import asyncio
 import json
 import os
 import uuid
 import requests
-import pytest
 import websockets
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://gracious-raman-3.preview.emergentagent.com").rstrip("/")

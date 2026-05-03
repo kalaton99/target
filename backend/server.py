@@ -17,8 +17,6 @@ from core.security import decode_token
 from auth.router import router as auth_router
 from wallet.router import router as wallet_router
 from tables.router import router as tables_router
-from realtime.ws_router import ws_router
-from realtime import table_worker
 from realtime_v2.asgi import RealtimeV2
 from realtime_v2.bridge import EngineBridge
 from realtime_v2.dev_router import build_dev_router
@@ -46,7 +44,10 @@ async def health():
 api_router.include_router(auth_router)
 api_router.include_router(wallet_router)
 api_router.include_router(tables_router)
-api_router.include_router(ws_router)  # WS endpoint at /api/ws/table/{id}
+# 2026-05 stabilization: legacy /api/ws/table/{id} WS path has been
+# removed. The only realtime surface is `/api/v2/ws/table/{id}` via
+# realtime_v2 below. `backend/realtime/` stays on disk for now as
+# quarantined dead code — nothing imports it.
 
 
 # ----------------------------------------------------------------------
@@ -110,5 +111,4 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    await table_worker.stop_all()
     core_db.close_client()
