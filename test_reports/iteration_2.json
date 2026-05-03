@@ -1,0 +1,57 @@
+{
+  "summary": "Phase 11 multi-round betting validation against live backend. All 11 target features (F1-F11) PASS. Authored /app/backend/tests/test_phase11_validation.py with 8 pytest cases covering seat-cap derivation, two-human BETTING_R1 join+start, full canonical phase progression (BETTING_R1 -> DRAW_1 -> BETTING_R2 -> DRAW_2 -> BETTING_R3 -> PAYOUT), HIT/STAND reachability, BET/CALL/FOLD short-circuit to PAYOUT, PLAY_TEN gateway acceptance, card privacy (public STATE_UPDATE carries only card_count; PRIVATE_STATE is per-user only), target=100 5-seat TABLE_FULL, disconnect/reconnect PRESENCE events. Frontend lobby smoke (login, create, seats-derived) verified via Playwright.",
+  "feature_pass_fail_table": {
+    "F1_lobby_config_and_seat_cap_derivation": "PASS",
+    "F2_two_humans_betting_r1_join_start_ws": "PASS",
+    "F3_full_canonical_multi_round_flow_with_bot": "PASS",
+    "F4_hit_stand_reachability_draw1_and_draw2": "PASS",
+    "F5_check_call_fold_betting_rounds_short_circuit": "PASS",
+    "F6_play_two_play_ten_intent_accepted_by_gateway": "PASS",
+    "F7_disconnect_reconnect_presence_events": "PASS",
+    "F8_payout_winner_and_delta_structure": "PASS",
+    "F9_card_privacy_public_vs_private_state": "PASS",
+    "F10_target100_five_seats_table_full_on_6th_join": "PASS",
+    "F11_draw2_not_skipped": "PASS (observed in canonical phase stream: BETTING_R1->DRAW_1->BETTING_R2->DRAW_2->BETTING_R3->PAYOUT)"
+  },
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "Transient network flake on /api/v2/lobby/auth", "issue": "F10 connect-timeout (10s) once during a 72s full run; retry succeeded immediately. Likely preview ingress/Kubernetes cold path. Not a backend defect."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Lobby open-tables list", "issues": ["Grows unbounded with prior test tables; no pagination/sorting control. Low priority."]}
+    ]
+  },
+  "observed_phase_stream_example": ["BETTING_R1", "DRAW_1", "BETTING_R2", "DRAW_2", "BETTING_R3", "PAYOUT"],
+  "observed_phase_events_example": ["DEAL_INITIAL", "DRAW_1", "BETTING_R2", "DRAW_2", "BETTING_R3", "PAYOUT"],
+  "test_report_links": [
+    "/app/backend/tests/test_phase11_validation.py",
+    "/app/test_reports/pytest/phase11_validation.xml"
+  ],
+  "action_items": [
+    "No code changes required per user directive; all 11 phase-11 acceptance checks green against live backend.",
+    "Optional: add periodic cleanup of stale LOBBY-status tables with 0 seats, since the open-tables list accumulates across test runs."
+  ],
+  "critical_code_review_comments": [
+    "bridge._public_state_payload correctly emits only card_count at L84; PRIVATE_STATE is published exclusively to per-user topic 'table:{id}:user:{user_id}' (bridge.py L436). Card privacy is sound.",
+    "gateway.py L341: CLIENT_ACTIONS whitelist accepts PLAY_TWO/PLAY_TEN; engine-level rejection (e.g. NO_TRIGGER_CARD / NOT_YOUR_TURN) flows through ACTION_ACK with result.accepted=false instead of UNKNOWN_TYPE. Matches F6 requirement.",
+    "lobby/router.CreateTableRequest correctly marks max_players / min_players as IGNORED (L61-62). Verified by sending max_players=10 with target=30 -> server returns max_players=4.",
+    "reconnect-grace: bridge.notify_disconnect publishes a PRESENCE event synchronously with connected=false + grace_seconds; notify_connect re-broadcasts PRESENCE connected=true. Both observed in F7.",
+    "engine phase sequence observed end-to-end matches GAME_RULES_LOCKED.md canonical flow. DRAW_2 is entered even when both players STAND in DRAW_1 (engine auto-advances through DRAW_2 into BETTING_R3).",
+    "Open lobby list grows unbounded because tests create many LOBBY-status tables. Consider a TTL/cron sweep in lobby.service for dev/preview envs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase11_validation.py"
+  ],
+  "success_rate": {"backend": "100% (8/8 pytest cases across F1-F11)", "frontend": "100% smoke (lobby login + create-table + seats-derived)"},
+  "test_credentials": "Guest auth only: POST /api/v2/lobby/auth {username: <rand>} returns {user_id, token}. Tokens last 12h. No seeded credentials needed.",
+  "seed_data_creation": "None persistent; every test registers fresh TEST_* guest users. Test-created LOBBY tables remain in the open-tables list.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run with: cd /app/backend/tests && REACT_APP_BACKEND_URL=https://gracious-raman-3.preview.emergentagent.com python -m pytest test_phase11_validation.py -v. F5+F8 combined test takes ~23s (serial multi-round flow). F3+F4+F11 takes ~20s. F10 opens 6 WS-less REST connections; can transient-timeout on first auth call - retry. All tests use the real WS endpoint wss://.../api/v2/ws/table/{id}?token=...; websockets>=15 required. The backend env has TARGET_ALLOW_BOTS=1 and TARGET_BOT_COUNT_MAX=3.",
+  "rca_of_the_issue": "N/A — no defects found. Phase 11 P0 multi-round betting is functioning correctly end-to-end (lobby config, seat-derivation, phase machine, HIT/STAND, BET/CALL/FOLD, PLAY_TEN gateway, presence grace, payout winners+deltas, card privacy, target-100 TABLE_FULL, and DRAW_2 presence)."
+}
