@@ -359,10 +359,68 @@ happens against the real table shape:
 - `/play` regression: BETTING_R1 → CHECK → DRAW → STAND → PAYOUT,
   winner + delta render, no console errors.
 
+## 2026-05 — Multi-round betting (interactive HIT/STAND in DRAW_1/DRAW_2)
+- New canonical flow: **BETTING_R1 → DEAL_INITIAL → DRAW_1 →
+  BETTING_R2 → DRAW_2 → BETTING_R3 → SHOWDOWN → PAYOUT**.
+- DRAW_1 and DRAW_2 are **interactive** HIT/STAND/PLAY_TWO/PLAY_TEN
+  phases (Option B per user directive). Stand-threshold rule still
+  ends each draw round; routing now goes to BETTING_R2 / BETTING_R3
+  / SHOWDOWN by phase instead of always SHOWDOWN.
+- STAND is **sticky across rounds** — a player who stood in DRAW_1
+  cannot HIT in DRAW_2 but can still bet in BETTING_R2/R3.
+- `core/constants.py::PHASES`: added DRAW_1 / BETTING_R2 / DRAW_2 /
+  BETTING_R3. Legacy DRAW kept reachable for tests.
+- `game_engine/types.py::GameState`: added `betting_round: int = 0`
+  (1/2/3 in betting; 0 in draw / payout).
+- `game_engine/reducer.py`: extension-only changes.
+  - New `_enter_betting_round(round_n)` helper (resets call/raise/
+    responded for R2/R3, mirrors R1 setup).
+  - New `_enter_draw_round(draw_n)` helper (interactive entry,
+    recomputes `draw_active_count`, opens turn for first eligible
+    drawer; auto-advances if no drawers remain).
+  - New `_end_draw_round()` helper called from `_maybe_end_draw`
+    instead of `_enter_showdown`. Routes DRAW_1 → BETTING_R2,
+    DRAW_2 → BETTING_R3, legacy DRAW → SHOWDOWN.
+  - `_end_betting_to_deal` rewritten to dispatch by `state.phase`:
+    R1 → DEAL_INITIAL → DRAW_1; R2 → DRAW_2; R3 → SHOWDOWN.
+  - HIT/STAND/PLAY_TWO/PLAY_TEN/AUTO_STAND_TIMEOUT phase gate
+    extended from `phase == "DRAW"` to `phase in ("DRAW", "DRAW_1",
+    "DRAW_2")`.
+  - BETTING phase gate extended from `phase == "BETTING_R1"` to
+    `phase in ("BETTING_R1", "BETTING_R2", "BETTING_R3")`.
+  - `_attempt_bust_save` and `reduce()` dispatch logic untouched.
+- `game_engine/turn_engine.py`: `_maybe_arm_timeout` and the timer
+  stale-fire guard accept all three draw phases. AUTO_STAND_TIMEOUT
+  now fires correctly in DRAW_1/DRAW_2.
+- `realtime_v2/bridge.py`: STATE_UPDATE broadcast carries the new
+  `betting_round` field so clients can render "Round 2 / 3" badges.
+- `realtime_v2/dev_router.py`: `_BotDriver` extended to all three
+  betting rounds and all three draw phases (DRAW_1/DRAW_2 use the
+  same "HIT below 60% of target, else STAND" strategy as legacy DRAW).
+- `frontend/src/pages/PlayPage.jsx`: `myTurn` accepts DRAW_1/DRAW_2;
+  `myBettingTurn` accepts BETTING_R2/R3. Phase pill (`phase-pill`)
+  renders the new phase strings verbatim — no other UI work needed.
+- New test file `tests/test_multi_round_betting_phase11.py` (10 tests):
+  full R1→D1→R2→D2→R3 flow, phase-event ordering, sticky-stand
+  reachability, 4-player flow with R2 fold, fold-to-one short-circuit,
+  total_contributed accumulation across rounds, phase guards
+  (HIT in BETTING_R2 rejected, CHECK in DRAW_2 rejected, FOLD accepted
+  in DRAW_2).
+- Updated tests: `test_engine_target.py` (3 phase strings, helper
+  `all_check_through_betting` extended to all rounds, stand-threshold
+  tests rewritten for round transitions); `test_realtime_phase6_bridge.py`
+  (`_start_hand` helper + broadcast envelope phase set);
+  `test_realtime_phase6_private.py` (`_start_hand` helper);
+  `test_reconnect_grace_phase11_p1.py` (assertion).
+- Suite total: **180 passed / 2 skipped** (was 170; +10 net new).
+- E2E live (`/play` solo + bot): full canonical flow walked through —
+  BETTING_R1 → DRAW_1 (STAND) → BETTING_R2 → BETTING_R3 → PAYOUT.
+  Bot exercised HIT path in DRAW_2 (ended on 3 cards, score 22 SOFT).
+  Winner banner + delta render, no console errors, WS stable.
+
 ## Next Action Items
 1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
-2. P0: Multi-round betting (FLOP / TURN / RIVER analog) — design ready;
-   implementation now lands against 4/5-seat shapes.
+2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
 5. P0: Replay client_seed contribution to RNG.

@@ -115,10 +115,13 @@ class _BotDriver:
                 sv = int(msg["state_version"])
                 # tiny natural pause so a human can see the bot's turn
                 await asyncio.sleep(0.5)
-                if phase == "DRAW":
+                # 2026-05 multi-round: handle DRAW / DRAW_1 / DRAW_2 and
+                # BETTING_R1 / R2 / R3 identically — the action set is
+                # the same per category.
+                if phase in ("DRAW", "DRAW_1", "DRAW_2"):
                     action = self._decide_draw_action(msg)
-                elif phase == "BETTING_R1":
-                    # CHECK if no call owed; otherwise CALL (or auto-fold if can't pay)
+                elif phase in ("BETTING_R1", "BETTING_R2", "BETTING_R3"):
+                    # CHECK if no call owed; otherwise CALL.
                     action = "CHECK" if msg.get("current_call_owed", 0) == 0 else "CALL"
                 else:
                     continue

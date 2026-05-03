@@ -183,8 +183,9 @@ class TurnEngine:
                 pass
 
     def _maybe_arm_timeout(self) -> None:
-        """Arm the authoritative 15s timer if we are mid-turn in DRAW."""
-        if self.state.phase != "DRAW":
+        """Arm the authoritative 15s timer if we are mid-turn in any DRAW phase."""
+        # 2026-05 multi-round: legacy "DRAW" plus the new DRAW_1/DRAW_2.
+        if self.state.phase not in ("DRAW", "DRAW_1", "DRAW_2"):
             return
         if self.state.current_turn_seat is None:
             return
@@ -204,10 +205,11 @@ class TurnEngine:
             except asyncio.CancelledError:
                 return
             # Stale-fire check: if anything has changed, this timer is no-op.
+            # 2026-05 multi-round: legacy "DRAW" plus the new DRAW_1/DRAW_2.
             if (
                 self.state.version != bound_version
                 or self.state.current_turn_seat != bound_seat
-                or self.state.phase != "DRAW"
+                or self.state.phase not in ("DRAW", "DRAW_1", "DRAW_2")
             ):
                 self.timeout_no_ops += 1
                 return

@@ -462,13 +462,18 @@ function PlayPage() {
   const myTurn =
     !!myPlayer &&
     view.currentTurnSeat === myPlayer.seat &&
-    view.phase === "DRAW" &&
+    // 2026-05 multi-round: HIT/STAND/PLAY_TWO/PLAY_TEN reachable in
+    // legacy DRAW and the new DRAW_1 / DRAW_2 phases.
+    (view.phase === "DRAW" || view.phase === "DRAW_1" || view.phase === "DRAW_2") &&
     !me.busted &&
     !me.disqualified;
   const myBettingTurn =
     !!myPlayer &&
     view.currentTurnSeat === myPlayer.seat &&
-    view.phase === "BETTING_R1";
+    // 2026-05 multi-round: R2 / R3 use the same betting actions as R1.
+    (view.phase === "BETTING_R1"
+      || view.phase === "BETTING_R2"
+      || view.phase === "BETTING_R3");
 
   // ----- special-card derived state -----
   // Trigger-card indices in the local player's hand. -1 if not held.

@@ -69,6 +69,7 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
         "pot": state.pot,
         "current_call_owed": state.current_call_owed,
         "last_raise_amount": state.last_raise_amount,
+        "betting_round": state.betting_round,
         "winners": list(state.winners),
         "players": [
             {

@@ -54,8 +54,9 @@ def start_hand(state, *, target=None):
 
 
 def all_check_through_betting(state):
-    """Drive every in-hand player to CHECK in BETTING_R1, returning the new state."""
-    while state.phase == "BETTING_R1":
+    """Drive every in-hand player to CHECK through the *current* betting
+    round, returning the new state. Works for BETTING_R1 / R2 / R3."""
+    while state.phase in ("BETTING_R1", "BETTING_R2", "BETTING_R3"):
         seat = state.current_turn_seat
         user = state.players[seat].user_id
         state, _ = reduce(state, {"type": "CHECK", "user_id": user})
@@ -131,7 +132,10 @@ class TestStartHand:
         state = make_state(2)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
-        assert state.phase == "DRAW"
+        # 2026-05 multi-round: BETTING_R1 → DEAL_INITIAL → DRAW_1
+        # (was simply "DRAW" before the multi-round extension).
+        assert state.phase == "DRAW_1"
+        assert state.betting_round == 0
         # exactly 1 card per player after DEAL_INITIAL
         for p in state.players:
             assert len(p.cards) == 1
@@ -213,7 +217,8 @@ class TestBetting51Percent:
         state, _ = reduce(state, {"type": "BET", "user_id": "u0", "payload": {"amount": 39}})
         # call = ceil(0.51*39) = 20. u1 has exactly 20. CALL succeeds.
         state, _ = reduce(state, {"type": "CALL", "user_id": "u1"})
-        assert state.phase == "DRAW"
+        # 2026-05 multi-round: BETTING_R1 ends → DRAW_1.
+        assert state.phase == "DRAW_1"
         assert state.players[1].folded is False
 
     def test_fold_in_betting(self):
@@ -241,36 +246,54 @@ class TestBetting51Percent:
 # =====================================================================
 
 class TestStandThreshold:
-    def test_two_players_one_stand_triggers_showdown(self):
+    def test_two_players_one_stand_ends_draw_round(self):
+        # 2026-05 multi-round: with 2 players, threshold[2]=1 still ends
+        # DRAW_1, but routes to BETTING_R2 (not SHOWDOWN). To reach
+        # PAYOUT we then walk through R2 → DRAW_2 → R3 → SHOWDOWN.
         state = make_state(2)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
-        assert state.phase == "DRAW"
+        assert state.phase == "DRAW_1"
         assert state.draw_active_count == 2
-        # Threshold for 2 = 1
         assert STAND_THRESHOLD[2] == 1
-        # u0 STANDs -> 1 stand, threshold met -> showdown
+        # u0 STANDs -> 1 stand, threshold met -> BETTING_R2 opens.
         active_user = state.players[state.current_turn_seat].user_id
         state, _ = reduce(state, {"type": "STAND", "user_id": active_user})
+        assert state.phase == "BETTING_R2"
+        assert state.betting_round == 2
+        # CHECK through R2 → DRAW_2.
+        state = all_check_through_betting(state)
+        # u0 already stood; u1 now on turn for DRAW_2.
+        assert state.phase == "DRAW_2"
+        # u1 STANDs -> threshold met again -> BETTING_R3.
+        seat = state.current_turn_seat
+        state, _ = reduce(state, {"type": "STAND", "user_id": state.players[seat].user_id})
+        assert state.phase == "BETTING_R3"
+        # CHECK through R3 → SHOWDOWN → PAYOUT.
+        state = all_check_through_betting(state)
         assert state.phase == "PAYOUT"
 
-    def test_four_players_three_stands_triggers_showdown(self):
+    def test_four_players_three_stands_per_round_ends_draw_round(self):
+        # 4 players, threshold[4]=3. In each draw round, 3 stands end
+        # the round and route to the next betting round (or SHOWDOWN
+        # after DRAW_2). Stand is sticky — players who stand in DRAW_1
+        # remain stood for DRAW_2.
         state = make_state(4)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         assert state.draw_active_count == 4
         assert STAND_THRESHOLD[4] == 3
-        # First 2 stands: still in DRAW
+        # First 2 stands: still in DRAW_1
         for _ in range(2):
             seat = state.current_turn_seat
             user = state.players[seat].user_id
             state, _ = reduce(state, {"type": "STAND", "user_id": user})
-            assert state.phase == "DRAW"
-        # 3rd stand -> showdown
+            assert state.phase == "DRAW_1"
+        # 3rd stand -> BETTING_R2 (round transition, not showdown).
         seat = state.current_turn_seat
         user = state.players[seat].user_id
         state, _ = reduce(state, {"type": "STAND", "user_id": user})
-        assert state.phase == "PAYOUT"
+        assert state.phase == "BETTING_R2"
 
 
 # =====================================================================

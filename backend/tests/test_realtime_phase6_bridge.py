@@ -84,11 +84,13 @@ async def _start_hand(engine: TurnEngine) -> None:
         await asyncio.sleep(0.005)
         if engine.state.phase == "BETTING_R1":
             break
-    # CHECK every player through BETTING_R1 → DRAW
+    # CHECK every player through BETTING_R1 → DRAW_1 (was "DRAW" pre
+    # 2026-05 multi-round migration; DRAW_1 is the new equivalent first
+    # interactive draw phase).
     deadline = asyncio.get_event_loop().time() + 2.0
     while asyncio.get_event_loop().time() < deadline:
         await asyncio.sleep(0.005)
-        if engine.state.phase == "DRAW":
+        if engine.state.phase == "DRAW_1":
             return
         if engine.state.phase == "BETTING_R1" and engine.state.current_turn_seat is not None:
             seat = engine.state.current_turn_seat
@@ -97,7 +99,7 @@ async def _start_hand(engine: TurnEngine) -> None:
                 "type": "CHECK", "user_id": user, "source": "CLIENT",
                 "state_version": engine.state.version,
             })
-    raise AssertionError(f"engine did not reach DRAW: phase={engine.state.phase}")
+    raise AssertionError(f"engine did not reach DRAW_1: phase={engine.state.phase}")
 
 
 @pytest.fixture
@@ -178,7 +180,11 @@ class TestBroadcastEnvelope:
         assert msg["table_id"] == "t1"
         assert msg["state_version"] == sv + 1
         # 2 players + STAND_THRESHOLD[2]=1 -> showdown immediately after first STAND
-        assert msg["phase"] in ("DRAW", "PAYOUT", "SHOWDOWN")
+        assert msg["phase"] in (
+            "DRAW", "DRAW_1", "DRAW_2",
+            "BETTING_R2", "BETTING_R3",
+            "PAYOUT", "SHOWDOWN",
+        )
         assert "players" in msg and len(msg["players"]) == 2
         assert "events" in msg and len(msg["events"]) >= 1
         assert "pot" in msg

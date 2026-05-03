@@ -60,7 +60,7 @@ async def _start_hand(engine: TurnEngine) -> None:
     deadline = asyncio.get_event_loop().time() + 2.0
     while asyncio.get_event_loop().time() < deadline:
         await asyncio.sleep(0.005)
-        if engine.state.phase == "DRAW":
+        if engine.state.phase == "DRAW_1":
             return
         if engine.state.phase == "BETTING_R1" and engine.state.current_turn_seat is not None:
             seat = engine.state.current_turn_seat
@@ -69,7 +69,7 @@ async def _start_hand(engine: TurnEngine) -> None:
                 "type": "CHECK", "user_id": user, "source": "CLIENT",
                 "state_version": engine.state.version,
             })
-    raise AssertionError("engine did not reach DRAW")
+    raise AssertionError("engine did not reach DRAW_1")
 
 
 @pytest.fixture

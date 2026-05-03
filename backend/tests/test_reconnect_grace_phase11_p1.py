@@ -199,7 +199,7 @@ class TestEngineNotRetroactivelyChanged:
             except asyncio.TimeoutError:
                 break
 
-        assert engine.state.phase == "DRAW"
+        assert engine.state.phase == "DRAW_1"
         assert engine.state.current_turn_seat == 0
         sv_before = engine.state.version
 
