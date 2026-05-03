@@ -772,12 +772,26 @@ function PlayPage() {
                     </div>
                   </div>
                   <div className="flex items-center mb-2">
-                    {Array.from({ length: p.card_count }).map((_, i) => (
-                      // Face-down placeholders have no inherent identity; the
-                      // composite key keeps it stable under seat changes.
-                      <FaceDown key={`facedown-${p.seat}-${i}`} />
-                    ))}
-                    {p.card_count === 0 && <span className="text-zinc-600 text-sm">no cards</span>}
+                    {/* 2026-05 showdown reveal: when the server broadcast
+                        includes the opponent's `cards` (SHOWDOWN/PAYOUT),
+                        render face-up chips so everyone sees the final
+                        hands. Pre-showdown we still only render face-
+                        down placeholders keyed by card_count. */}
+                    {Array.isArray(p.cards) && p.cards.length > 0 ? (
+                      p.cards.map((c, i) => (
+                        <CardChip
+                          key={`oppcard-${p.seat}-${c.rank}-${c.suit}-${i}`}
+                          card={c}
+                        />
+                      ))
+                    ) : (
+                      Array.from({ length: p.card_count }).map((_, i) => (
+                        <FaceDown key={`facedown-${p.seat}-${i}`} />
+                      ))
+                    )}
+                    {(p.card_count === 0 && !Array.isArray(p.cards)) && (
+                      <span className="text-zinc-600 text-sm">no cards</span>
+                    )}
                   </div>
                   <div className="flex gap-1 flex-wrap">
                     <Pill testid={`opponent-${p.seat}-cardcount`}>cards: {p.card_count}</Pill>

@@ -70,6 +70,45 @@ class ReducerError(Exception):
 # Helpers
 # ============================================================
 
+def _refill_deck_if_empty(state: GameState, events: List[Dict[str, Any]]) -> None:
+    """2026-05 rule: when the initial 54-card deck (52 + 2 jokers) is
+    exhausted mid-hand, continue with a fresh 52-card jokerless deck.
+
+    The discard pile is NOT reshuffled — we build a brand-new 52-card
+    deck from scratch and shuffle it deterministically using a seed
+    derived from the original hand commit hash + refill counter, so
+    replays reproduce the same card order.
+
+    Safe to call before any `state.deck.pop(0)` — it is a no-op when
+    the deck still has cards.
+    """
+    if state.deck:
+        return
+    state.deck_refills = int(getattr(state, "deck_refills", 0)) + 1
+    # Derive a fresh shuffle seed from the hand's RNG commit + refill
+    # counter. Using hand_id + nonce + refills keeps the derivation
+    # independent of the original (seed,client_seeds,nonce) so a deck
+    # refill never exposes or re-uses the initial seed.
+    seed_src = (
+        f"{state.rng_commit_hash or ''}:"
+        f"{state.hand_id or ''}:"
+        f"{state.rng_nonce or 0}:"
+        f"refill{state.deck_refills}"
+    )
+    import hashlib as _hashlib
+    seed = _hashlib.sha256(seed_src.encode("utf-8")).hexdigest()
+    state.deck = [
+        c.to_dict()
+        for c in shuffle(build_fresh_deck(include_jokers=False), seed)
+    ]
+    events.append({
+        "type": "DECK_REFILLED",
+        "refill_number": state.deck_refills,
+        "deck_size": len(state.deck),
+        "jokers_included": False,
+    })
+
+
 def _is_defense_card(card: Dict[str, Any]) -> bool:
     return card.get("rank") == DEFENSE_RANK and card.get("suit") in DEFENSE_SUITS
 
@@ -284,6 +323,7 @@ def _end_betting_to_deal(state: GameState, events: List[Dict[str, Any]]) -> None
         state.phase = "DEAL_INITIAL"
         events.append({"type": "PHASE", "phase": "DEAL_INITIAL"})
         for i in in_hand:
+            _refill_deck_if_empty(state, events)
             if not state.deck:
                 raise ReducerError("DECK_EXHAUSTED_AT_DEAL")
             p = state.players[i]
@@ -525,6 +565,7 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
             action["server_seed"], action.get("client_seeds", ""), nonce,
         )
         state.deck = [c.to_dict() for c in shuffle(build_fresh_deck(include_jokers=True), seed)]
+        state.deck_refills = 0
         state.hand_id = action["hand_id"]
         state.hand_number += 1
         state.rng_nonce = nonce
@@ -721,7 +762,10 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
         p = state.players[seat]
 
         if a_type == "HIT":
+            _refill_deck_if_empty(state, events)
             if not state.deck:
+                # Refill yields 52 fresh cards, so this should never hit;
+                # kept as a defensive guard.
                 raise ReducerError("DECK_EMPTY")
             card = state.deck.pop(0)
             p.cards.append(card)

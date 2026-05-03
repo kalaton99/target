@@ -11,7 +11,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 //   - read by PlayPage in lobby mode
 //   - cleared by PlayPage if /me returns 401 (token expired)
 
-const TARGETS = [30, 50, 100, 250];
+const TARGETS = [30, 50, 75, 100];
 
 const REDIRECT_MESSAGES = {
   session_expired: "Your session expired. Please sign in again.",
@@ -54,8 +54,8 @@ export default function LobbyPage() {
   const [config, setConfig] = useState({
     allow_bots: false,
     bot_count_max: 0,
-    bot_count_max_by_target: { 30: 0, 50: 0, 100: 0, 250: 0 },
-    table_seats_by_target: { 30: 4, 50: 4, 100: 5, 250: 5 },
+    bot_count_max_by_target: { 30: 0, 50: 0, 75: 0, 100: 0 },
+    table_seats_by_target: { 30: 4, 50: 4, 75: 5, 100: 5 },
   });
   useEffect(() => {
     fetch("/api/v2/lobby/config")
@@ -289,8 +289,8 @@ export default function LobbyPage() {
               */}
               <option value={30}>target 30</option>
               <option value={50}>target 50</option>
+              <option value={75}>target 75</option>
               <option value={100}>target 100</option>
-              <option value={250}>target 250</option>
             </select>
             <input
               data-testid="stake-input"

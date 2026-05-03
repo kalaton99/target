@@ -82,6 +82,16 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
                 "total_contributed": p.total_contributed,
                 "available_balance": p.available_balance(),
                 "card_count": len(p.cards),
+                # 2026-05 showdown reveal: opponents' cards become
+                # public only at SHOWDOWN / PAYOUT. Everywhere else this
+                # field is absent, preserving card privacy pre-showdown.
+                # The list is a shallow copy so broadcast never shares
+                # the engine's internal list object.
+                **(
+                    {"cards": list(p.cards)}
+                    if state.phase in ("SHOWDOWN", "PAYOUT")
+                    else {}
+                ),
                 "busted": p.busted,
                 "stood": p.stood,
                 "folded": p.folded,

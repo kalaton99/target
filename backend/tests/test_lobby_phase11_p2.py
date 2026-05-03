@@ -105,8 +105,10 @@ class TestLobbyConfig:
         # JSON keys are strings; accept either.
         assert int(seats.get("30", seats.get(30))) == 4
         assert int(seats.get("50", seats.get(50))) == 4
+        assert int(seats.get("75", seats.get(75))) == 5
         assert int(seats.get("100", seats.get(100))) == 5
-        assert int(seats.get("250", seats.get(250))) == 5
+        # Target 250 removed in 2026-05 v2 — must NOT appear.
+        assert "250" not in seats and 250 not in seats
         assert isinstance(cfg["allow_bots"], bool)
         assert isinstance(cfg["bot_count_max"], int)
 
@@ -123,12 +125,12 @@ class TestLobbyConfig:
         if cfg["allow_bots"]:
             assert _n(30) == 3
             assert _n(50) == 3
+            assert _n(75) == 4
             assert _n(100) == 4
-            assert _n(250) == 4
         else:
             # Production (ALLOW_BOTS=false) must advertise zero bots
             # everywhere so the UI can hide the control.
-            for k in (30, 50, 100, 250):
+            for k in (30, 50, 75, 100):
                 assert _n(k) == 0
 
 
@@ -164,15 +166,22 @@ class TestTablesCRUD:
         assert t["max_players"] == 4
         assert t["min_players"] == 2
 
+    def test_create_table_target_75_has_5_seats(self):
+        u = _auth(_name("t75"))
+        t = _create_table(u["token"], target_score=75).json()
+        assert t["max_players"] == 5
+
     def test_create_table_target_100_has_5_seats(self):
         u = _auth(_name("t100"))
         t = _create_table(u["token"], target_score=100).json()
         assert t["max_players"] == 5
 
-    def test_create_table_target_250_has_5_seats(self):
+    def test_create_table_target_250_rejected_globally(self):
+        # 2026-05 v2: target 250 was removed. Server must now reject it.
         u = _auth(_name("t250"))
-        t = _create_table(u["token"], target_score=250).json()
-        assert t["max_players"] == 5
+        r = _create_table(u["token"], target_score=250)
+        assert r.status_code == 400
+        assert "INVALID_TARGET_SCORE" in r.text
 
     def test_create_table_ignores_client_supplied_max_players(self):
         # Older clients still send max_players=8; server must ignore it
@@ -282,6 +291,15 @@ class TestBotsGated:
         assert r.status_code == 400, r.text
         assert "BOT_COUNT_EXCEEDED" in r.text
 
+    def test_target75_allows_up_to_four_bots(self):
+        # 5-seat table: creator + 4 bots = 5 seats filled.
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server")
+        u = _auth(_name("t75b4"))
+        r = _create_table(u["token"], target_score=75, bot_count=4)
+        assert r.status_code == 201, r.text
+        assert r.json().get("bot_count") == 4
+
     def test_target100_allows_up_to_four_bots(self):
         # 5-seat table: creator + 4 bots = 5 seats filled.
         if not _allow_bots():
@@ -291,19 +309,11 @@ class TestBotsGated:
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == 4
 
-    def test_target250_allows_up_to_four_bots(self):
-        if not _allow_bots():
-            pytest.skip("bots disabled on this server")
-        u = _auth(_name("t250b4"))
-        r = _create_table(u["token"], target_score=250, bot_count=4)
-        assert r.status_code == 201, r.text
-        assert r.json().get("bot_count") == 4
-
     def test_bot_count_above_global_ceiling_rejected(self):
         # Pydantic-level guard at le=4 — server must reject 5+ regardless
         # of target. 422 from Pydantic / 400 if overridden.
         u = _auth(_name("gc"))
-        r = _create_table(u["token"], target_score=250, bot_count=5)
+        r = _create_table(u["token"], target_score=100, bot_count=5)
         assert r.status_code in (400, 422), r.text
 
 
