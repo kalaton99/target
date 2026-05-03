@@ -26,6 +26,8 @@ from core.constants import (
     ALLOW_BOTS,
     BOT_COUNT_MAX,
     DEFAULT_TARGET_SCORE,
+    TABLE_SEATS_BY_TARGET,
+    max_bots_for_target,
 )
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
@@ -51,16 +53,18 @@ class CreateTableRequest(BaseModel):
     drop their values to avoid a hard-break. Future deploys may delete
     these fields entirely.
 
-    `bot_count` is dev-only (clamped to 0..BOT_COUNT_MAX). When
-    ALLOW_BOTS is False (production default), any positive value is
-    rejected with 400.
+    `bot_count` is dev-only (clamped to 0..max_bots_for_target(target)).
+    When ALLOW_BOTS is False (production default), any positive value
+    is rejected with 400. The Pydantic `le=4` cap is a hard global
+    ceiling; the per-target cap (`seats - 1`) is enforced by the route
+    handler since it depends on the target_score in the same payload.
     """
     name: str = Field(..., min_length=2, max_length=32)
     target_score: int = Field(default=DEFAULT_TARGET_SCORE)
     stake: int = Field(default=100, ge=0, le=1_000_000)
     max_players: Optional[int] = Field(default=None)  # IGNORED (server-derived)
     min_players: Optional[int] = Field(default=None)  # IGNORED (server-derived)
-    bot_count: int = Field(default=0, ge=0, le=3)
+    bot_count: int = Field(default=0, ge=0, le=4)
 
 
 # ---------- helper: spawn engine + start hand ----------
@@ -177,13 +181,25 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
         whether to render the (dev-only) bots input on the create-table
         form. Production deploys advertise `allow_bots=false` so the
         control is hidden.
+
+        `bot_count_max_by_target` exposes the per-target bot ceiling
+        (seats - 1), so the frontend can dynamically set the
+        `<input max>` when the user changes the target select. A
+        5-seat target-100 table allows 4 bots, a 4-seat target-30
+        allows 3. When `allow_bots=false` every entry is 0.
         """
+        per_target = (
+            {t: max_bots_for_target(t) for t in TABLE_SEATS_BY_TARGET}
+            if ALLOW_BOTS else
+            {t: 0 for t in TABLE_SEATS_BY_TARGET}
+        )
         return {
             "allow_bots": bool(ALLOW_BOTS),
+            # Global ceiling (fallback for older clients that don't
+            # consume the per-target map below).
             "bot_count_max": int(BOT_COUNT_MAX) if ALLOW_BOTS else 0,
-            "table_seats_by_target": {
-                30: 4, 50: 4, 100: 5, 250: 5,
-            },
+            "bot_count_max_by_target": per_target,
+            "table_seats_by_target": dict(TABLE_SEATS_BY_TARGET),
         }
 
     @router.get("/tables")
@@ -202,11 +218,20 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
                     detail={"code": "BOTS_DISABLED",
                             "message": "bots are disabled on this server"},
                 )
-            if body.bot_count > BOT_COUNT_MAX:
+            # Per-target cap (seats - 1) — 5-seat target tables allow 4
+            # bots, 4-seat allow 3. Global BOT_COUNT_MAX caps above that.
+            per_target_cap = max_bots_for_target(body.target_score)
+            if body.bot_count > per_target_cap:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "BOT_COUNT_EXCEEDED",
-                            "message": f"max {BOT_COUNT_MAX} bots per table"},
+                    detail={
+                        "code": "BOT_COUNT_EXCEEDED",
+                        "message": (
+                            f"target {body.target_score} allows at most "
+                            f"{per_target_cap} bots"
+                        ),
+                        "bot_count_max": per_target_cap,
+                    },
                 )
         try:
             return await service.create_table(

@@ -99,8 +99,27 @@ PHASES = (
 # ---------- CPU/bot config (2026-05 — see GAME_RULES_LOCKED.md §5) ----------
 # Bots are a dev/testing affordance. Production must run all-human.
 # Both env vars default to OFF so production deploys are safe-by-default.
+#
+# `BOT_COUNT_MAX` is the GLOBAL hard ceiling (across all tables). The
+# per-table effective cap is `max_players - 1` (i.e. at least one human
+# seat required) and is enforced at lobby-create time. Since the
+# largest locked table is 5 seats, the global ceiling is 4 — a single
+# human creator plus four bots.
 ALLOW_BOTS = bool(int(os.environ.get("TARGET_ALLOW_BOTS", "0")))
-BOT_COUNT_MAX = max(0, min(3, int(os.environ.get("TARGET_BOT_COUNT_MAX", "3"))))
+BOT_COUNT_MAX = max(0, min(4, int(os.environ.get("TARGET_BOT_COUNT_MAX", "4"))))
+
+
+def max_bots_for_target(target_score: int) -> int:
+    """Per-target bot ceiling derived from the locked seat table:
+    always `seats - 1` (the creator occupies the first seat).
+
+    Clamped by the global `BOT_COUNT_MAX` env — so ops can still
+    disable the larger-table bot slots without changing the seat table.
+    """
+    seats = TABLE_SEATS_BY_TARGET.get(target_score)
+    if seats is None:
+        return 0
+    return min(BOT_COUNT_MAX, max(0, seats - 1))
 
 
 def seats_for_target(target_score: int) -> int:

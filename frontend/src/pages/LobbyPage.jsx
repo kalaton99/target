@@ -51,13 +51,32 @@ export default function LobbyPage() {
   // /api/v2/lobby/config tells us whether to render the dev-only bots
   // input. In production deploys allow_bots=false and the control is
   // hidden entirely so users can't even attempt to spawn one.
-  const [config, setConfig] = useState({ allow_bots: false, bot_count_max: 0, table_seats_by_target: { 30: 4, 50: 4, 100: 5, 250: 5 } });
+  const [config, setConfig] = useState({
+    allow_bots: false,
+    bot_count_max: 0,
+    bot_count_max_by_target: { 30: 0, 50: 0, 100: 0, 250: 0 },
+    table_seats_by_target: { 30: 4, 50: 4, 100: 5, 250: 5 },
+  });
   useEffect(() => {
     fetch("/api/v2/lobby/config")
       .then((r) => r.json())
       .then((d) => setConfig(d))
       .catch(() => {});
   }, []);
+  // Per-target bot cap (seats - 1). 4-seat target → 3 bots; 5-seat → 4.
+  // Falls back to the global `bot_count_max` for older backends that
+  // don't yet publish `bot_count_max_by_target`.
+  const perTargetBotMax =
+    config.bot_count_max_by_target?.[Number(target)]
+    ?? config.bot_count_max
+    ?? 0;
+  // If the user switches target downward (e.g. 100 → 30) while bots
+  // were set to 4, clamp the input so we don't submit an invalid value.
+  useEffect(() => {
+    if (Number(botCount) > perTargetBotMax) {
+      setBotCount(String(perTargetBotMax));
+    }
+  }, [perTargetBotMax, botCount]);
 
   const headers = useCallback(
     () => (user ? { Authorization: `Bearer ${user.token}` } : {}),
@@ -122,7 +141,7 @@ export default function LobbyPage() {
         stake: Number(stake),
       };
       if (config.allow_bots && Number(botCount) > 0) {
-        body.bot_count = Math.max(0, Math.min(Number(botCount), config.bot_count_max || 3));
+        body.bot_count = Math.max(0, Math.min(Number(botCount), perTargetBotMax));
       }
       const r = await fetch("/api/v2/lobby/tables", {
         method: "POST",
@@ -296,12 +315,12 @@ export default function LobbyPage() {
                 data-testid="bot-count-input"
                 type="number"
                 min={0}
-                max={config.bot_count_max || 3}
+                max={perTargetBotMax}
                 value={botCount}
                 onChange={(e) => setBotCount(e.target.value)}
                 className="bg-zinc-900 border border-zinc-700 rounded p-2"
                 placeholder="bots"
-                title={`Dev: 0–${config.bot_count_max || 3} CPU bots`}
+                title={`Dev: 0–${perTargetBotMax} CPU bots (seats − 1)`}
               />
             )}
           </div>

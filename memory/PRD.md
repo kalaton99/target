@@ -418,6 +418,34 @@ happens against the real table shape:
   Bot exercised HIT path in DRAW_2 (ended on 3 cards, score 22 SOFT).
   Winner banner + delta render, no console errors, WS stable.
 
+## 2026-05 — Per-target bot cap (5-seat tables support 4 bots)
+- `backend/core/constants.py`: `BOT_COUNT_MAX` default **3 → 4**
+  (global hard ceiling; the largest locked seat table is 5). New helper
+  `max_bots_for_target(target_score)` returns `seats - 1`, clamped by
+  `BOT_COUNT_MAX`.
+- `backend/lobby/router.py`:
+  - `CreateTableRequest.bot_count`: Pydantic ceiling `le=3 → le=4`.
+  - Create-table route validates `bot_count` against the per-target
+    cap (400 `BOT_COUNT_EXCEEDED`, detail includes `bot_count_max`).
+  - `GET /v2/lobby/config` now returns
+    `bot_count_max_by_target: {30:3, 50:3, 100:4, 250:4}`
+    (all zeros when `allow_bots=false`).
+- `backend/.env`: `TARGET_BOT_COUNT_MAX` raised from 3 to 4.
+- `frontend/src/pages/LobbyPage.jsx`:
+  - `<input data-testid="bot-count-input" max>` is now **dynamic**:
+    3 for target 30/50, 4 for target 100/250.
+  - Effect hook clamps the input value downward when the user switches
+    from a 5-seat target to a 4-seat one.
+- `backend/tests/test_lobby_phase11_p2.py::TestBotsGated` updated with
+  per-target acceptance (30→3, 100→4, 250→4), per-target rejection
+  (30→4), and global-ceiling rejection (any target→5). Added
+  `test_config_exposes_per_target_bot_cap`.
+- Suite total: **185 passed / 2 skipped** (was 180; +5 net new).
+- E2E live: created `target=100 bot_count=4` table via REST → START →
+  WS STATE_UPDATE shows 5 players (4 bots + 1 human). Frontend
+  `<input max>` dynamic (3/4/4) confirmed; downward-clamp confirmed
+  (value=4 on target-100 → switch to target-30 → auto-clamped to 3).
+
 ## Next Action Items
 1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
@@ -425,6 +453,7 @@ happens against the real table shape:
 4. P0: Portrait/mobile layout.
 5. P0: Replay client_seed contribution to RNG.
 6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
+7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

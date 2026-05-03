@@ -110,6 +110,27 @@ class TestLobbyConfig:
         assert isinstance(cfg["allow_bots"], bool)
         assert isinstance(cfg["bot_count_max"], int)
 
+    def test_config_exposes_per_target_bot_cap(self):
+        """Per-target bot ceiling (seats - 1). Used by the frontend
+        to set `<input max>` dynamically when the target select changes."""
+        r = requests.get(f"{API}/v2/lobby/config", timeout=TIMEOUT)
+        cfg = r.json()
+        assert "bot_count_max_by_target" in cfg, cfg
+        per = cfg["bot_count_max_by_target"]
+
+        def _n(k):
+            return int(per.get(str(k), per.get(k, -1)))
+        if cfg["allow_bots"]:
+            assert _n(30) == 3
+            assert _n(50) == 3
+            assert _n(100) == 4
+            assert _n(250) == 4
+        else:
+            # Production (ALLOW_BOTS=false) must advertise zero bots
+            # everywhere so the UI can hide the control.
+            for k in (30, 50, 100, 250):
+                assert _n(k) == 0
+
 
 # ============================================================
 # Tables CRUD
@@ -243,10 +264,46 @@ class TestBotsGated:
             assert r.status_code == 400
             assert "BOTS_DISABLED" in r.text
 
-    def test_bot_count_above_max_rejected(self):
-        # Pydantic-level guard at le=3 — server must reject 4+.
-        u = _auth(_name("many"))
-        r = _create_table(u["token"], bot_count=4)
+    def test_target30_allows_up_to_three_bots(self):
+        # 4-seat table: creator + 3 bots = 4 seats filled. 4 bots is
+        # rejected at the per-target cap (would leave 0 human seats).
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server")
+        u = _auth(_name("t30b3"))
+        r = _create_table(u["token"], target_score=30, bot_count=3)
+        assert r.status_code == 201, r.text
+        assert r.json().get("bot_count") == 3
+
+    def test_target30_rejects_four_bots(self):
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server")
+        u = _auth(_name("t30b4"))
+        r = _create_table(u["token"], target_score=30, bot_count=4)
+        assert r.status_code == 400, r.text
+        assert "BOT_COUNT_EXCEEDED" in r.text
+
+    def test_target100_allows_up_to_four_bots(self):
+        # 5-seat table: creator + 4 bots = 5 seats filled.
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server")
+        u = _auth(_name("t100b4"))
+        r = _create_table(u["token"], target_score=100, bot_count=4)
+        assert r.status_code == 201, r.text
+        assert r.json().get("bot_count") == 4
+
+    def test_target250_allows_up_to_four_bots(self):
+        if not _allow_bots():
+            pytest.skip("bots disabled on this server")
+        u = _auth(_name("t250b4"))
+        r = _create_table(u["token"], target_score=250, bot_count=4)
+        assert r.status_code == 201, r.text
+        assert r.json().get("bot_count") == 4
+
+    def test_bot_count_above_global_ceiling_rejected(self):
+        # Pydantic-level guard at le=4 — server must reject 5+ regardless
+        # of target. 422 from Pydantic / 400 if overridden.
+        u = _auth(_name("gc"))
+        r = _create_table(u["token"], target_score=250, bot_count=5)
         assert r.status_code in (400, 422), r.text
 
 
