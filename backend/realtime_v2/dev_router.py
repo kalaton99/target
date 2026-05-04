@@ -34,6 +34,7 @@ from fastapi.responses import HTMLResponse
 
 from core.constants import ALLOW_BOTS
 from core.security import create_token
+from game_engine.rng import generate_server_seed
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
 
@@ -256,14 +257,18 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
 
         # Start the hand (server-driven). Do not await a particular phase here;
         # the gateway's WELCOME → first STATE_UPDATE flow will surface it.
+        # 2026-05 v2 — RNG consistency: the dev `/spawn_solo_table` flow
+        # now uses the same `generate_server_seed()` path as
+        # `lobby/router.py`, so every entry point shares one RNG story
+        # (commit-reveal SHA-256 + per-seat client_seed contribution).
+        plain_seed, seed_hash = generate_server_seed()
         await engine.submit({
             "type": "START_HAND",
             "source": "SERVER",
             "hand_id": f"h_{uuid.uuid4().hex[:10]}",
-            "nonce": 0,
-            "server_seed": "0" * 64,
-            "server_seed_hash": "h" * 64,
-            "client_seeds": "",
+            "nonce": 1,
+            "server_seed": plain_seed,
+            "server_seed_hash": seed_hash,
             "target_score": 30,
         })
 

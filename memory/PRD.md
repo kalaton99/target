@@ -704,6 +704,18 @@ happens against the real table shape:
   - ESLint clean across `frontend/src`.
   - `realtime_v2`, reducer, RNG, protocol untouched.
 
+## 2026-05 v2 — RNG consistency cleanup
+- **`realtime_v2/dev_router.py`** `/spawn_solo_table` now uses
+  `generate_server_seed()` (commit-reveal SHA-256) and `nonce=1`,
+  matching the production `lobby/router.py` start path. Removed the
+  fixed `"0" * 64` / `"h" * 64` / `client_seeds=""` constants.
+- Every entry point that submits `START_HAND` (lobby + dev) now goes
+  through the same RNG generator — single-source story for auditors
+  and future contributors.
+- Verified live: `POST /api/v2/dev/spawn_solo_table` → WS broadcast
+  carries a fresh `rng_commit_hash` (no longer `"h"*64`).
+- Canonical suite: **240 passed / 2 skipped** (zero regression).
+
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
@@ -717,6 +729,7 @@ happens against the real table shape:
 11. ✅ P0: Game-feel & UX clarity polish (action feedback, bot flavors, hand summary) — **DONE 2026-05 v2**.
 12. ✅ P1: Frontend wiring for SUBMIT_CLIENT_SEED + verify-result modal — **DONE 2026-05 v2**.
 13. ✅ P1: Quarantined `backend/realtime/` directory deletion — **DONE 2026-05 v2**.
+14. ✅ P2: RNG consistency cleanup (dev_router uses generate_server_seed) — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
