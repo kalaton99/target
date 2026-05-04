@@ -51,7 +51,13 @@ def reconstruct_intent(action_doc: Dict[str, Any]) -> Dict[str, Any]:
     replay_inputs = action_doc.get("replay_inputs") or {}
     # Lift START_HAND seeds back into the intent (reducer expects them
     # at the top level, not nested in payload).
-    for key in ("hand_id", "server_seed", "server_seed_hash", "client_seeds", "nonce"):
+    # 2026-05 v2 — `client_seeds_by_seat` is the per-seat dict form;
+    # `client_seeds` is the legacy string form. Both are persisted
+    # verbatim and the reducer accepts either.
+    for key in (
+        "hand_id", "server_seed", "server_seed_hash",
+        "client_seeds", "client_seeds_by_seat", "nonce",
+    ):
         if key in replay_inputs and replay_inputs[key] is not None:
             intent[key] = replay_inputs[key]
     return intent

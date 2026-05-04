@@ -54,6 +54,7 @@ from core.constants import (
     VALID_TARGET_SCORES,
 )
 from .deck import build_fresh_deck, compute_shuffle_seed, shuffle
+from .rng import combine_client_seeds_by_seat
 from .scoring import score_hand
 from .types import GameState, PlayerState
 
@@ -437,6 +438,13 @@ def _enter_showdown(state: GameState, events: List[Dict[str, Any]]) -> None:
     state.current_turn_seat = None
     state.turn_started_at_ms = None
     state.turn_deadline_ms = None
+    # 2026-05 v2 — reveal the plain server_seed for verification.
+    # Anyone with the original commit-hash + revealed seed +
+    # `client_seeds_used` + nonce can reproduce the deck and verify
+    # this hand was provably fair.
+    if state.server_seed_buffer is not None:
+        state.rng_revealed_seed = state.server_seed_buffer
+        state.server_seed_buffer = None
 
     eligible = [p for p in state.players if p.in_hand and not p.busted]
     winners: List[PlayerState] = []
@@ -561,6 +569,36 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
     if a_type in SERVER_ONLY_ACTIONS and source != "SERVER":
         raise ReducerError(f"SERVER_ONLY_ACTION: {a_type}")
 
+    # ----- SUBMIT_CLIENT_SEED (client) -----
+    # 2026-05 v2 — players may contribute a per-seat seed to the
+    # shuffle between hands. Allowed phases: WAITING / PAYOUT / ENDED
+    # (i.e. the gaps between hands). Outside those phases the seed is
+    # locked and the action is rejected with `SEED_LOCKED`.
+    if a_type == "SUBMIT_CLIENT_SEED":
+        if state.phase not in ("WAITING", "PAYOUT", "ENDED"):
+            raise ReducerError("SEED_LOCKED")
+        seed_str = action.get("payload", {}).get("client_seed", action.get("client_seed"))
+        if not isinstance(seed_str, str) or not seed_str:
+            raise ReducerError("INVALID_SEED")
+        # Hard cap so a malicious client can't blow the canonical
+        # form / DB record. 256 chars is plenty for hex / base64.
+        if len(seed_str) > 256:
+            raise ReducerError("INVALID_SEED")
+        seat = next(
+            (p.seat_index for p in state.players if p.user_id == user_id),
+            None,
+        )
+        if seat is None:
+            raise ReducerError("NOT_SEATED")
+        state.pending_client_seeds[seat] = seed_str
+        state.version += 1
+        events.append({
+            "type": "CLIENT_SEED_SUBMITTED",
+            "seat": seat, "user_id": user_id,
+            "version": state.version,
+        })
+        return state, events
+
     # ----- START_HAND (server) -----
     if a_type == "START_HAND":
         target = int(action.get("target_score", state.target_score))
@@ -568,15 +606,46 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
         state.target_score = target
 
         nonce = action["nonce"]
-        seed = compute_shuffle_seed(
-            action["server_seed"], action.get("client_seeds", ""), nonce,
-        )
+        # 2026-05 v2 — per-seat client_seed contribution. Three accepted
+        # forms for backwards compatibility & replay:
+        #   1. action["client_seeds_by_seat"] (dict[int|str, str])
+        #      — canonical new form; takes precedence and is recorded
+        #      verbatim in `state.client_seeds_used`.
+        #   2. fall back to `state.pending_client_seeds` accumulated
+        #      via SUBMIT_CLIENT_SEED actions during WAITING/PAYOUT.
+        #   3. legacy `action["client_seeds"]` string form (pre-v2):
+        #      used only when neither (1) nor (2) is present.
+        seat_order = [p.seat_index for p in state.players]
+        if "client_seeds_by_seat" in action:
+            raw = action["client_seeds_by_seat"] or {}
+            # JSON keys arrive as str; normalise to int.
+            client_seeds_by_seat = {int(k): v for k, v in raw.items()}
+        elif state.pending_client_seeds:
+            client_seeds_by_seat = dict(state.pending_client_seeds)
+        else:
+            client_seeds_by_seat = {}
+
+        if "client_seeds_by_seat" in action or state.pending_client_seeds:
+            combined = combine_client_seeds_by_seat(
+                client_seeds_by_seat, seat_order,
+            )
+        else:
+            # Legacy path — string form already-combined by caller.
+            combined = action.get("client_seeds", "")
+        seed = compute_shuffle_seed(action["server_seed"], combined, nonce)
         state.deck = [c.to_dict() for c in shuffle(build_fresh_deck(include_jokers=True), seed)]
         state.deck_refills = 0
         state.hand_id = action["hand_id"]
         state.hand_number += 1
         state.rng_nonce = nonce
         state.rng_commit_hash = action["server_seed_hash"]
+        state.rng_revealed_seed = None  # locked until SHOWDOWN/PAYOUT
+        # Buffer plain server_seed in-state for later reveal. View-filter
+        # strips this from broadcasts (see `view_filter.public_view`).
+        state.server_seed_buffer = action["server_seed"]
+        # Lock the per-seat seeds for replay; clear pending.
+        state.client_seeds_used = client_seeds_by_seat
+        state.pending_client_seeds = {}
         state.pot = 0
         state.winners = []
         state.last_action_summary = None

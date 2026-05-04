@@ -73,6 +73,18 @@ class GameState:
     rng_commit_hash: Optional[str] = None
     rng_revealed_seed: Optional[str] = None
     rng_nonce: int = 0
+    # 2026-05 v2 — per-seat client-seed contribution to the shuffle.
+    # `pending_client_seeds` is filled by SUBMIT_CLIENT_SEED actions
+    # between hands; START_HAND consumes and freezes it into
+    # `client_seeds_used` for replay. Both are seat_index → seed-hex
+    # (empty string == no contribution that hand). Keys are stored as
+    # `int` in memory; round-tripped via `state_from_dict` below.
+    pending_client_seeds: Dict[int, str] = field(default_factory=dict)
+    client_seeds_used: Dict[int, str] = field(default_factory=dict)
+    # 2026-05 v2 — plain server_seed buffered through the active hand.
+    # NEVER broadcast: stripped in `view_filter.public_view`. Promoted
+    # to `rng_revealed_seed` (which IS broadcast) at SHOWDOWN/PAYOUT.
+    server_seed_buffer: Optional[str] = None
 
     # ---- Hand-level config ----
     target_score: int = DEFAULT_TARGET_SCORE   # 30 | 50 | 100 | 250
@@ -93,4 +105,10 @@ def state_from_dict(d: Dict[str, Any]) -> GameState:
     players = [PlayerState(**p) for p in d.get("players", [])]
     d2 = dict(d)
     d2["players"] = players
+    # 2026-05 v2 — JSON serializes int dict keys as strings; convert
+    # back to int so reducer code paths that compare against
+    # `seat_index` (int) keep working transparently.
+    for fld in ("pending_client_seeds", "client_seeds_used"):
+        if fld in d2 and isinstance(d2[fld], dict):
+            d2[fld] = {int(k): v for k, v in d2[fld].items()}
     return GameState(**d2)

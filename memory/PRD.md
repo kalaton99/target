@@ -583,12 +583,70 @@ happens against the real table shape:
   runs under `/opt/plugins-venv/bin/python`): asserts per-viewport
   bounding-box invariants at 1280 / 390 / 430 — all 3 PASS.
 
+## 2026-05 v2 — Provably-fair RNG: per-seat client_seed contribution
+- **`game_engine/rng.py`**: new canonical helper
+  `combine_client_seeds_by_seat(seeds_by_seat, seat_order) → sha256_hex`.
+  Each seat is encoded as `seat_index:client_seed`, joined by `|`,
+  hashed. Seat-prefix prevents pipe-injection spoofing; missing seats
+  contribute as `seat:` (still alters digest if added later).
+- **`game_engine/types.py`**: state gains
+  `pending_client_seeds: Dict[int, str]`,
+  `client_seeds_used: Dict[int, str]`,
+  `server_seed_buffer: Optional[str]`. Dict keys round-trip via
+  `state_from_dict` (JSON serialises ints as strings).
+- **Reducer**:
+  - New `SUBMIT_CLIENT_SEED` action (CLIENT-source). Allowed in
+    `WAITING / PAYOUT / ENDED`; otherwise raises `SEED_LOCKED`.
+    Validates seed (non-empty string ≤ 256 chars, must be a seated
+    user). Stores `pending_client_seeds[seat] = seed`, bumps version,
+    emits `CLIENT_SEED_SUBMITTED` event.
+  - `START_HAND` consumes seeds in this priority:
+    `action.client_seeds_by_seat` → `state.pending_client_seeds` →
+    legacy string `action.client_seeds` (unchanged for back-compat).
+    Combines via `combine_client_seeds_by_seat` then
+    `compute_shuffle_seed(server_seed, combined, nonce)`. Persists
+    the locked map in `client_seeds_used`, clears `pending_*`.
+    `server_seed_buffer = action.server_seed` (held in state, hidden
+    from broadcasts).
+  - `_enter_showdown` promotes `server_seed_buffer → rng_revealed_seed`,
+    then nulls the buffer. Players can now verify
+    `sha256(rng_revealed_seed) == rng_commit_hash` and re-derive the
+    deck independently.
+- **`view_filter.public_view`**: strips `server_seed_buffer` from every
+  client broadcast. `rng_revealed_seed` and `client_seeds_used` are
+  public (necessary for verification).
+- **`event_log/writer.py`**: `_extract_replay_inputs` now persists both
+  `client_seeds` (legacy string) and `client_seeds_by_seat` (v2 dict).
+- **`event_log/replay.py`**: `reconstruct_intent` lifts
+  `client_seeds_by_seat` back into the START_HAND replay intent.
+  Existing replay tests (`test_event_log_phase4.py`) pass unchanged.
+- **`lobby/router.py`** + **`realtime_v2/dev_router.py`** (lobby path):
+  every `START_HAND` now uses `generate_server_seed()` (32-byte
+  cryptographically-random hex), with `nonce = state.hand_number + 1`
+  for distinct shuffles across hands at the same table. The dev
+  router HTML test page retains its fixed-seed legacy string form
+  (used only for the embedded play.html dev UI).
+- **Tests**: `tests/test_client_seed_2026_05.py` — **11 cases, all PASS**:
+  - same inputs → same deck
+  - changing one client_seed → different deck
+  - missing seeds still deterministic
+  - partial contribution differs from no contribution
+  - submission order doesn't matter (sorted by seat)
+  - SUBMIT_CLIENT_SEED locked during ANTE/BETTING/DRAW/SHOWDOWN
+  - allowed during WAITING/PAYOUT/ENDED
+  - input validation (empty, non-string, oversize, unseated)
+  - server_seed hidden during play, revealed at SHOWDOWN
+  - replay with persisted seeds reconstructs identical state
+  - external verifier reproduces the deck via `combine_client_seeds_by_seat`
+- **Suite**: 238 passed / 2 skipped (canonical, excluding live bot
+  stress + legacy WS). Live bot-stress passes (5 hands target=100 +
+  4 bots, all reach PAYOUT with the new RNG path).
+
 ## Next Action Items
-1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. ✅ P0: Responsive layout (mobile + desktop safe) — **DONE 2026-05 v2**.
-5. P0: Replay client_seed contribution to RNG.
+5. ✅ P0: Replay client_seed contribution to RNG — **DONE 2026-05 v2**.
 6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.
 8. ✅ P0: Target 250 → 75 migration + deck-exhaustion refill + showdown reveal — **DONE 2026-05 v2**.

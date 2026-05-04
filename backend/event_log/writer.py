@@ -137,7 +137,13 @@ class HandActionWriter:
 
 
 def _extract_replay_inputs(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Capture only the deterministic seed-related inputs for replay."""
+    """Capture only the deterministic seed-related inputs for replay.
+
+    2026-05 v2 — also records `client_seeds_by_seat` so per-seat
+    contributions are reproducible. Both legacy string and v2 dict
+    forms are persisted side-by-side; the reducer accepts whichever
+    is present.
+    """
     if intent.get("type") != "START_HAND":
         return None
     return {
@@ -145,5 +151,6 @@ def _extract_replay_inputs(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "server_seed": intent.get("server_seed"),
         "server_seed_hash": intent.get("server_seed_hash"),
         "client_seeds": intent.get("client_seeds"),
+        "client_seeds_by_seat": intent.get("client_seeds_by_seat"),
         "nonce": intent.get("nonce"),
     }

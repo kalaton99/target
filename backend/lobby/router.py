@@ -29,6 +29,7 @@ from core.constants import (
     TABLE_SEATS_BY_TARGET,
     max_bots_for_target,
 )
+from game_engine.rng import generate_server_seed
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
 from realtime_v2.bridge import EngineBridge
@@ -138,14 +139,22 @@ async def _spawn_engine_for_table(
         bot = _BotDriver(bridge, table_id, bot_user_id, bot_seat=bot_seat)
         await bot.start()
 
+    # 2026-05 v2 — generate a real server_seed (commit-reveal RNG) and
+    # record the commit hash. The plain seed is buffered inside the
+    # engine state and revealed at SHOWDOWN. `nonce` uses the engine's
+    # current hand_number+1 so subsequent hands at the same table get
+    # distinct shuffles even with a fixed seed.
+    plain_seed, seed_hash = generate_server_seed()
     await engine.submit({
         "type": "START_HAND",
         "source": "SERVER",
         "hand_id": f"h_{uuid.uuid4().hex[:10]}",
-        "nonce": 0,
-        "server_seed": "0" * 64,
-        "server_seed_hash": "h" * 64,
-        "client_seeds": "",
+        "nonce": int(state.hand_number) + 1,
+        "server_seed": plain_seed,
+        "server_seed_hash": seed_hash,
+        # Per-seat client seeds will be auto-collected from
+        # `state.pending_client_seeds` (populated via SUBMIT_CLIENT_SEED).
+        # No `client_seeds_by_seat` here so the reducer reads pending.
         "target_score": int(table_doc["target_score"]),
     })
     return table_doc
