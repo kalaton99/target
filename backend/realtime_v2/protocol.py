@@ -32,6 +32,10 @@ CLIENT_ACTIONS: FrozenSet[str] = frozenset({
     "PLAY_TEN",
     "ATTACK",
     "PROTECT",
+    # 2026-05 v2 — provably-fair RNG: per-seat client_seed contribution.
+    # Reducer enforces phase whitelist (WAITING/PAYOUT/ENDED only)
+    # and validates payload shape — gateway just allow-lists the type.
+    "SUBMIT_CLIENT_SEED",
     # Heartbeat
     "PING",
     "PONG",

@@ -104,6 +104,28 @@ def _public_state_payload(table_id: str, state: GameState, events: List[Dict[str
         ],
         "events": list(events),
         "last_action": state.last_action_summary,
+        # 2026-05 v2 — provably-fair RNG fields. All five are explicitly
+        # public per the RNG contract (see `view_filter.public_view`):
+        # `commit_hash` is broadcast at START_HAND so clients can lock
+        # in the commitment; `revealed_seed` only appears once
+        # `_enter_showdown` promotes the buffer; `client_seeds_used` is
+        # the locked per-seat map for the active hand;
+        # `pending_client_seeds` is the unfrozen draft for the NEXT
+        # hand (so the UI can confirm the player's submission landed).
+        "rng_commit_hash": state.rng_commit_hash,
+        "rng_revealed_seed": state.rng_revealed_seed,
+        "rng_nonce": state.rng_nonce,
+        "client_seeds_used": dict(state.client_seeds_used),
+        "pending_client_seeds": dict(state.pending_client_seeds),
+        # Remaining deck — public ONLY at SHOWDOWN/PAYOUT so external
+        # verifiers can confirm the exact ordered shuffle. Empty list
+        # at every other phase to preserve card privacy.
+        "deck_remaining": (
+            list(state.deck)
+            if state.phase in ("SHOWDOWN", "PAYOUT")
+            else []
+        ),
+        "deck_refills": int(getattr(state, "deck_refills", 0) or 0),
     }
 
 

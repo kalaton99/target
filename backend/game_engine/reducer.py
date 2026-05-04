@@ -616,22 +616,27 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
         #   3. legacy `action["client_seeds"]` string form (pre-v2):
         #      used only when neither (1) nor (2) is present.
         seat_order = [p.seat_index for p in state.players]
+        # 2026-05 v2 — only fall back to the legacy string path when the
+        # action *explicitly* provides `client_seeds` (i.e. the caller
+        # is replaying a pre-v2 log). Every other code path — including
+        # "no seeds at all" — uses the canonical per-seat combiner so
+        # an external verifier can reproduce the deck without knowing
+        # whether the hand pre-dated the v2 migration.
         if "client_seeds_by_seat" in action:
             raw = action["client_seeds_by_seat"] or {}
-            # JSON keys arrive as str; normalise to int.
             client_seeds_by_seat = {int(k): v for k, v in raw.items()}
+            combined = combine_client_seeds_by_seat(client_seeds_by_seat, seat_order)
         elif state.pending_client_seeds:
             client_seeds_by_seat = dict(state.pending_client_seeds)
-        else:
-            client_seeds_by_seat = {}
-
-        if "client_seeds_by_seat" in action or state.pending_client_seeds:
-            combined = combine_client_seeds_by_seat(
-                client_seeds_by_seat, seat_order,
-            )
-        else:
+            combined = combine_client_seeds_by_seat(client_seeds_by_seat, seat_order)
+        elif "client_seeds" in action:
             # Legacy path — string form already-combined by caller.
+            client_seeds_by_seat = {}
             combined = action.get("client_seeds", "")
+        else:
+            # No seeds → still canonical: combiner over an empty map.
+            client_seeds_by_seat = {}
+            combined = combine_client_seeds_by_seat({}, seat_order)
         seed = compute_shuffle_seed(action["server_seed"], combined, nonce)
         state.deck = [c.to_dict() for c in shuffle(build_fresh_deck(include_jokers=True), seed)]
         state.deck_refills = 0

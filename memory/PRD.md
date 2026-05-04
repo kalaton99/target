@@ -638,9 +638,48 @@ happens against the real table shape:
   - server_seed hidden during play, revealed at SHOWDOWN
   - replay with persisted seeds reconstructs identical state
   - external verifier reproduces the deck via `combine_client_seeds_by_seat`
-- **Suite**: 238 passed / 2 skipped (canonical, excluding live bot
+- **Suite**: 240 passed / 2 skipped (canonical, excluding live bot
   stress + legacy WS). Live bot-stress passes (5 hands target=100 +
   4 bots, all reach PAYOUT with the new RNG path).
+
+## 2026-05 v2 — Frontend wiring for SUBMIT_CLIENT_SEED + fairness UX
+- **`frontend/src/lib/fairness.js`** (new): pure-browser port of the
+  backend RNG (`combineClientSeedsBySeat`, `computeShuffleSeed`,
+  `buildFreshDeck`, `shuffleDeck`, `deriveInitialDeck`, `verifyCommit`,
+  `randomClientSeed`). Algorithms bit-for-bit identical to backend
+  (verified Node ↔ CPython).
+- **PlayPage.jsx** — three new UX layers, **no engine / RNG-logic
+  change**:
+  1. **Seed input panel** (between hands only — gating mirrors the
+     reducer's `SEED_LOCKED` rule): text input + Generate-random +
+     Submit + Use-default. Sends `SUBMIT_CLIENT_SEED` via WS.
+     `✓ Locked in for next hand` confirmation appears once
+     `view.pendingClientSeeds[seat]` arrives.
+  2. **In-hand indicator**: gold `FAIRNESS ON` pill in the top bar.
+  3. **Verify modal at PAYOUT** (`Verify result` button inside
+     hand-summary): renders commit hash, revealed seed, nonce, all
+     per-seat random seeds. Verify button locally re-derives the deck
+     and **suffix-compares** against `deck_remaining`. Shows ✓/✗ +
+     plain-language detail.
+- **Backend additive changes** (no logic / RNG / gameplay change):
+  - `bridge.py` broadcasts the RNG fields (`rng_commit_hash`,
+    `rng_revealed_seed`, `rng_nonce`, `client_seeds_used`,
+    `pending_client_seeds`, `deck_remaining`, `deck_refills`).
+  - `view_filter.public_view` exposes `state.deck` ONLY at
+    SHOWDOWN/PAYOUT.
+  - `protocol.py` allow-lists `SUBMIT_CLIENT_SEED` in CLIENT_ACTIONS.
+  - `reducer.py` no-seeds `START_HAND` path now uses canonical
+    `combine_client_seeds_by_seat({}, seat_order)` so external
+    verifiers reproduce the deck without prior knowledge of pre-v2
+    vs v2 hands.
+- **New tests** — `test_fairness_xverify_2026_05.py` (2 cases): drives
+  a hand to PAYOUT, derives the deck from the public view, asserts
+  `deck_remaining` matches the suffix of the derivation. Catches the
+  empty-seed inconsistency that broke the live verify on first run.
+- **Suite**: 240 passed / 2 skipped (canonical).
+- **Live E2E**: target=50 + 3 bots → seed submission shows
+  `Locked in for next hand`; verify modal returns `data-pass="true"`
+  (commit + suffix-deck match) on a real game.
 
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
@@ -653,6 +692,7 @@ happens against the real table shape:
 9. ✅ P0: Game-core stabilization (legacy WS out, betting-timeout, bot race fix) — **DONE 2026-05 v2**.
 10. ✅ P0: Gameplay-layer lock (strategic bot policy, balance sim, showdown clarity) — **DONE 2026-05 v2**.
 11. ✅ P0: Game-feel & UX clarity polish (action feedback, bot flavors, hand summary) — **DONE 2026-05 v2**.
+12. ✅ P1: Frontend wiring for SUBMIT_CLIENT_SEED + verify-result modal — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

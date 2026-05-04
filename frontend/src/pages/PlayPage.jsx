@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  deriveInitialDeck,
+  randomClientSeed,
+  verifyCommit,
+} from "../lib/fairness";
 
 // Phase 11 P2 — supports two modes:
 //   /play           → dev solo mode (POST /api/v2/dev/spawn_solo_table)
@@ -55,7 +60,7 @@ function FaceDown() {
   );
 }
 
-function Pill({ children, tone = "default", testid }) {
+function Pill({ children, tone = "default", testid, title }) {
   const cls =
     tone === "gold"
       ? "border-yellow-600/60 text-yellow-300"
@@ -67,9 +72,23 @@ function Pill({ children, tone = "default", testid }) {
       ? "border-indigo-600/60 text-indigo-300"
       : "border-zinc-700/60 text-zinc-300";
   return (
-    <span data-testid={testid} className={`inline-block text-xs uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/40 ${cls}`}>
+    <span data-testid={testid} title={title} className={`inline-block text-xs uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/40 ${cls}`}>
       {children}
     </span>
+  );
+}
+
+// 2026-05 v2 — single-row label + monospace value used in the
+// fairness-proof modal. Kept tiny because the values can be 64 chars
+// of hex — a fixed-width font + break-all keeps things tidy on mobile.
+function FairnessRow({ label, value, testid }) {
+  return (
+    <div className="mb-2">
+      <div className="text-zinc-500 text-[10px] uppercase tracking-widest">{label}</div>
+      <code data-testid={testid} className="block text-zinc-300 text-xs break-all">
+        {value || <span className="text-zinc-600">—</span>}
+      </code>
+    </div>
   );
 }
 
@@ -122,6 +141,13 @@ function PlayPage() {
     players: [],
     winners: [],
     handNumber: 0,
+    rngCommitHash: null,
+    rngRevealedSeed: null,
+    rngNonce: 0,
+    clientSeedsUsed: {},
+    pendingClientSeeds: {},
+    deckRemaining: [],
+    deckRefills: 0,
   });
   const [me, setMe] = useState({
     cards: [],
@@ -135,6 +161,14 @@ function PlayPage() {
   // Transient banner for engine-emitted user-visible notices (currently:
   // AUTO_STAND on turn timeout). Auto-dismisses after 4s.
   const [notice, setNotice] = useState(null); // { kind, text, ts }
+  // Fairness UX state — provably-fair RNG disclosure layer.
+  // `clientSeedDraft` is the text the player has typed but not yet
+  // submitted; `verifyOpen` shows the verify-result modal at PAYOUT;
+  // `verifyResult` holds the locally-recomputed deck + match status.
+  const [clientSeedDraft, setClientSeedDraft] = useState("");
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
   const wsRef = useRef(null);
   const myUserIdRef = useRef(null);
 
@@ -365,6 +399,18 @@ function PlayPage() {
           winners: m.winners || [],
           handNumber: m.hand_number || 0,
           currentCallOwed: m.current_call_owed || 0,
+          // Provably-fair RNG fields. `commit_hash` is broadcast at
+          // START_HAND; `revealed_seed` only appears at SHOWDOWN/PAYOUT.
+          // `client_seeds_used` is the locked per-seat map used for the
+          // current hand; `pending_client_seeds` is the unfrozen draft
+          // for the NEXT hand.
+          rngCommitHash: m.rng_commit_hash || null,
+          rngRevealedSeed: m.rng_revealed_seed || null,
+          rngNonce: m.rng_nonce || 0,
+          clientSeedsUsed: m.client_seeds_used || {},
+          pendingClientSeeds: m.pending_client_seeds || {},
+          deckRemaining: m.deck_remaining || [],
+          deckRefills: m.deck_refills || 0,
         });
         // Surface user-visible engine events (currently: auto-stand on
         // timeout). The events array carries one entry per intent applied
@@ -522,6 +568,84 @@ function PlayPage() {
     ws.send(JSON.stringify({ type: action, state_version: view.sv, payload }));
     setStatusLine(`→ ${action} @ v${view.sv}`);
   }, [view.sv]);
+
+  // Submit a per-seat client seed contribution to the next hand's
+  // shuffle. The reducer accepts this only between hands
+  // (WAITING / PAYOUT / ENDED) — we mirror that gating in the UI.
+  const submitClientSeed = useCallback((seed) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!seed || typeof seed !== "string") return;
+    ws.send(JSON.stringify({
+      type: "SUBMIT_CLIENT_SEED",
+      state_version: view.sv,
+      payload: { client_seed: seed },
+    }));
+    setStatusLine(`→ SUBMIT_CLIENT_SEED @ v${view.sv}`);
+  }, [view.sv]);
+
+  // Locally re-derive the deck from the broadcast (commit hash, revealed
+  // seed, per-seat client seeds, nonce). With the deck remainder
+  // exposed at SHOWDOWN/PAYOUT, we do an *ordered suffix* compare —
+  // far stronger than a multiset prefix match (also tolerates bust-
+  // save card consumption + PLAY_TWO/TEN transfers).
+  const runVerify = useCallback(async () => {
+    if (verifyBusy) return;
+    setVerifyBusy(true);
+    try {
+      const v = view;
+      const seatOrder = (v.players || [])
+        .map((p) => p.seat)
+        .sort((a, b) => a - b);
+      const seedsBySeat = {};
+      for (const k of Object.keys(v.clientSeedsUsed || {})) {
+        seedsBySeat[Number(k)] = v.clientSeedsUsed[k];
+      }
+      // 1. commit-hash match.
+      const commitOk = await verifyCommit(v.rngCommitHash, v.rngRevealedSeed);
+      // 2. derive deck.
+      const { deck } = await deriveInitialDeck({
+        serverSeedHex: v.rngRevealedSeed,
+        clientSeedsBySeat: seedsBySeat,
+        seatOrder,
+        nonce: v.rngNonce,
+        includeJokers: true,
+      });
+      // 3. suffix compare — backend exposes `deck_remaining` (the
+      // unused tail of the original deck) at SHOWDOWN/PAYOUT. Our
+      // derivation must end with exactly the same cards in the same
+      // order. If a refill happened (deck_refills > 0), the remainder
+      // is from the refill deck and we cannot do a clean suffix match
+      // — surface that gracefully instead of failing.
+      const remaining = v.deckRemaining || [];
+      const refilled = (v.deckRefills || 0) > 0;
+      let cardsMatch = false;
+      let detail = "";
+      if (refilled) {
+        detail = `Deck refilled ${v.deckRefills}× this hand — extended-log proof not yet supported in the UI verifier.`;
+        cardsMatch = false;
+      } else if (remaining.length === 0) {
+        detail = "No deck remainder broadcast — verifier needs at least 1 unused card.";
+        cardsMatch = false;
+      } else {
+        const tail = deck.slice(-remaining.length);
+        cardsMatch = tail.every((c, i) =>
+          c.rank === remaining[i].rank && c.suit === remaining[i].suit,
+        );
+        detail = `Compared ${remaining.length} unused card(s) at the bottom of the deck.`;
+      }
+      setVerifyResult({
+        commitOk,
+        cardsMatch,
+        detail,
+        refilled,
+      });
+    } catch (e) {
+      setVerifyResult({ error: e?.message || String(e) });
+    } finally {
+      setVerifyBusy(false);
+    }
+  }, [view, verifyBusy]);
 
   // ----- derived: it's my turn if I'm at current_turn_seat AND DRAW phase -----
   const myUserId = session?.user_id;
@@ -813,6 +937,11 @@ function PlayPage() {
             <Pill testid="sv-pill">v{view.sv}</Pill>
             <Pill tone="gold" testid="target-pill">TARGET {view.targetScore || "—"}</Pill>
             <Pill tone="gold" testid="pot-pill">POT {view.pot}</Pill>
+            {view.rngCommitHash && (
+              <Pill testid="fairness-pill" tone="ok" title="The shuffle is provably fair. Click 'Verify result' at the end of the hand.">
+                FAIRNESS ON
+              </Pill>
+            )}
             <Pill testid="ws-state-pill" tone={wsState === "open" ? "ok" : wsState === "error" ? "danger" : "default"}>
               WS {wsState}
             </Pill>
@@ -837,6 +966,86 @@ function PlayPage() {
             </button>
           </div>
         )}
+
+        {/* Fairness — Random Seed (pre-hand panel).
+            Shown only between hands (WAITING/PAYOUT/ENDED or no phase
+            yet) and when we are connected. The reducer rejects
+            SUBMIT_CLIENT_SEED outside those phases (`SEED_LOCKED`),
+            so this gating mirrors backend rules. */}
+        {wsState === "open"
+          && (!view.phase
+              || view.phase === "WAITING"
+              || view.phase === "PAYOUT"
+              || view.phase === "ENDED")
+          && (() => {
+            const mySeat = view.players.find((p) => p.user_id === myUserIdRef.current)?.seat;
+            const myPending = mySeat != null
+              ? (view.pendingClientSeeds?.[mySeat] || view.pendingClientSeeds?.[String(mySeat)])
+              : null;
+            return (
+              <div
+                data-testid="fairness-input-panel"
+                className="mb-6 rounded-md border border-emerald-700/40 bg-emerald-500/5 p-4"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-emerald-300 uppercase tracking-widest text-xs">
+                    Fairness · Random Seed
+                  </div>
+                  {myPending && (
+                    <span data-testid="fairness-seed-confirmed" className="text-emerald-400 text-xs">
+                      ✓ Locked in for next hand
+                    </span>
+                  )}
+                </div>
+                <div className="text-zinc-400 text-xs mb-3">
+                  Add your own random text — it mixes into the shuffle so neither you
+                  nor the server can pre-determine the deck. Skip it to use the
+                  default (server-only).
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <input
+                    data-testid="fairness-seed-input"
+                    value={clientSeedDraft}
+                    onChange={(e) => setClientSeedDraft(e.target.value)}
+                    placeholder={myPending || "your random seed (any text)"}
+                    maxLength={256}
+                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-zinc-100 text-sm placeholder:text-zinc-600"
+                  />
+                  <button
+                    data-testid="fairness-generate-btn"
+                    type="button"
+                    onClick={() => setClientSeedDraft(randomClientSeed())}
+                    className="px-3 py-2 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 text-xs uppercase tracking-widest"
+                  >
+                    Generate random
+                  </button>
+                  <button
+                    data-testid="fairness-submit-seed-btn"
+                    type="button"
+                    disabled={!clientSeedDraft.trim()}
+                    onClick={() => {
+                      const s = clientSeedDraft.trim();
+                      if (!s) return;
+                      submitClientSeed(s);
+                      // optimistic — the next STATE_UPDATE will confirm.
+                    }}
+                    className="px-3 py-2 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed text-xs uppercase tracking-widest"
+                  >
+                    Submit
+                  </button>
+                  <button
+                    data-testid="fairness-default-btn"
+                    type="button"
+                    onClick={() => setClientSeedDraft("")}
+                    className="px-3 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs uppercase tracking-widest"
+                    title="Skip your contribution — server-only seed will be used"
+                  >
+                    Use default
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
         {/* Opponents */}
         <div className="mb-8" data-testid="opponents">
@@ -1349,9 +1558,133 @@ function PlayPage() {
                   );
                 })}
               </div>
+              {view.rngRevealedSeed && (
+                <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-zinc-500 text-xs">
+                    This hand was provably fair — anyone can reproduce the deck
+                    from the values below.
+                  </div>
+                  <button
+                    data-testid="verify-result-btn"
+                    type="button"
+                    onClick={() => {
+                      setVerifyResult(null);
+                      setVerifyOpen(true);
+                      runVerify();
+                    }}
+                    className="px-3 py-2 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 text-xs uppercase tracking-widest"
+                  >
+                    Verify result
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}
+
+        {/* Verify modal — pure-frontend re-derivation of the deck. */}
+        {verifyOpen && (
+          <div
+            data-testid="verify-modal"
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80"
+            onClick={() => setVerifyOpen(false)}
+          >
+            <div
+              className="max-w-2xl w-full rounded-lg border border-emerald-700/40 bg-zinc-950 p-5 max-h-[90vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-emerald-300 uppercase tracking-widest text-xs">
+                  Fairness proof
+                </div>
+                <button
+                  data-testid="verify-modal-close"
+                  type="button"
+                  onClick={() => setVerifyOpen(false)}
+                  className="text-zinc-500 hover:text-zinc-200 text-xs uppercase tracking-widest"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="text-zinc-400 text-xs mb-4">
+                The shuffle used these inputs. Anyone can plug them into a SHA-256
+                + Fisher–Yates implementation to reconstruct the same deck.
+              </div>
+              <FairnessRow label="Commit (locked at deal)" value={view.rngCommitHash} testid="verify-commit-hash" />
+              <FairnessRow label="Revealed seed" value={view.rngRevealedSeed} testid="verify-revealed-seed" />
+              <FairnessRow label="Nonce" value={String(view.rngNonce ?? 0)} testid="verify-nonce" />
+              <div className="my-3 border-t border-zinc-800" />
+              <div className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">
+                Per-seat random seeds (yours and opponents')
+              </div>
+              <div className="space-y-1 mb-3" data-testid="verify-client-seeds">
+                {(view.players || [])
+                  .slice()
+                  .sort((a, b) => a.seat - b.seat)
+                  .map((p) => {
+                    const s =
+                      view.clientSeedsUsed?.[p.seat]
+                      ?? view.clientSeedsUsed?.[String(p.seat)]
+                      ?? "";
+                    return (
+                      <div
+                        key={p.seat}
+                        data-testid={`verify-client-seed-${p.seat}`}
+                        className="flex items-center gap-3 text-xs"
+                      >
+                        <span className="text-zinc-300 w-32 truncate">{p.username}</span>
+                        <code className="text-zinc-400 break-all flex-1">
+                          {s || <span className="text-zinc-600">(default)</span>}
+                        </code>
+                      </div>
+                    );
+                  })}
+              </div>
+              {verifyBusy && (
+                <div data-testid="verify-busy" className="text-zinc-400 text-sm py-3">
+                  Computing…
+                </div>
+              )}
+              {verifyResult && !verifyResult.error && (
+                <div
+                  data-testid="verify-result"
+                  data-pass={verifyResult.commitOk && verifyResult.cardsMatch ? "true" : "false"}
+                  className={`mt-3 rounded border p-3 text-sm ${
+                    verifyResult.commitOk && verifyResult.cardsMatch
+                      ? "border-emerald-700/60 bg-emerald-500/5 text-emerald-300"
+                      : "border-rose-700/60 bg-rose-500/5 text-rose-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">
+                      {verifyResult.commitOk && verifyResult.cardsMatch ? "✓" : "✗"}
+                    </span>
+                    <span className="font-semibold">
+                      {verifyResult.commitOk && verifyResult.cardsMatch
+                        ? "Result verified — fair shuffle"
+                        : verifyResult.refilled
+                          ? "Verification limited"
+                          : "Verification failed"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-zinc-400">
+                    Commit hash check: {verifyResult.commitOk ? "matches" : "MISMATCH"}
+                    {" · "}
+                    Deck check: {verifyResult.cardsMatch ? "matches" : "no match"}
+                    {verifyResult.detail ? ` · ${verifyResult.detail}` : ""}
+                  </div>
+                </div>
+              )}
+              {verifyResult && verifyResult.error && (
+                <div data-testid="verify-error" className="mt-3 rounded border border-rose-700/60 bg-rose-500/5 p-3 text-sm text-rose-300">
+                  Error: {verifyResult.error}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Event log */}
         <div className="rounded-md border border-zinc-800 bg-black/60 p-3">
