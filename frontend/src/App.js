@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { AuthPage } from "@/pages/AuthPage";
 import { MenuPage } from "@/pages/MenuPage";
 import { TablesPage } from "@/pages/TablesPage";
-import { GamePage } from "@/pages/GamePage";
 import PlayPage from "@/pages/PlayPage";
 import LobbyPage from "@/pages/LobbyPage";
 
@@ -37,7 +36,10 @@ function App() {
           <Route path="/register" element={<PublicOnly><AuthPage mode="register" /></PublicOnly>} />
           <Route path="/menu" element={<Protected><MenuPage /></Protected>} />
           <Route path="/tables" element={<Protected><TablesPage /></Protected>} />
-          <Route path="/table/:tableId" element={<Protected><GamePage /></Protected>} />
+          {/* 2026-05 v2 — legacy /table/:tableId GamePage removed along with
+              backend/realtime/. The active gameplay surface is /play/:tableId
+              powered by realtime_v2. */}
+          <Route path="/table/:tableId" element={<Navigate to="/lobby" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

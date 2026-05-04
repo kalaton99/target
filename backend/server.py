@@ -46,8 +46,8 @@ api_router.include_router(wallet_router)
 api_router.include_router(tables_router)
 # 2026-05 stabilization: legacy /api/ws/table/{id} WS path has been
 # removed. The only realtime surface is `/api/v2/ws/table/{id}` via
-# realtime_v2 below. `backend/realtime/` stays on disk for now as
-# quarantined dead code — nothing imports it.
+# realtime_v2 below. The legacy `backend/realtime/` directory was
+# fully deleted in 2026-05 v2.
 
 
 # ----------------------------------------------------------------------

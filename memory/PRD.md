@@ -681,6 +681,29 @@ happens against the real table shape:
   `Locked in for next hand`; verify modal returns `data-pass="true"`
   (commit + suffix-deck match) on a real game.
 
+## 2026-05 v2 — Quarantined `backend/realtime/` directory deleted
+- **Deleted files** (4 backend + 2 frontend):
+  - `backend/realtime/` directory: `__init__.py`,
+    `connection_manager.py`, `table_worker.py`, `ws_router.py`
+  - `backend/tests/test_websocket.py` (all tests targeted the
+    deleted legacy WS path; was already module-level skipped)
+  - `frontend/src/pages/GamePage.jsx` (legacy `/table/:tableId`
+    screen; gameplay moved to `/play/:tableId` long ago)
+  - `frontend/src/lib/ws.js` (sole consumer was `GamePage`)
+- **Edits** (no functional change):
+  - `frontend/src/App.js` — removed `GamePage` import; the route
+    `/table/:tableId` now redirects to `/lobby`.
+  - `frontend/src/lib/api.js` — removed orphaned `wsUrl` helper that
+    pointed at the deleted `/api/ws/table/{id}` URL.
+  - `backend/server.py` — comment updated; the legacy router was
+    already unmounted in the prior pass.
+- **Verification**:
+  - `grep -rn "backend/realtime\|/api/ws/table\|from realtime\."`
+    now matches only doc-comments across `/app`.
+  - Full canonical suite: **240 passed / 2 skipped** (no regression).
+  - ESLint clean across `frontend/src`.
+  - `realtime_v2`, reducer, RNG, protocol untouched.
+
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
@@ -693,6 +716,7 @@ happens against the real table shape:
 10. ✅ P0: Gameplay-layer lock (strategic bot policy, balance sim, showdown clarity) — **DONE 2026-05 v2**.
 11. ✅ P0: Game-feel & UX clarity polish (action feedback, bot flavors, hand summary) — **DONE 2026-05 v2**.
 12. ✅ P1: Frontend wiring for SUBMIT_CLIENT_SEED + verify-result modal — **DONE 2026-05 v2**.
+13. ✅ P1: Quarantined `backend/realtime/` directory deletion — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

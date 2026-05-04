@@ -14,8 +14,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export function wsUrl(tableId, token) {
-  const httpUrl = new URL(API);
-  const proto = httpUrl.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${httpUrl.host}/api/ws/table/${tableId}?token=${encodeURIComponent(token)}`;
-}
+// 2026-05 v2 — `wsUrl` for the legacy /api/ws/table/{id} endpoint was
+// removed along with `backend/realtime/`. The realtime_v2 gateway is
+// the only WS surface; PlayPage builds its URL inline.
