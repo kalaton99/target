@@ -368,7 +368,14 @@ def _maybe_end_betting(state: GameState, events: List[Dict[str, Any]], current_s
     nxt = _next_in_hand(state, current_seat)
     if nxt is not None:
         _set_turn(state, nxt)
-    return False
+        return False
+    # 2026-05 v2 stabilization: defensive guard. If no next in-hand seat
+    # exists (should be unreachable given len(in_hand) >= 2 above, but
+    # kept as a belt-and-braces stop against future edits introducing a
+    # silent stall), force phase advance instead of leaving the state
+    # stuck with current_turn_seat pointing at a seat that already acted.
+    _end_betting_to_deal(state, events)
+    return True
 
 
 def _end_draw_round(state: GameState, events: List[Dict[str, Any]]) -> None:

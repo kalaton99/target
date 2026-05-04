@@ -101,20 +101,45 @@ class _BotDriver:
             self._sub = None
 
     def _decide_draw_action(self, msg: dict) -> str:
-        """HIT while score < 60% of target_score, else STAND.
+        """2026-05 v2 strategic bot policy (locked).
 
-        We deliberately keep this trivial — bots are an opponent
-        stand-in for dev testing, not a tuned AI. The 60% rule just
-        ensures bots actually exercise the HIT path some of the time so
-        the human-vs-bot games aren't purely STAND-only walkovers.
+        Policy (score expressed as fraction of `target_score`):
+          - score >= target       → STAND  (bust-safety, should never be reached)
+          - score >= target * 0.8 → STAND
+          - target*0.5 <= score < target*0.8 → 60% HIT / 40% STAND
+          - score <  target * 0.5 → HIT
+
+        Randomness is deterministic per (table_id, bot_user_id,
+        state_version) so replays produce the same decisions and the
+        stress suite is stable. We use the bottom 16 bits of a SHA-1
+        digest mod 100 as a cheap, dependency-free integer RNG.
         """
         target = int(msg.get("target_score") or 30)
+        score = 0
         for p in msg.get("players") or []:
             if p.get("user_id") == self._bot_user_id:
                 score = int(p.get("score") or 0)
-                hit_below = (target * 6) // 10  # ceil-ish, integer-only
-                return "HIT" if score < hit_below else "STAND"
-        return "STAND"
+                break
+
+        # Bust-safety: should never be on-turn while score >= target,
+        # but if it happens, STAND is the only non-throwaway choice.
+        if score >= target:
+            return "STAND"
+        # Integer comparisons avoid float rounding edge cases.
+        upper = (target * 8) // 10   # 0.8 target
+        lower = (target * 5) // 10   # 0.5 target
+        if score >= upper:
+            return "STAND"
+        if score < lower:
+            return "HIT"
+
+        # Middle band — 60% HIT / 40% STAND via deterministic PRNG.
+        import hashlib
+        sv = int(msg.get("state_version") or 0)
+        seed = f"{self._table_id}:{self._bot_user_id}:{sv}".encode("utf-8")
+        # Bottom 16 bits of sha1 → int 0..65535, mod 100 → 0..99.
+        roll = int(hashlib.sha1(seed).hexdigest()[-4:], 16) % 100
+        return "HIT" if roll < 60 else "STAND"
 
     async def _run(self) -> None:
         # Subscription is owned by start() so there is no race with the

@@ -506,8 +506,40 @@ happens against the real table shape:
   pre-existing TestClient WS incompatibilities). The bot-stress E2E
   test is gated behind `REACT_APP_BACKEND_URL` and takes ~2min.
 
+## 2026-05 v2 — Gameplay-layer lock (strategic bots + balance sim + showdown clarity)
+- **Bot policy locked (`dev_router._BotDriver._decide_draw_action`)**:
+  - `score < target*0.5` → HIT
+  - `0.5*target ≤ score < 0.8*target` → 60% HIT / 40% STAND (deterministic
+    PRNG keyed on `table_id + bot_user_id + state_version`, so replays
+    reproduce the same decisions)
+  - `score ≥ target*0.8` → STAND
+  - `score ≥ target` → STAND (bust-safety; reducer rescore prevents this
+    path being reached anyway)
+- **Deterministic turn progression**: added defensive fallthrough in
+  `reducer._maybe_end_betting` — if `_next_in_hand` ever returns `None`
+  while `len(in_hand) ≥ 2` (unreachable today; future-proofing), force
+  `_end_betting_to_deal` instead of silently leaving the state stuck.
+- **Gameplay balance report** (`test_balance_sim_2026_05.py`,
+  30 hands per config, 1 human + max bots):
+  | Target | Seats | mean_steps | max_steps | bust_rate | distinct winner seats |
+  |-------:|:-----:|:----------:|:---------:|:---------:|:---------------------:|
+  | 30     | 4     | 21.8       | 25        | 1.7%      | 3                     |
+  | 50     | 4     | 25.8       | 32        | 0.0%      | 3                     |
+  | 75     | 5     | 36.2       | 44        | 0.0%      | 4                     |
+  | 100    | 5     | 41.4       | 49        | 0.0%      | 4                     |
+  All hands reached PAYOUT with no sig-loops. Deterministic-replay
+  regression added (`test_balance_sim_no_shuffle_determinism_regression`).
+- **Showdown clarity (PlayPage.jsx)**:
+  - Winner seat ringed gold with `WINNER` pill next to the username
+    (new `data-testid="opponent-{seat}-winner"`).
+  - Own seat gets a `WINNER` pill (new `data-testid="my-winner-pill"`)
+    when local player is in the winners list.
+  - Existing winners-panel banner and opponent card reveal at
+    SHOWDOWN/PAYOUT unchanged.
+- Suite: **227 passed / 2 skipped** (backend); `test_bot_stress_2026_05.py`
+  still passes live with the new bot policy.
+
 ## Next Action Items
-1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
@@ -516,6 +548,7 @@ happens against the real table shape:
 7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.
 8. ✅ P0: Target 250 → 75 migration + deck-exhaustion refill + showdown reveal — **DONE 2026-05 v2**.
 9. ✅ P0: Game-core stabilization (legacy WS out, betting-timeout, bot race fix) — **DONE 2026-05 v2**.
+10. ✅ P0: Gameplay-layer lock (strategic bot policy, balance sim, showdown clarity) — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

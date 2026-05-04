@@ -750,16 +750,30 @@ function PlayPage() {
             )}
             {opponents.map((p) => {
               const isTurn = view.currentTurnSeat === p.seat;
+              const isWinner = handFinished
+                && Array.isArray(view.winners)
+                && view.winners.includes(p.user_id);
+              // 2026-05 v2 showdown clarity: at PAYOUT/SHOWDOWN,
+              // winners are ringed in gold, non-winners in subdued
+              // border. During active play the current-turn seat is
+              // ringed yellow as before.
+              const borderCls = isWinner
+                ? "border-yellow-400 shadow-[0_0_0_2px_rgba(250,204,21,0.25)]"
+                : isTurn
+                  ? "border-yellow-500"
+                  : "border-zinc-800";
               return (
                 <div
                   key={p.seat}
                   data-testid={`opponent-seat-${p.seat}`}
-                  className={`min-w-[220px] rounded-lg border p-4 bg-zinc-900/60 ${isTurn ? "border-yellow-500" : "border-zinc-800"}`}
+                  data-winner={isWinner ? "true" : "false"}
+                  className={`min-w-[220px] rounded-lg border p-4 bg-zinc-900/60 ${borderCls}`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-semibold">{p.username}</div>
                     <div className="flex items-center gap-1">
-                      {isTurn && <Pill tone="gold">turn</Pill>}
+                      {isWinner && <Pill testid={`opponent-${p.seat}-winner`} tone="gold">WINNER</Pill>}
+                      {isTurn && !handFinished && <Pill tone="gold">turn</Pill>}
                       {/* Phase 11 P1 — presence pill. SITTING OUT wins
                           over OFFLINE because once the grace expired the
                           player has been formally benched for the engine. */}
@@ -815,6 +829,9 @@ function PlayPage() {
               <Pill testid="my-score" tone="gold">score {me.score}{me.soft ? " soft" : ""}</Pill>
               {me.busted && <Pill tone="danger">BUST</Pill>}
               {me.disqualified && <Pill tone="danger">DQ</Pill>}
+              {handFinished && Array.isArray(view.winners) && myUserId && view.winners.includes(myUserId) && (
+                <Pill testid="my-winner-pill" tone="gold">WINNER</Pill>
+              )}
               {myTurn && <Pill testid="your-turn-pill" tone="gold">YOUR TURN</Pill>}
             </div>
           </div>
