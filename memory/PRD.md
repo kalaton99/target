@@ -557,11 +557,37 @@ happens against the real table shape:
 - Live E2E verified at target=50 + 3 bots: all four features rendered in
   one pass. No engine / backend / balance changes.
 
+## 2026-05 v2 — Responsive layout (mobile + desktop)
+- **Pure-CSS responsive migration** via Tailwind `sm:` breakpoints in
+  `PlayPage.jsx` and `LobbyPage.jsx`. No component refactor, no new
+  libraries, zero backend / reducer / engine churn.
+- **Desktop layout preserved exactly** (verified via Playwright:
+  viewport 1280×800 → actions-bar inline at y=445, opponent card width
+  220px fixed, status-line visible — matches prior behaviour).
+- **Mobile adaptations** (verified at 390×844 and 430×932):
+  - Top bar stacks vertically; phase/v/target/pot/ws pills wrap.
+  - Opponent cards go full-bleed (`w-full sm:min-w-[220px] sm:w-auto`).
+  - Card rows wrap on narrow viewports (no horizontal scroll).
+  - Action buttons (HIT / STAND / CHECK / CALL / FOLD / PLAY 2 /
+    PLAY 10 / DEAL AGAIN) collapse to a **sticky bottom bar**
+    (`fixed bottom-0 z-30 bg-black/95 border-t … sm:static sm:bg-transparent`)
+    with `pb-24 sm:pb-0` padding on the page root so content is never
+    obscured.
+  - Action buttons use `px-4 sm:px-7 text-sm sm:text-base` so they fit
+    comfortably on 390px while staying thumb-reachable.
+  - Secondary "status-line" (`Connected – dealing…`) hidden on mobile
+    (`hidden sm:inline-block`).
+  - Lobby page padding reduced `p-4 sm:p-6`; form grid already used
+    `grid-cols-2 sm:grid-cols-5` so it wraps cleanly.
+- **Responsive smoke test** (`backend/tests/manual_responsive_smoke.py`,
+  runs under `/opt/plugins-venv/bin/python`): asserts per-viewport
+  bounding-box invariants at 1280 / 390 / 430 — all 3 PASS.
+
 ## Next Action Items
 1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
-4. P0: Portrait/mobile layout.
+4. ✅ P0: Responsive layout (mobile + desktop safe) — **DONE 2026-05 v2**.
 5. P0: Replay client_seed contribution to RNG.
 6. ✅ P0: Reconnect grace timer (20–30s) with sitting_out flag — **DONE 2026-02**.
 7. ✅ P0: Per-target bot cap (5-seat tables) — **DONE 2026-05**.

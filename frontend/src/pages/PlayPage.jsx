@@ -799,14 +799,16 @@ function PlayPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-black text-zinc-100 p-4 sm:p-8">
-      <div className="max-w-5xl mx-auto">
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="max-w-5xl mx-auto pb-24 sm:pb-0">
+        {/* Top bar — stacks on mobile so the pill row can wrap without
+            crowding the username. `flex-wrap` on the pills keeps them
+            on multiple lines when the viewport narrows (≤ 430px). */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — phase 11 mvp</div>
             <div className="text-zinc-100 text-lg" data-testid="my-username">{session.username}</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Pill testid="phase-pill" tone="gold">{view.phase || "—"}</Pill>
             <Pill testid="sv-pill">v{view.sv}</Pill>
             <Pill tone="gold" testid="target-pill">TARGET {view.targetScore || "—"}</Pill>
@@ -864,7 +866,7 @@ function PlayPage() {
                   key={p.seat}
                   data-testid={`opponent-seat-${p.seat}`}
                   data-winner={isWinner ? "true" : "false"}
-                  className={`min-w-[220px] rounded-lg border p-4 bg-zinc-900/60 ${borderCls}`}
+                  className={`w-full sm:min-w-[220px] sm:w-auto rounded-lg border p-4 bg-zinc-900/60 ${borderCls}`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-semibold">
@@ -892,7 +894,7 @@ function PlayPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center mb-2">
+                  <div className="flex flex-wrap items-center mb-2">
                     {/* 2026-05 showdown reveal: when the server broadcast
                         includes the opponent's `cards` (SHOWDOWN/PAYOUT),
                         render face-up chips so everyone sees the final
@@ -969,7 +971,7 @@ function PlayPage() {
             {me.cards.length === 0 ? (
               <div className="text-zinc-600 italic" data-testid="my-cards-empty">no cards yet…</div>
             ) : (
-              <div className="flex" data-testid="my-cards">
+              <div className="flex flex-wrap" data-testid="my-cards">
                 {me.cards.map((c, i) => {
                   // Defensive: skip any null/undefined entry so the key
                   // expression (and CardChip render) cannot crash if the
@@ -1001,13 +1003,23 @@ function PlayPage() {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* Actions
+            2026-05 responsive: buttons flex-wrap on all sizes; on
+            mobile (<sm) the whole row becomes a sticky bottom bar so
+            primary actions stay thumb-reachable while the log / hand
+            scroll above. On ≥sm the sticky classes neutralize and the
+            original inline layout is preserved (desktop untouched). */}
+        <div
+          data-testid="actions-bar"
+          className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap
+                     fixed left-0 right-0 bottom-0 z-30 px-4 py-3 bg-black/95 border-t border-zinc-800
+                     sm:static sm:px-0 sm:py-0 sm:bg-transparent sm:border-0 sm:z-auto"
+        >
           <button
             data-testid="hit-btn"
             onClick={() => send("HIT")}
             disabled={!myTurn}
-            className="px-7 py-3 rounded-md border border-yellow-600/50 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            className="px-4 sm:px-7 py-3 rounded-md border border-yellow-600/50 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             HIT
           </button>
@@ -1015,7 +1027,7 @@ function PlayPage() {
             data-testid="stand-btn"
             onClick={() => send("STAND")}
             disabled={!myTurn}
-            className="px-7 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            className="px-4 sm:px-7 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             STAND
           </button>
@@ -1032,7 +1044,7 @@ function PlayPage() {
               onClick={() => openPicker("PLAY_TWO")}
               disabled={!canPlayTwo}
               title="Send a card from your hand to an opponent (uses your 2)"
-              className="px-5 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+              className="px-3 sm:px-5 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
             >
               PLAY 2
             </button>
@@ -1044,7 +1056,7 @@ function PlayPage() {
               onClick={() => openPicker("PLAY_TEN")}
               disabled={!canPlayTen}
               title="Force an opponent to take a card from your hand (uses your 10)"
-              className="px-5 py-3 rounded-md border border-fuchsia-600/60 text-fuchsia-300 hover:bg-fuchsia-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+              className="px-3 sm:px-5 py-3 rounded-md border border-fuchsia-600/60 text-fuchsia-300 hover:bg-fuchsia-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
             >
               PLAY 10
             </button>
@@ -1053,7 +1065,7 @@ function PlayPage() {
             data-testid="check-btn"
             onClick={() => send("CHECK")}
             disabled={!myBettingTurn || view.currentCallOwed > 0}
-            className="px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            className="px-3 sm:px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             CHECK
           </button>
@@ -1061,7 +1073,7 @@ function PlayPage() {
             data-testid="call-btn"
             onClick={() => send("CALL")}
             disabled={!myBettingTurn || view.currentCallOwed === 0}
-            className="px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            className="px-3 sm:px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             CALL {view.currentCallOwed > 0 ? `(${view.currentCallOwed})` : ""}
           </button>
@@ -1069,7 +1081,7 @@ function PlayPage() {
             data-testid="fold-btn"
             onClick={() => send("FOLD")}
             disabled={!myBettingTurn}
-            className="px-5 py-3 rounded-md border border-rose-700/60 text-rose-300 hover:bg-rose-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.3em] uppercase"
+            className="px-3 sm:px-5 py-3 rounded-md border border-rose-700/60 text-rose-300 hover:bg-rose-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             FOLD
           </button>
@@ -1077,12 +1089,12 @@ function PlayPage() {
             <button
               data-testid="deal-again-btn"
               onClick={startPlay}
-              className="px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.3em] uppercase"
+              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
             >
               Deal again
             </button>
           )}
-          <span className="ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
+          <span className="hidden sm:inline-block ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
         </div>
 
         {/* Special-card picker — appears only while the user is choosing
