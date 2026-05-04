@@ -63,12 +63,47 @@ function Pill({ children, tone = "default", testid }) {
       ? "border-rose-700/60 text-rose-300"
       : tone === "ok"
       ? "border-emerald-700/60 text-emerald-300"
+      : tone === "accent"
+      ? "border-indigo-600/60 text-indigo-300"
       : "border-zinc-700/60 text-zinc-300";
   return (
     <span data-testid={testid} className={`inline-block text-xs uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/40 ${cls}`}>
       {children}
     </span>
   );
+}
+
+// 2026-05 v2 — PART 3 cosmetic bot personality.
+// All bots share the same decision policy; the label is a pure
+// stable cosmetic derived from user_id so the same bot shows the
+// same flavor across hands. Only applied to `u_bot_*` users.
+const BOT_FLAVORS = ["Conservative", "Balanced", "Aggressive"];
+function botFlavorFor(userId) {
+  if (!userId || !userId.startsWith("u_bot_")) return null;
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  }
+  return BOT_FLAVORS[Math.abs(hash) % BOT_FLAVORS.length];
+}
+
+// 2026-05 v2 — PART 1 labels for the showdown clarity block.
+// `isRiskTaker` threshold: 3+ cards means the player drew at least
+// twice (initial deal is 1 card). Cheap, intent-readable heuristic.
+function computeHandLabels(player, eligibleMaxScore, handFinished) {
+  const out = [];
+  if (!handFinished) return out;
+  if (player.busted) out.push({ key: "busted", tone: "danger", text: "Busted" });
+  if (player.disqualified) out.push({ key: "dq", tone: "danger", text: "Disqualified" });
+  if (!player.busted && !player.disqualified
+      && eligibleMaxScore !== null
+      && player.score === eligibleMaxScore) {
+    out.push({ key: "closest", tone: "gold", text: "Closest to target" });
+  }
+  if ((player.card_count || 0) >= 3) {
+    out.push({ key: "risk", tone: "accent", text: "Risk taker" });
+  }
+  return out;
 }
 
 function PlayPage() {
@@ -336,6 +371,36 @@ function PlayPage() {
         // since the last broadcast.
         if (Array.isArray(m.events)) {
           for (const ev of m.events) {
+            // PART 2 — action feedback: surface ordinary gameplay actions
+            // (HIT / STAND / CHECK / BET / CALL / RAISE / FOLD) as a
+            // short fade banner so the player can see what just happened.
+            // We skip the local player's own actions to avoid self-echo,
+            // and we already handle special cases (auto-stand,
+            // PLAY_TWO/TEN, presence) below.
+            const actionVerbs = {
+              HIT: "hit",
+              STAND: "stood",
+              CHECK: "checked",
+              BET: "bet",
+              CALL: "called",
+              RAISE: "raised",
+              FOLD: "folded",
+            };
+            const verb = actionVerbs[ev.type];
+            if (verb && !ev.auto) {
+              const owner =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const name = owner?.username || `seat ${ev.seat}`;
+              // Amount is meaningful for BET/RAISE/CALL
+              const amt = ev.amount || ev.raise_amount;
+              const suffix = amt ? ` ${amt}` : "";
+              const text = `${name} ${verb}${suffix}`;
+              appendLog(text);
+              if (ev.user_id !== myUserIdRef.current) {
+                setNotice({ kind: `action-${ev.type.toLowerCase()}`, text, ts: Date.now() });
+              }
+            }
             if (ev.type === "STAND" && ev.auto) {
               const owner =
                 players.find((p) => p.user_id === ev.user_id) ||
@@ -344,6 +409,15 @@ function PlayPage() {
               const text = `${name} auto-stand (timeout)`;
               appendLog(text);
               setNotice({ kind: "auto-stand", text, ts: Date.now() });
+            }
+            if (ev.type === "FOLD" && ev.auto) {
+              const owner =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const name = owner?.username || `seat ${ev.seat}`;
+              const text = `${name} auto-fold (${ev.reason || "timeout"})`;
+              appendLog(text);
+              setNotice({ kind: "auto-fold", text, ts: Date.now() });
             }
             if (ev.type === "PLAY_TWO" || ev.type === "PLAY_TEN") {
               const fromP =
@@ -538,6 +612,27 @@ function PlayPage() {
 
   const handFinished =
     view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
+
+  // 2026-05 v2 PART 1 — showdown clarity helpers. Compute once so
+  // every player row can derive its labels from the same snapshot.
+  const eligibleMaxScore = (() => {
+    if (!handFinished) return null;
+    const eligibles = (view.players || []).filter(
+      (p) => !p.busted && !p.disqualified && !p.folded,
+    );
+    if (eligibles.length === 0) return null;
+    return Math.max(...eligibles.map((p) => p.score || 0));
+  })();
+  // Runner-up score (second-best among eligibles) used to compute
+  // the "score difference" line in the hand-summary card below.
+  const runnerUpScore = (() => {
+    if (eligibleMaxScore === null) return null;
+    const scores = (view.players || [])
+      .filter((p) => !p.busted && !p.disqualified && !p.folded)
+      .map((p) => p.score || 0)
+      .sort((a, b) => b - a);
+    return scores.length >= 2 ? scores[1] : null;
+  })();
 
   // ============ render ============
   if (!session) {
@@ -753,6 +848,8 @@ function PlayPage() {
               const isWinner = handFinished
                 && Array.isArray(view.winners)
                 && view.winners.includes(p.user_id);
+              const flavor = botFlavorFor(p.user_id);
+              const labels = computeHandLabels(p, eligibleMaxScore, handFinished);
               // 2026-05 v2 showdown clarity: at PAYOUT/SHOWDOWN,
               // winners are ringed in gold, non-winners in subdued
               // border. During active play the current-turn seat is
@@ -770,7 +867,17 @@ function PlayPage() {
                   className={`min-w-[220px] rounded-lg border p-4 bg-zinc-900/60 ${borderCls}`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="font-semibold">{p.username}</div>
+                    <div className="font-semibold">
+                      {p.username}
+                      {flavor && (
+                        <span
+                          data-testid={`opponent-${p.seat}-flavor`}
+                          className="ml-2 text-[10px] uppercase tracking-widest text-zinc-500"
+                        >
+                          · {flavor}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       {isWinner && <Pill testid={`opponent-${p.seat}-winner`} tone="gold">WINNER</Pill>}
                       {isTurn && !handFinished && <Pill tone="gold">turn</Pill>}
@@ -815,6 +922,16 @@ function PlayPage() {
                     {p.folded && <Pill tone="danger">FOLD</Pill>}
                     {p.disqualified && <Pill tone="danger">DQ</Pill>}
                   </div>
+                  {labels.length > 0 && (
+                    <div
+                      className="flex gap-1 flex-wrap mt-2"
+                      data-testid={`opponent-${p.seat}-labels`}
+                    >
+                      {labels.map((l) => (
+                        <Pill key={l.key} tone={l.tone}>{l.text}</Pill>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -835,6 +952,19 @@ function PlayPage() {
               {myTurn && <Pill testid="your-turn-pill" tone="gold">YOUR TURN</Pill>}
             </div>
           </div>
+          {handFinished && (() => {
+            const mine = (view.players || []).find((p) => p.user_id === myUserId);
+            if (!mine) return null;
+            const myLabels = computeHandLabels(mine, eligibleMaxScore, handFinished);
+            if (myLabels.length === 0) return null;
+            return (
+              <div className="flex gap-1 flex-wrap mb-3" data-testid="my-labels">
+                {myLabels.map((l) => (
+                  <Pill key={l.key} tone={l.tone}>{l.text}</Pill>
+                ))}
+              </div>
+            );
+          })()}
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5">
             {me.cards.length === 0 ? (
               <div className="text-zinc-600 italic" data-testid="my-cards-empty">no cards yet…</div>
@@ -1132,6 +1262,81 @@ function PlayPage() {
                   {deltaLine}
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* 2026-05 v2 PART 4 — Hand summary.
+            Compact round-end recap: winner names, score difference to
+            runner-up, and per-player (score · cards drawn · labels).
+            Renders only at SHOWDOWN/PAYOUT so pre-showdown privacy is
+            untouched. */}
+        {handFinished && (view.players || []).length > 0 && (() => {
+          const idToUsername = Object.fromEntries(
+            (view.players || []).map((p) => [p.user_id, p.username])
+          );
+          const winnerNames = (view.winners || []).map((uid) => idToUsername[uid] || uid);
+          const diffLine =
+            eligibleMaxScore !== null && runnerUpScore !== null
+              ? `${eligibleMaxScore} vs ${runnerUpScore}  (+${eligibleMaxScore - runnerUpScore})`
+              : null;
+          const rows = [...(view.players || [])].sort((a, b) => a.seat - b.seat);
+          return (
+            <div
+              className="mb-4 rounded-md border border-zinc-800 bg-zinc-950/50 p-4"
+              data-testid="hand-summary"
+            >
+              <div className="text-zinc-400 uppercase tracking-widest text-xs mb-3">
+                Hand summary{view.handNumber ? ` · hand ${view.handNumber}` : ""}
+              </div>
+              <div className="flex flex-wrap gap-6 mb-3 text-sm">
+                <div>
+                  <div className="text-zinc-500 text-[10px] uppercase tracking-widest">
+                    Winner{winnerNames.length > 1 ? "s" : ""}
+                  </div>
+                  <div className="text-yellow-300" data-testid="summary-winners">
+                    {winnerNames.length ? winnerNames.join(", ") : "—"}
+                  </div>
+                </div>
+                {diffLine && (
+                  <div>
+                    <div className="text-zinc-500 text-[10px] uppercase tracking-widest">
+                      Score difference
+                    </div>
+                    <div className="text-zinc-200" data-testid="summary-score-diff">
+                      {diffLine}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="summary-rows">
+                {rows.map((p) => {
+                  const labels = computeHandLabels(p, eligibleMaxScore, handFinished);
+                  const isWinner = (view.winners || []).includes(p.user_id);
+                  return (
+                    <div
+                      key={p.seat}
+                      data-testid={`summary-row-${p.seat}`}
+                      className={`flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm ${
+                        isWinner ? "border-yellow-600/60 bg-yellow-500/5" : "border-zinc-800 bg-black/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-zinc-300 truncate">{p.username}</span>
+                        {isWinner && <Pill tone="gold">WIN</Pill>}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-zinc-400 shrink-0">
+                        <span data-testid={`summary-row-${p.seat}-score`}>score {p.score}</span>
+                        <span className="text-zinc-600">·</span>
+                        <span data-testid={`summary-row-${p.seat}-cards`}>{p.card_count} card{p.card_count === 1 ? "" : "s"}</span>
+                        {labels.slice(0, 2).map((l) => (
+                          <Pill key={l.key} tone={l.tone}>{l.text}</Pill>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })()}

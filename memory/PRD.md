@@ -539,7 +539,26 @@ happens against the real table shape:
 - Suite: **227 passed / 2 skipped** (backend); `test_bot_stress_2026_05.py`
   still passes live with the new bot policy.
 
+## 2026-05 v2 — Game-feel & UX clarity polish (PlayPage only)
+- **Action feedback banner + log**: every gameplay action now surfaces a
+  transient 4-second banner plus an event-log line: `Bot_X checked`,
+  `Hero stood`, `Bot_Y called 100`, `Bot_Z auto-fold
+  (BETTING_TIMEOUT_15S)`, etc. Self-echo suppressed.
+- **Bot personality labels (cosmetic only)**: each bot seat shows
+  `· Conservative`, `· Balanced`, or `· Aggressive` next to its
+  username. Stable hash of `user_id` — zero impact on reducer.
+- **Showdown clarity labels** at `SHOWDOWN` / `PAYOUT`:
+  - `CLOSEST TO TARGET` on the highest-scoring non-busted/non-fold seat
+  - `BUSTED` / `DISQUALIFIED`
+  - `RISK TAKER` when `card_count ≥ 3`
+- **Hand summary card**: new panel below the winners banner at hand end.
+  Winner name(s), `score vs runner-up (+diff)`, per-seat row
+  (`score`, `cards drawn`, up to 2 labels). Winner rows gold-highlighted.
+- Live E2E verified at target=50 + 3 bots: all four features rendered in
+  one pass. No engine / backend / balance changes.
+
 ## Next Action Items
+1. ✅ P0: Locked-rules migration — **DONE 2026-05**.
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
 4. P0: Portrait/mobile layout.
@@ -549,6 +568,7 @@ happens against the real table shape:
 8. ✅ P0: Target 250 → 75 migration + deck-exhaustion refill + showdown reveal — **DONE 2026-05 v2**.
 9. ✅ P0: Game-core stabilization (legacy WS out, betting-timeout, bot race fix) — **DONE 2026-05 v2**.
 10. ✅ P0: Gameplay-layer lock (strategic bot policy, balance sim, showdown clarity) — **DONE 2026-05 v2**.
+11. ✅ P0: Game-feel & UX clarity polish (action feedback, bot flavors, hand summary) — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
