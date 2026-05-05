@@ -791,24 +791,26 @@ clears.
 
 ---
 
-## 15. Open questions for product approval
+## 15. Locked decisions (defaults adopted 2026-05)
 
-1. **Bootstrap admin email** — what real human address owns the
-   first super_admin row in production?
-2. **Rake currency at launch** — credits-only, or a real-money
-   currency on day 1? Determines whether `house_ledger` needs a
-   currency-aware Pydantic type from v1.
-3. **Region blocking enforcement layer** — do we trust the WS gateway's
-   IP geo, or hard-block at the Cloudflare edge? (Recommendation:
-   both; gateway is failsafe.)
-4. **Self-exclusion legal regime** — must a self-excluded user be able
-   to log in just to view their wallet/closeout, or is account fully
-   inaccessible? (Affects `self_exclusion` flag's effect surface.)
-5. **Audit retention** — 1 year? 7 years (gambling regs)? Forever?
-   Drives index strategy + cold-storage choice.
-6. **Two-person window TTL** — 15 min default proposed. Acceptable?
-7. **Emergency single-admin override** — should a super_admin be able
-   to engage the kill-switch alone in a P0 incident? (Recommendation:
-   yes, but post-hoc audit + immediate Slack page.)
+> **Status:** Defaults locked. Admin implementation **DEFERRED** until
+> core gameplay is production-ready. No code, routes, models, or UI
+> for admin will be created until this defer is lifted by the user.
+>
+> Each decision below can be revisited before the implementation
+> slice that materialises it (column "Revisit before"). None of these
+> decisions block any future kickoff.
 
-Awaiting answers before §13.1 kicks off.
+| # | Question | Locked default | Revisit before |
+|--:|----------|----------------|----------------|
+| 1 | Bootstrap super_admin owner | Founder email + shared MFA vault (1Password / Bitwarden); chain-of-custody documented in `/app/memory/ADMIN_OWNERS.md` at deploy time. | §13.2 deploy day |
+| 2 | Currency at launch | Credits-only. `house_ledger` is currency-aware (`currency: "CREDITS"` enum on every row) so real-money is a column-additive change. Real-money gated behind `allow_real_money` feature flag (default `false`) + KYC integration. | §13.9 (Finance) |
+| 3 | Region block enforcement | Defense in depth — Cloudflare WAF for bulk filter, FastAPI WS gateway as failsafe + audit source of truth. Mismatch → gateway wins + Slack alert. | §13.11 (Safety) |
+| 4 | Self-exclusion access scope | Read-only + closeout. `self_exclusion` flag carries enum `SELF_EXCL_FULL` \| `SELF_EXCL_CLOSEOUT_ONLY`; default = `CLOSEOUT_ONLY`. Locked-out user can view balance/history + initiate withdrawal; cannot deposit, join, bet, or WS-connect. | §13.5 (Users) |
+| 5 | Audit retention | Hot 18 months in Mongo, cold 7 years in S3 Object Lock + Glacier (v1.1 ops concern), hash anchors retained forever. v1 ships **hot-only**. Configurable via `AUDIT_HOT_RETENTION_DAYS` env. | v1.1 |
+| 6 | Two-person approval TTL | Differentiated by action class — Kill-switch engage/release: 5 min · Force-stop table: 10 min · Balance adjust ≤ 100 k credits: 15 min · Balance adjust > 100 k, role grant, rake change: 2 h. Hardcoded table in `admin/approvals.py`. | §13.3 (Approvals) |
+| 7 | Single-admin emergency kill-switch | Allowed **for super_admin only**, **on the engage path only** (release always two-admin). Records `outcome=OK_EMERGENCY_OVERRIDE` in audit, auto-pages on-call (Slack + email), forces post-incident review checkbox blocking that actor's other admin actions for 24 h. | §13.11 (Safety) |
+
+These defaults are the contract for future implementation; any
+deviation must be re-approved by the user and recorded as an addendum
+below this section.
