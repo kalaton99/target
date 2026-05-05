@@ -4,8 +4,11 @@ Exercises the new state-machine path:
   BETTING_R1 → DEAL_INITIAL → DRAW_1 → BETTING_R2 → DRAW_2 → BETTING_R3 → SHOWDOWN → PAYOUT
 
 Coverage:
-  - Canonical 2-player flow (CHECK-through every betting round; STAND
-    every draw round).
+  - Canonical flow with 2 seated players (CHECK-through every betting
+    round; STAND every draw round). Per GAME_RULES_LOCKED.md §2 there
+    is no 2-seat table type; "2 seated players" here means a 4-seat
+    (target=30) table with 2 humans seated — the minimum legal start
+    for the 4-seat tier.
   - 4-player flow with a fold in BETTING_R2 (verifies seat preservation
     of stood players and round-by-round responded_seats reset).
   - Sticky STAND across rounds: a player who stood in DRAW_1 cannot HIT
@@ -78,7 +81,7 @@ def _stand_to_threshold(state: GameState) -> GameState:
 
 
 # =====================================================================
-# 2-player canonical flow
+# Canonical flow — 2 seated players (4-seat tier minimum)
 # =====================================================================
 
 class TestCanonicalTwoPlayer:

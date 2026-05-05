@@ -357,7 +357,9 @@ class TestStartLifecycle:
 
     def test_solo_start_with_bot_count_seats_a_bot(self):
         """When 1 human creates a table with bot_count=1, START spawns a
-        bot so a 2-player game runs. Skips on production (allow_bots=False)."""
+        bot so a hand runs with 2 seated players (the minimum legal
+        start for the 4-seat tier per GAME_RULES_LOCKED.md §2 — there
+        is no 2-seat table type). Skips on production (allow_bots=False)."""
         if not _allow_bots():
             pytest.skip("bots disabled on this server (ALLOW_BOTS=False)")
         u1 = _auth(_name("solo"))
@@ -367,7 +369,7 @@ class TestStartLifecycle:
                           headers=_h(u1["token"]), timeout=TIMEOUT)
         assert r.status_code == 200
 
-        # Verify by connecting via WS — STATE_UPDATE shows 2 players.
+        # Verify by connecting via WS — STATE_UPDATE shows 2 seated players.
         url = f"{WS_BASE}/api/v2/ws/table/{t['table_id']}?token={u1['token']}"
         with ws_connect(url, open_timeout=10, close_timeout=5) as ws:
             seen_two_players = False
@@ -387,7 +389,15 @@ class TestStartLifecycle:
 
     def test_solo_start_without_bot_count_does_not_seat_bot(self):
         """Locked-rules migration: the old 'auto-bot if alone' shortcut
-        is removed. Solo start with bot_count=0 produces a 1-player engine."""
+        is removed. Solo start with bot_count=0 produces an engine
+        with only the creator seated.
+
+        Note: per GAME_RULES_LOCKED.md §2 a hand cannot legitimately
+        run on a 4-seat tier with only 1 seated player (min seated to
+        start is 2). This test pins existing dev/CI behaviour where the
+        start endpoint currently does not enforce the per-tier minimum
+        — kept as-is to avoid coupling this wording-only doc pass to a
+        gameplay-validation change."""
         u1 = _auth(_name("alone"))
         t = _create_table(u1["token"]).json()
         assert t.get("bot_count", 0) == 0

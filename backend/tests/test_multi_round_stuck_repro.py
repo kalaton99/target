@@ -1,15 +1,16 @@
 """Reproducer for the 'final 2 players stop drawing / game stuck' bug
 seen in human+bot multi-round games on large-target tables.
 
-Approach: drive a 5-player hand (1 human + 4 bots) all the way from
-START_HAND to PAYOUT using the *actual* bot decision rule from
-`_BotDriver._decide_draw_action` (HIT while score < 60% of target),
-applied directly at the reducer level. We don't use websockets at all
-— we simulate by inspecting `state.current_turn_seat` and firing the
-appropriate action synchronously. That lets us prove whether the
-reducer ever enters a state where `current_turn_seat` becomes `None`
-(or points at a seat that can_draw=False) while phase is still a
-draw phase.
+Approach: drive a 5-seated hand (1 human + 4 bots — a 5-seat
+target=100 table at full capacity, per GAME_RULES_LOCKED.md §2) all
+the way from START_HAND to PAYOUT using the *actual* bot decision
+rule from `_BotDriver._decide_draw_action` (HIT while score < 60% of
+target), applied directly at the reducer level. We don't use
+websockets at all — we simulate by inspecting `state.current_turn_seat`
+and firing the appropriate action synchronously. That lets us prove
+whether the reducer ever enters a state where `current_turn_seat`
+becomes `None` (or points at a seat that can_draw=False) while phase
+is still a draw phase.
 
 This file exists solely to pin the bug fix; it MAY be kept as a
 regression guard.

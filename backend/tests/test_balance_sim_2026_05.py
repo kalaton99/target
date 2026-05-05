@@ -202,7 +202,9 @@ def test_balance_sim_target_with_max_bots(target: int):
         f"— bot policy likely mis-configured"
     )
     # Hand length sanity: at least 3 actions (tiniest hand: R1+DRAW_1 stand
-    # through with 2 players ≈ 6), and below our 500-step budget.
+    # through with 2 seated players ≈ 6 — minimum legal start for the
+    # 4-seat tier per GAME_RULES_LOCKED.md §2), and below our 500-step
+    # budget.
     mean_len = statistics.mean(step_counts)
     max_len = max(step_counts)
     assert 3 < mean_len < 500

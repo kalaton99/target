@@ -19,8 +19,14 @@ from game_engine.types import GameState, PlayerState  # noqa: E402
 
 
 def _make_hand_with_empty_deck():
-    """Build a 2-player hand whose initial DEAL_INITIAL + DRAW_1 will
-    exhaust the deck on the first HIT, forcing a refill."""
+    """Build a hand with 2 seated players (4-seat tier minimum) whose
+    initial DEAL_INITIAL + DRAW_1 will exhaust the deck on the first
+    HIT, forcing a refill.
+
+    Per GAME_RULES_LOCKED.md §2 there is no 2-seat table type;
+    `n_players=2` here means a 4-seat (target=30) table with 2
+    humans seated (the minimum legal start for the 4-seat tier).
+    """
     state = GameState(table_id="t1", target_score=30, stake=0)
     state.players = [
         PlayerState(seat_index=0, user_id="u0", username="P0", balance_at_start=10000),

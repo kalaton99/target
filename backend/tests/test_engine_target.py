@@ -247,7 +247,9 @@ class TestBetting51Percent:
 
 class TestStandThreshold:
     def test_two_players_one_stand_ends_draw_round(self):
-        # 2026-05 multi-round: with 2 players, threshold[2]=1 still ends
+        # 2026-05 multi-round: with 2 seated players (a 4-seat tier
+        # table at minimum legal start; there is no 2-seat table type
+        # — see GAME_RULES_LOCKED.md §2), threshold[2]=1 still ends
         # DRAW_1, but routes to BETTING_R2 (not SHOWDOWN). To reach
         # PAYOUT we then walk through R2 → DRAW_2 → R3 → SHOWDOWN.
         state = make_state(2)

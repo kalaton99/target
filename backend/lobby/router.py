@@ -49,10 +49,16 @@ class CreateTableRequest(BaseModel):
     """Create-table payload.
 
     `max_players` / `min_players` are accepted but **ignored** — the
-    server derives the seat count from `target_score` per
-    GAME_RULES_LOCKED.md §2. Older clients still send them; we silently
-    drop their values to avoid a hard-break. Future deploys may delete
-    these fields entirely.
+    server derives the seat count AND the min-seated-to-start from
+    `target_score` per GAME_RULES_LOCKED.md §2:
+
+      target 30 / 50 → 4-seat table, starts when seated ≥ 2.
+      target 75 / 100 → 5-seat table, starts when seated ≥ 3.
+
+    There is no 2-seat table type. Older clients still send the
+    `max_players` / `min_players` fields; we silently drop their
+    values to avoid a hard-break. Future deploys may delete these
+    fields entirely.
 
     `bot_count` is dev-only (clamped to 0..max_bots_for_target(target)).
     When ALLOW_BOTS is False (production default), any positive value

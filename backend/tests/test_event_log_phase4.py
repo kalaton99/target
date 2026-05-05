@@ -333,7 +333,7 @@ class TestReplay:
             "type": "CHECK", "user_id": "u1", "source": "CLIENT",
             "state_version": s.version, "client_action_id": "ca-check-1",
         }, hand_id, s.table_id)
-        # DRAW: with 2 players, threshold=1 -> first STAND -> SHOWDOWN
+        # DRAW: with 2 seated players (4-seat tier minimum), threshold=1 -> first STAND -> SHOWDOWN
         if s.phase == "DRAW":
             seat = s.current_turn_seat
             user = s.players[seat].user_id

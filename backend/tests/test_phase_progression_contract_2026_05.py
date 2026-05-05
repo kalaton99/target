@@ -10,10 +10,17 @@ Contract under test (reducer `_enter_betting_round`, line ~232):
     BETTING_R{n} entry with len(in_hand) <= 1  →  short-circuit to
                                                   SHOWDOWN.
 
-When a JOKER hits during DRAW_2 in a 2-seat hand, the affected player
-is disqualified (in_hand=False), collapsing alive count to 1, which
-must skip BETTING_R3 entirely. The previous live test asserted a
-fixed 5-phase progression and flaked at the JOKER-draw rate.
+When a JOKER hits during DRAW_2 in a hand with only 2 seated players,
+the affected player is disqualified (in_hand=False), collapsing alive
+count to 1, which must skip BETTING_R3 entirely. The previous live
+test asserted a fixed 5-phase progression and flaked at the
+JOKER-draw rate.
+
+Wording note (per GAME_RULES_LOCKED.md §2): there is NO 2-seat table
+type. The test scenarios below use `n_players=2` to mean "a 4-seat
+(target=30) table with 2 humans seated" — the minimum legal start
+for the 4-seat tier. 5-seat tables (target 75/100) require ≥3
+seated to start.
 """
 from __future__ import annotations
 
@@ -117,6 +124,10 @@ class TestJokerCollapsesProgression:
         other player STANDs, `_enter_betting_round(3)` sees
         `len(in_hand)==1` and short-circuits to SHOWDOWN — BETTING_R3
         must NEVER appear.
+
+        Scenario uses 2 seated players on a 4-seat (target=30) table —
+        the minimum legal start for the 4-seat tier per
+        GAME_RULES_LOCKED.md §2. There is no 2-seat table type.
         """
         state = _make_state(2, target=30)
         state = _start(state)
@@ -174,9 +185,12 @@ class TestJokerCollapsesProgression:
         )
 
     def test_joker_in_draw_1_skips_directly_to_showdown(self):
-        """JOKER drawn in DRAW_1 in a 2-seat hand → DQ → at end of
-        DRAW_1, `_enter_betting_round(2)` sees alive=1 → SHOWDOWN.
-        Neither BETTING_R2, DRAW_2 nor BETTING_R3 must be entered.
+        """JOKER drawn in DRAW_1 with only 2 seated players → DQ → at
+        end of DRAW_1, `_enter_betting_round(2)` sees alive=1 →
+        SHOWDOWN. Neither BETTING_R2, DRAW_2 nor BETTING_R3 must be
+        entered.
+
+        Scenario: 4-seat (target=30) table with 2 humans seated.
         """
         state = _make_state(2, target=30)
         state = _start(state)
@@ -213,9 +227,11 @@ class TestJokerCollapsesProgression:
 
 class TestFoldCollapsesProgression:
     def test_fold_in_betting_r2_skips_draw_2_and_r3(self):
-        """A FOLD in BETTING_R2 in a 2-seat hand reduces alive count
-        to 1; the reducer skips DRAW_2 and BETTING_R3, going straight
-        to SHOWDOWN.
+        """A FOLD in BETTING_R2 with only 2 seated players reduces alive
+        count to 1; the reducer skips DRAW_2 and BETTING_R3, going
+        straight to SHOWDOWN.
+
+        Scenario: 4-seat (target=30) table with 2 humans seated.
         """
         state = _make_state(2, target=30)
         state = _start(state)

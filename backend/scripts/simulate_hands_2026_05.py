@@ -14,6 +14,12 @@ betting), and reports:
     disqualified at terminal phase)
 
 Pure-Python, deterministic given the seeds, no game-rule changes.
+
+Wording note (per GAME_RULES_LOCKED.md §2): there is no 2-seat
+table type. "n_players=2" below means a 4-seat (target=30) table
+with 2 humans seated — the minimum legal start for the 4-seat
+tier. "n_players=4" at target=100 means a 5-seat table with 4
+humans seated (above the 5-seat tier minimum of 3).
 """
 from __future__ import annotations
 
@@ -233,25 +239,35 @@ def _summarise(results: List[Dict], label: str) -> None:
 
 def main() -> None:
     n_hands = int(os.environ.get("SIM_HANDS", "100"))
-    config = (2, 30)  # 2 players, target=30 — matches the F3 live test
+    config = (2, 30)  # 2 humans seated on a 4-seat table (target=30)
+                       # — matches the F3 live test scenario.
     print(f"Simulating {n_hands} hands at "
-          f"n_players={config[0]} target={config[1]} "
-          f"(reducer-level, real RNG, scripted play).")
+          f"target={config[1]} with {config[0]} seated players "
+          f"(4-seat table partially filled — there is no 2-seat table type "
+          f"per GAME_RULES_LOCKED.md §2). "
+          f"Reducer-level, real RNG, scripted play.")
     print("Player policy: HIT until score≥0.7×target with stochastic "
           "stand band; 90% CHECK / 10% small BET in betting rounds; "
           "always CALL when call_owed.")
 
     results = [_drive_one_hand(*config, hand_idx=i) for i in range(n_hands)]
-    _summarise(results, f"target={config[1]}, n_players={config[0]}")
+    _summarise(
+        results,
+        f"target={config[1]}, {config[0]} seated (4-seat table)",
+    )
 
-    # Bonus: same simulation at target=100, 4 players, for comparison
-    # — does NOT count toward the 100-hand mandate; included so the
-    # reader has a reference point for how the JOKER frequency and
-    # short-circuit rate change with deck depth & seat count.
+    # Bonus: same simulation at target=100 with 4 humans seated on a
+    # 5-seat table — does NOT count toward the 100-hand mandate;
+    # included so the reader has a reference point for how the JOKER
+    # frequency and short-circuit rate change with deck depth & seat
+    # count.
     cfg2 = (4, 100)
     results2 = [_drive_one_hand(*cfg2, hand_idx=10000 + i)
                 for i in range(n_hands)]
-    _summarise(results2, f"target={cfg2[1]}, n_players={cfg2[0]} (reference)")
+    _summarise(
+        results2,
+        f"target={cfg2[1]}, {cfg2[0]} seated (5-seat table) — reference",
+    )
 
 
 if __name__ == "__main__":

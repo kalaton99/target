@@ -30,6 +30,11 @@ DECK_SIZE_WITH_JOKERS = 54
 # ---------- Table sizes locked per target tier (2026-05 v2) ----------
 # Source of truth: GAME_RULES_LOCKED.md §2. Server derives `max_players`
 # from `target_score` at table-creation; client-supplied values are ignored.
+#
+# 2026-05 v3 wording note: there is NO 2-seat table type in the rules.
+# When tests/comments/diagnostics say "n_players=2", they mean a 4-seat
+# table with 2 humans seated (the minimum legal start for that tier).
+# 5-seat tables (target 75 / 100) require ≥3 humans seated to start.
 TABLE_SEATS_BY_TARGET = {
     30: 4,
     50: 4,
@@ -37,7 +42,23 @@ TABLE_SEATS_BY_TARGET = {
     100: 5,
 }
 
+# Minimum seated players required to start a hand, per target tier.
+# Source of truth: GAME_RULES_LOCKED.md §2. "Seated" includes bots
+# (dev-only); production tables must satisfy the threshold in human
+# seats alone.
+MIN_SEATED_BY_TARGET = {
+    30: 2,
+    50: 2,
+    75: 3,
+    100: 3,
+}
+
 # ---------- Player limits ----------
+# `MIN_PLAYERS` is the GLOBAL floor for any table to start (a hand
+# cannot run with one seated player on any tier). The per-tier rule
+# in `MIN_SEATED_BY_TARGET` is stricter for 5-seat tables (3 vs 2).
+# Use `min_seated_for_target(target)` rather than this constant in
+# new code so the per-tier rule is honoured.
 MIN_PLAYERS = 2
 MAX_PLAYERS = 5                  # 2026-05: 6/7/8 deprecated per GAME_RULES_LOCKED.md §3
 
@@ -130,3 +151,20 @@ def seats_for_target(target_score: int) -> int:
     single point of truth for "target → seats".
     """
     return TABLE_SEATS_BY_TARGET[target_score]
+
+
+def min_seated_for_target(target_score: int) -> int:
+    """Minimum seated players required to start a hand at this target.
+
+    Per GAME_RULES_LOCKED.md §2:
+      - 4-seat tables (target 30, 50): start when seated ≥ 2.
+      - 5-seat tables (target 75, 100): start when seated ≥ 3.
+
+    "Seated" includes bots (dev-only); production tables must satisfy
+    the threshold in human seats alone. There is no 2-seat table type
+    — "n_players=2" in tests and diagnostics refers to a 4-seat
+    table with 2 humans seated, never a 2-seat table.
+
+    Raises KeyError if `target_score` is not in `VALID_TARGET_SCORES`.
+    """
+    return MIN_SEATED_BY_TARGET[target_score]

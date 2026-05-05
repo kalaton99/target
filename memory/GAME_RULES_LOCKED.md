@@ -24,12 +24,12 @@ Seats per table are determined by the chosen target score. No other
 values are valid. Production must reject table creation outside the
 table below.
 
-| Target score | Seats | Min active to start | Notes |
+| Target score | Seats | Min seated to start | Notes |
 |-------------:|:-----:|:-------------------:|:------|
 | 30           | 4     | 2                   | Low-stake fast hand |
 | 50           | 4     | 2                   | Low-stake fast hand |
-| 75           | 5     | 2                   | Mid-stake |
-| 100          | 5     | 2                   | Mid/high-stake |
+| 75           | 5     | 3                   | Mid-stake |
+| 100          | 5     | 3                   | Mid/high-stake |
 
 > **2026-05 v2:** Target **250 has been removed** from the valid target
 > set. The authoritative tuple is `VALID_TARGET_SCORES = (30, 50, 75, 100)`
@@ -37,8 +37,22 @@ table below.
 > outside this set must be rejected by `/api/v2/lobby/tables` with
 > `422 INVALID_TARGET_SCORE`.
 
-`min_players=2` remains the universal start threshold (a hand can
-always run with just 2 humans; empty seats stay empty).
+> **2026-05 v3 (wording correction):** The TARGET game does **not**
+> support 2-player tables as a *table type*. Throughout this codebase
+> the phrase "n_players=2" / "2-player flow" / "2-seat hand" in tests,
+> diagnostics, comments, and simulations refers to **a 4-seat table
+> with 2 humans seated** (the minimum legal start for the 4-seat
+> tier). It is **not** a 2-seat table. There is no 2-seat table type
+> in the rules. 5-seat tables (target 75 / 100) require at least 3
+> humans seated to start.
+
+The min-seated threshold is per-tier:
+- **4-seat tables (target 30 / 50)** start when **seated ≥ 2**.
+- **5-seat tables (target 75 / 100)** start when **seated ≥ 3**.
+
+"Seated" includes any player occupying a seat, whether human or bot.
+Bots are dev-only (see §5) and production tables must satisfy the
+threshold in human seats alone.
 
 ---
 
@@ -127,7 +141,7 @@ is scoped to the minimum delta.
 | File | What | Type |
 |---|---|---|
 | `backend/core/constants.py` | Add `TABLE_SEATS_BY_TARGET = {30: 4, 50: 4, 100: 5, 250: 5}`. Leave `MAX_PLAYERS = 8` in place temporarily (marked `# DEPRECATED — see GAME_RULES_LOCKED.md §7`) so legacy callers don't break mid-migration. | additive |
-| `backend/lobby/router.py::CreateTableRequest` | Remove `max_players`/`min_players` as user-supplied fields (or make them optional and ignored). Server derives `max_players` from `target_score` via `TABLE_SEATS_BY_TARGET`. `min_players = 2`, always. | schema change |
+| `backend/lobby/router.py::CreateTableRequest` | Remove `max_players`/`min_players` as user-supplied fields (or make them optional and ignored). Server derives `max_players` from `target_score` via `TABLE_SEATS_BY_TARGET`. `min_seated_to_start` is per-tier (2 for 4-seat tables, 3 for 5-seat tables) — see §2 of this file. | schema change |
 | `backend/lobby/service.py::create_table` | Same derivation: ignore any client-supplied `max_players` and recompute from target. Reject unknown target scores. | server-side constraint |
 | `backend/game_engine/types.py::GameState.max_players` | Default stays at 8 in the dataclass for legacy compatibility; call sites already pass it explicitly from the table doc. No change required unless we want to tighten the default (optional). | none required |
 | `frontend/src/pages/LobbyPage.jsx` | Drop the Min/Max input fields from the create-table form; server derives them. Display the derived seat cap next to the target-score select. | form simplification |
@@ -140,7 +154,7 @@ is scoped to the minimum delta.
 | `backend/lobby/router.py::CreateTableRequest` | `max_players: int = Field(..., ge=2, le=8)` → `le=5`. (Eliminated entirely if 7.1 removes the field.) | constraint tighten |
 | `backend/lobby/service.py::create_table` | Validation uses the new `MAX_PLAYERS = 5`; no literal change needed. | automatic |
 | `backend/tests/test_lobby_phase11_p2.py` | Any test that creates an 8-seat table must be updated (none currently do — spot-checked: tests use 2 or 4). | audit-only |
-| `backend/tests/test_engine_target.py` | Same — spot-checked: all engine tests use 2 players. No change needed. | audit-only |
+| `backend/tests/test_engine_target.py` | Same — spot-checked: all engine tests use 2 seated players (a 4-seat table partially filled — there is no 2-seat table type). No change needed. | audit-only |
 
 ### 7.3 Stand-threshold audit (Rule 4)
 

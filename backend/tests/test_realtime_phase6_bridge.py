@@ -54,7 +54,9 @@ from tests.test_realtime_phase6 import (  # noqa: E402
 
 
 # =====================================================================
-# Engine fixture: 2 players, hand started, in DRAW phase, alice's turn.
+# Engine fixture: 2 humans seated on a 4-seat table (no 2-seat table
+# type per GAME_RULES_LOCKED.md §2 — minimum legal start for the
+# 4-seat tier). Hand started, in DRAW phase, alice's turn.
 # =====================================================================
 
 def _make_state(table_id: str = "t1") -> GameState:
@@ -179,7 +181,7 @@ class TestBroadcastEnvelope:
         assert msg["type"] == "STATE_UPDATE"
         assert msg["table_id"] == "t1"
         assert msg["state_version"] == sv + 1
-        # 2 players + STAND_THRESHOLD[2]=1 -> showdown immediately after first STAND
+        # 2 seated players + STAND_THRESHOLD[2]=1 -> showdown immediately after first STAND
         assert msg["phase"] in (
             "DRAW", "DRAW_1", "DRAW_2",
             "BETTING_R2", "BETTING_R3",
@@ -229,9 +231,9 @@ class TestMultiSubscriber:
 class TestStateVersionPropagation:
 
     async def test_two_sequential_actions_increment_version(self, bridge_with_engine):
-        """With 2 players + threshold=1, alice's STAND triggers showdown
-        (single action). To exercise sequential DRAW actions in this test
-        we use HIT first (which doesn't end the round)."""
+        """With 2 seated players + threshold=1, alice's STAND triggers
+        showdown (single action). To exercise sequential DRAW actions
+        in this test we use HIT first (which doesn't end the round)."""
         bridge, engine, pubsub = bridge_with_engine
         sub = await pubsub.subscribe("table:t1")
         sv0 = engine.state.version

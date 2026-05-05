@@ -197,10 +197,16 @@ async def test_f3_f4_f11_canonical_flow_with_bot():
 
     Per reducer rules (`_enter_betting_round` short-circuits when
     `len(in_hand) <= 1`), a JOKER draw legitimately disqualifies a
-    player, which in a 2-seat table collapses `in_hand` to 1 and
-    forces a SHOWDOWN ahead of the next betting round. The test must
-    encode this contract — assertion is conditional on the final
-    in_hand count seen in the SHOWDOWN/PAYOUT snapshot.
+    player, which on a 4-seat (target=30) table with only 2 humans
+    seated collapses `in_hand` to 1 and forces a SHOWDOWN ahead of
+    the next betting round. The test must encode this contract —
+    assertion is conditional on the final in_hand count seen in the
+    SHOWDOWN/PAYOUT snapshot.
+
+    Wording: there is no 2-seat table type per GAME_RULES_LOCKED.md
+    §2; this scenario uses bot_count=1 to start a 4-seat table with
+    just 2 seats filled (1 human + 1 bot — minimum legal start for
+    the 4-seat tier).
 
     The 2026-05 v2 reproduction showed a ~6% rate of JOKER-driven
     skips at target=30 with bot_count=1 — entirely correct engine

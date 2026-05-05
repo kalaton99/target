@@ -6,10 +6,14 @@ implementing the lobby, table CRUD, or any real-money flow:
   POST /api/v2/dev/spawn_solo_table
        Returns: {table_id, token, user_id, username}
        - mints a fresh anonymous user JWT
-       - creates a 2-player TurnEngine (you + a bot)
+       - creates a TurnEngine with 2 seated players (you + a bot)
        - registers it in the EngineBridge
        - starts the hand
        - spins up a BotDriver task that auto-acts on the bot's turn
+
+       Note: there is NO 2-seat table type. This dev shortcut spawns
+       a 4-seat (target=30) table with 2 seats filled — the minimum
+       legal start for that tier.
 
   GET  /api/v2/dev/play
        Returns: a minimal HTML+vanilla-JS page that:

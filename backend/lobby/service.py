@@ -23,6 +23,7 @@ from core.constants import (
     MAX_PLAYERS,
     MIN_PLAYERS,
     VALID_TARGET_SCORES,
+    min_seated_for_target,
     seats_for_target,
 )
 
@@ -101,7 +102,7 @@ async def create_table(
     target_score: int = DEFAULT_TARGET_SCORE,
     stake: int = 100,
     max_players: int | None = None,  # IGNORED — kept for back-compat; server derives from target
-    min_players: int | None = None,  # IGNORED — always MIN_PLAYERS=2
+    min_players: int | None = None,  # IGNORED — server derives from target via MIN_SEATED_BY_TARGET
     bot_count: int = 0,              # 2026-05: dev-only, validated by router
 ) -> Dict[str, Any]:
     if not _TABLE_NAME_RE.match(name or ""):
@@ -111,11 +112,16 @@ async def create_table(
             "INVALID_TARGET_SCORE",
             f"must be one of {sorted(VALID_TARGET_SCORES)}",
         )
-    # Per GAME_RULES_LOCKED.md §2: seats are a function of target_score.
-    # Any client-supplied max_players/min_players is silently ignored to
-    # avoid breaking older clients during the migration window.
+    # Per GAME_RULES_LOCKED.md §2: seats AND min-seated-to-start are a
+    # function of target_score. Any client-supplied max_players /
+    # min_players is silently ignored to avoid breaking older clients
+    # during the migration window.
+    #   - 4-seat tables (target 30/50): start when seated ≥ 2.
+    #   - 5-seat tables (target 75/100): start when seated ≥ 3.
+    # There is NO 2-seat table type; "n_players=2" in tests means a
+    # 4-seat table partially filled.
     derived_max = seats_for_target(target_score)
-    derived_min = MIN_PLAYERS
+    derived_min = min_seated_for_target(target_score)
     if stake < 0 or stake > 1_000_000:
         raise LobbyError("INVALID_STAKE")
 
