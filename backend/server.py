@@ -44,6 +44,10 @@ async def health():
 api_router.include_router(auth_router)
 api_router.include_router(wallet_router)
 api_router.include_router(tables_router)
+# 2026-05 v2 — Emergent-managed Google OAuth (additive). Guest JWT path
+# under `/api/v2/lobby/auth` is preserved for dev/staging.
+from auth_oauth import router as oauth_router  # noqa: E402
+api_router.include_router(oauth_router)
 # 2026-05 stabilization: legacy /api/ws/table/{id} WS path has been
 # removed. The only realtime surface is `/api/v2/ws/table/{id}` via
 # realtime_v2 below. The legacy `backend/realtime/` directory was

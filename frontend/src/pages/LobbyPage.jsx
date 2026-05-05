@@ -41,6 +41,89 @@ export default function LobbyPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const redirectMsg = REDIRECT_MESSAGES[searchParams.get("msg")] || "";
+  // 2026-05 v2 — Emergent Google OAuth callback. After Google sign-in
+  // the user is redirected to `/lobby#session_id=...`. We exchange the
+  // session_id with the backend, persist `target_user` (jwt + name) so
+  // the rest of this page works unchanged, and strip the fragment.
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [oauthErr, setOauthErr] = useState("");
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    if (!hash.startsWith("#session_id=")) return;
+    const sessionId = hash.slice("#session_id=".length);
+    if (!sessionId) return;
+    setOauthBusy(true);
+    setOauthErr("");
+    (async () => {
+      try {
+        const r = await fetch("/api/v2/auth/google/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        if (!r.ok) {
+          setOauthErr(`Google sign-in failed (${r.status})`);
+          return;
+        }
+        const data = await r.json();
+        // Persist as `target_user` so the rest of LobbyPage + PlayPage
+        // work without touching their bearer-JWT plumbing.
+        const stored = {
+          user_id: data.user.user_id,
+          username: data.user.name,
+          token: data.jwt,
+          email: data.user.email,
+          picture: data.user.picture,
+          auth_provider: "google",
+        };
+        ls.set(stored);
+        setUser(stored);
+      } catch (e) {
+        setOauthErr(String(e));
+      } finally {
+        setOauthBusy(false);
+        // Strip the session_id from the URL — never leave it in history.
+        window.history.replaceState({}, document.title,
+          window.location.pathname + window.location.search);
+      }
+    })();
+    // We deliberately don't add `ls` as a dep — `LS()` returns a fresh
+    // closure each render and the effect must run exactly once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh-resilience: if `target_user` isn't in localStorage but the
+  // server still has a valid cookie session, /me will tell us who we
+  // are and we can mint a new bearer in-memory by re-exchanging? No —
+  // /me alone doesn't issue a JWT. Instead, on cold load with no
+  // localStorage we just call /me to render the username; if the user
+  // tries an action that needs a bearer, we'll redirect them to log in.
+  useEffect(() => {
+    if (user) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/v2/auth/me", { credentials: "include" });
+        if (!alive || !r.ok) return;
+        const me = await r.json();
+        // We have a session cookie but no JWT — flag the user so the
+        // header shows their name. They'll need to re-sign-in to mint
+        // a JWT for table actions (rare; covers the case where
+        // localStorage was cleared but the cookie survived).
+        setUser({
+          user_id: me.user_id,
+          username: me.name,
+          email: me.email,
+          picture: me.picture,
+          auth_provider: me.auth_provider,
+          token: null,
+        });
+      } catch (_) {}
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // create-form state
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(30);
@@ -127,7 +210,12 @@ export default function LobbyPage() {
     }
   };
 
-  const doLogout = () => {
+  const doLogout = async () => {
+    // 2026-05 v2 — also call backend so the cookie session is invalidated
+    // and a refresh after logout doesn't re-auth from a stale cookie.
+    try {
+      await fetch("/api/v2/auth/logout", { method: "POST", credentials: "include" });
+    } catch (_) { /* best effort */ }
     ls.clear();
     setUser(null);
   };
@@ -208,7 +296,7 @@ export default function LobbyPage() {
           <div className="text-3xl font-bold tracking-widest text-zinc-100 mb-2 text-center">
             <span className="text-yellow-400">▲</span> lobby
           </div>
-          <p className="text-zinc-500 text-sm mb-8 text-center">Pick a guest username to enter.</p>
+          <p className="text-zinc-500 text-sm mb-8 text-center">Sign in to enter.</p>
           {redirectMsg && (
             <div
               data-testid="redirect-msg"
@@ -217,11 +305,30 @@ export default function LobbyPage() {
               {redirectMsg}
             </div>
           )}
+          {/* 2026-05 v2 — Emergent-managed Google OAuth.
+              Redirect URL is `${window.location.origin}/lobby` so the
+              user lands back here with `#session_id=...` and the
+              top-level effect handles the exchange. */}
+          <button
+            data-testid="google-signin-btn"
+            disabled={oauthBusy}
+            onClick={() => {
+              const redirect = `${window.location.origin}/lobby`;
+              window.location.href =
+                `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
+            }}
+            className="w-full mb-3 px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.3em] uppercase disabled:opacity-30"
+          >
+            {oauthBusy ? "Signing you in…" : "Continue with Google"}
+          </button>
+          {oauthErr && <div data-testid="oauth-err" className="text-rose-400 mb-3 text-xs text-center">{oauthErr}</div>}
+          <div className="text-zinc-700 text-[10px] tracking-[0.3em] uppercase text-center my-4">— or —</div>
+          <p className="text-zinc-600 text-xs mb-2 text-center">Guest sign-in (dev / staging only).</p>
           <input
             data-testid="username-input"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="username"
+            placeholder="guest username"
             className="w-full mb-3 bg-zinc-900 border border-zinc-700 rounded-md p-3 text-zinc-100"
           />
           <button
@@ -229,7 +336,7 @@ export default function LobbyPage() {
             onClick={doRegister}
             className="w-full px-7 py-3 rounded-md border border-yellow-600/60 text-yellow-300 hover:bg-yellow-500/10 tracking-[0.3em] uppercase"
           >
-            Enter
+            Enter as guest
           </button>
           {err && <div data-testid="auth-err" className="text-rose-400 mt-3 text-sm">{err}</div>}
         </div>
