@@ -467,6 +467,15 @@ class EngineBridge:
         cancels the task and the player keeps their seat with no further
         side effects. If the engine is unregistered mid-sleep we exit
         cleanly without touching state.
+
+        2026-05 v3 race fix: a `notify_connect` that lands inside an
+        asyncio gap before this task is even scheduled cannot cancel
+        a task that doesn't yet exist — so an "orphan" grace task can
+        end up running against a now-reconnected player. We re-check
+        `player.connected` AFTER the sleep and short-circuit if the
+        player is currently online. This is the same invariant the
+        existing `notify_connect` cancel already enforces; the new
+        check just catches the orphan-task path.
         """
         try:
             await asyncio.sleep(self._grace_seconds)
@@ -480,6 +489,13 @@ class EngineBridge:
             return
         if player.sitting_out:
             return  # already sitting out; nothing to do.
+        if player.connected:
+            # The user reconnected during the grace window via a
+            # notify_connect that landed in an asyncio gap before this
+            # task was scheduled. The intended outcome of grace is
+            # "yank disconnected players"; flipping a connected user
+            # to sitting_out is exactly the bug this guard prevents.
+            return
         player.sitting_out = True
         # `connected` stays False; the gateway will flip it back on
         # reconnect via notify_connect.

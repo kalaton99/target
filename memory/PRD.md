@@ -948,6 +948,7 @@ under load alongside all other multiplayer tests.
 17. ✅ P0: Google OAuth bugfix — CORS-with-credentials + StrictMode race — **DONE 2026-05 v2**.
 18. ✅ P2: Phase-progression flake fix — JOKER → BETTING_R3 skip contract — **DONE 2026-05 v2**.
 19. ✅ P3: Wording cleanup — "no 2-seat table type" rule + per-tier min seated to start (4-seat tier → ≥2, 5-seat tier → ≥3) — **DONE 2026-05 v3**.
+20. ✅ P1: Reconnect-grace orphan-task race fix — `_grace_expiry` now checks `player.connected` after sleep — **DONE 2026-05 v3**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
