@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Phase 11 P2 — Lobby. Real users register with a username, see a list of
@@ -45,15 +45,37 @@ export default function LobbyPage() {
   // the user is redirected to `/lobby#session_id=...`. We exchange the
   // session_id with the backend, persist `target_user` (jwt + name) so
   // the rest of this page works unchanged, and strip the fragment.
-  const [oauthBusy, setOauthBusy] = useState(false);
+  //
+  // StrictMode-safe: the playbook explicitly calls out that
+  // useEffect double-fires under React.StrictMode, which causes the
+  // single-use Emergent session_id to be POSTed twice — the second
+  // call comes back 401 OAUTH_EXCHANGE_FAILED and races the first
+  // (successful) call's setState. We use a `useRef` guard set
+  // synchronously at the start of the effect so the second
+  // invocation is a no-op, and we read the hash ONCE here (not in
+  // render) so the guard's reset between effect-runs doesn't matter.
+  const oauthProcessed = useRef(false);
+  const initialHash = useRef(typeof window !== "undefined" ? window.location.hash : "");
+  const [oauthBusy, setOauthBusy] = useState(
+    initialHash.current.startsWith("#session_id="),
+  );
   const [oauthErr, setOauthErr] = useState("");
   useEffect(() => {
-    const hash = window.location.hash || "";
+    if (oauthProcessed.current) return;
+    const hash = initialHash.current || "";
     if (!hash.startsWith("#session_id=")) return;
     const sessionId = hash.slice("#session_id=".length);
     if (!sessionId) return;
+    oauthProcessed.current = true;
     setOauthBusy(true);
     setOauthErr("");
+    // Strip the session_id from the URL immediately so a refresh /
+    // back-button never re-submits it (and so a curious user can't
+    // copy it from the address bar).
+    try {
+      window.history.replaceState({}, document.title,
+        window.location.pathname + window.location.search);
+    } catch (_) { /* noop */ }
     (async () => {
       try {
         const r = await fetch("/api/v2/auth/google/session", {
@@ -63,7 +85,12 @@ export default function LobbyPage() {
           body: JSON.stringify({ session_id: sessionId }),
         });
         if (!r.ok) {
-          setOauthErr(`Google sign-in failed (${r.status})`);
+          let detail = "";
+          try { detail = (await r.json())?.detail || ""; } catch (_) {}
+          setOauthErr(
+            `Google sign-in failed (${r.status})${detail ? ` — ${detail}` : ""}. ` +
+            `Please try again or use guest sign-in below.`,
+          );
           return;
         }
         const data = await r.json();
@@ -80,12 +107,12 @@ export default function LobbyPage() {
         ls.set(stored);
         setUser(stored);
       } catch (e) {
-        setOauthErr(String(e));
+        setOauthErr(
+          `Google sign-in error: ${e?.message || e}. ` +
+          `Please try again or use guest sign-in below.`,
+        );
       } finally {
         setOauthBusy(false);
-        // Strip the session_id from the URL — never leave it in history.
-        window.history.replaceState({}, document.title,
-          window.location.pathname + window.location.search);
       }
     })();
     // We deliberately don't add `ls` as a dep — `LS()` returns a fresh
@@ -99,8 +126,14 @@ export default function LobbyPage() {
   // /me alone doesn't issue a JWT. Instead, on cold load with no
   // localStorage we just call /me to render the username; if the user
   // tries an action that needs a bearer, we'll redirect them to log in.
+  //
+  // CRITICAL (per Emergent OAuth playbook): skip this check entirely
+  // when we're handling an OAuth callback (`#session_id=...` in the
+  // URL). Otherwise the /me call races the session exchange — /me
+  // returns 401 before the cookie is set, and we can clobber state.
   useEffect(() => {
     if (user) return;
+    if (initialHash.current.startsWith("#session_id=")) return;
     let alive = true;
     (async () => {
       try {

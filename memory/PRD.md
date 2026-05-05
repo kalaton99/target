@@ -786,6 +786,86 @@ engine in `WAITING` (state_version=0) instead of `BETTING_R1`.
   is **out of scope for this task** and was not introduced by these
   changes.
 
+## 2026-05 v2 — Google OAuth bugfix: CORS-with-credentials + StrictMode race
+**User-reported issue:** Google sign-in returned 403 / silent failure;
+lobby failed to load tables after auth attempt.
+
+**Root causes:**
+1. **CORS-with-credentials misconfiguration (backend):**
+   `CORSMiddleware(allow_origins=["*"], allow_credentials=True)` causes
+   the backend to send `Access-Control-Allow-Origin: *` paired with
+   `Access-Control-Allow-Credentials: true`. Browsers REJECT this
+   combination as invalid CORS when the frontend uses `credentials:
+   'include'` (which the OAuth `POST /api/v2/auth/google/session` and
+   `GET /api/v2/auth/me` calls do for the cookie session). Result: the
+   browser silently blocked the OAuth POST. Verified with curl
+   against localhost:8001 — response had both headers, breaking CORS.
+2. **React StrictMode double-fire (frontend):**
+   The OAuth-callback `useEffect` ran twice in dev/StrictMode and
+   POSTed the single-use `session_id` to the backend twice. Emergent's
+   exchange endpoint is single-use, so the 2nd call returned 401 and
+   raced the 1st (successful) call's `setUser`. UI showed an error
+   even when auth succeeded, plus a 401 in the network tab.
+3. **`/me` race vs OAuth callback (frontend):**
+   The refresh-resilience effect called `GET /api/v2/auth/me` BEFORE
+   the OAuth callback could set the cookie — burning a request and
+   risking state clobber.
+
+**Fixes:**
+- **`backend/server.py`**: replaced `CORSMiddleware(allow_origins=["*"])`
+  with `allow_origin_regex=".*"` when `CORS_ORIGINS` is unset / `*`.
+  Starlette echoes the request `Origin` instead of `*`, producing a
+  valid `Access-Control-Allow-Origin: <origin>` +
+  `Access-Control-Allow-Credentials: true` pair. When `CORS_ORIGINS`
+  is a comma-separated list, that explicit list is used.
+  Verified locally: `curl -H "Origin: <preview>" /api/v2/auth/google/session`
+  now returns `access-control-allow-origin: <preview>` (was `*`).
+- **`frontend/src/pages/LobbyPage.jsx`**:
+  - Added `useRef` guard (`oauthProcessed`) set synchronously at the
+    start of the OAuth `useEffect` so StrictMode's second run is a
+    pure no-op. Now exactly one POST per `#session_id=`.
+  - Captured `window.location.hash` in `useRef` at first render so
+    StrictMode's mount-then-cleanup-then-mount cycle still sees the
+    original hash even after `replaceState` strips it.
+  - `replaceState` now happens **immediately** (before the async
+    fetch), so a refresh / back-button can never re-submit the
+    one-time `session_id`.
+  - `/me` refresh-resilience effect now skips when
+    `window.location.hash` contains `session_id=` (per Emergent
+    Auth playbook §"Global AuthProvider Race Condition").
+  - Error message expanded with backend `detail` + actionable
+    "use guest sign-in below" hint.
+- **No backend logic changes to `auth_oauth/router.py`** — the
+  exchange / cookie / DB path was correct already. The bugs were
+  in environment plumbing (CORS) and frontend lifecycle.
+
+**Verification:**
+- Browser screenshot: `#session_id=<unique>` → 1 POST → URL stripped
+  → graceful 401 error w/ guest fallback visible.
+- Browser screenshot: cookie-injected OAuth user → lobby loads
+  showing the user's name, full table list, logout button, create
+  form — all working.
+- `tests/test_auth_oauth_2026_05.py` — **5/5 PASS** (full
+  exchange + cookie + bearer + lobby-bridge + logout flow).
+- Full canonical suite — **240 passed / 2 skipped** (one suite run
+  hit a pre-existing live-backend concurrency flake in
+  `TestStartLifecycle`, unrelated to OAuth and recovers on retry).
+- WebSocket connect via OAuth-issued JWT: confirmed (the test
+  `test_google_full_flow_and_lobby_bridge` already creates a table
+  and uses the JWT for the lobby-bridge call — the same JWT path
+  the WS gateway uses).
+
+**Frontend OAuth flow contract (locked):**
+1. User clicks `[data-testid="google-signin-btn"]` →
+   `https://auth.emergentagent.com/?redirect=${origin}/lobby`.
+2. Emergent OAuth flow → returns to `/lobby#session_id=<one-time>`.
+3. Frontend captures hash via `useRef` during render, posts to
+   `/api/v2/auth/google/session` exactly once (StrictMode-safe),
+   strips the hash, persists `target_user`, and renders authed UI.
+4. Cookie session (7-day) is set httpOnly + secure + samesite=none.
+5. Refresh → `GET /api/v2/auth/me` (cookie auth) restores name; user
+   re-clicks Google sign-in to mint a fresh JWT for table actions.
+
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
@@ -802,6 +882,7 @@ engine in `WAITING` (state_version=0) instead of `BETTING_R1`.
 14. ✅ P2: RNG consistency cleanup (dev_router uses generate_server_seed) — **DONE 2026-05 v2**.
 15. ✅ P1: Emergent-managed Google OAuth (with guest-auth gating) — **DONE 2026-05 v2**.
 16. ✅ P2: Flaky-test fix — deterministic `/start` → `BETTING_R1` synchronization — **DONE 2026-05 v2**.
+17. ✅ P0: Google OAuth bugfix — CORS-with-credentials + StrictMode race — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

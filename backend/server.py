@@ -1,5 +1,6 @@
 """TARGET — FastAPI entry point."""
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -12,7 +13,6 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from core import db as core_db
-from core.config import CORS_ORIGINS
 from core.security import decode_token
 from auth.router import router as auth_router
 from wallet.router import router as wallet_router
@@ -98,13 +98,32 @@ app.state.v2_pubsub = _v2_pubsub  # type: ignore[attr-defined]
 
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS — when the frontend sends `credentials: 'include'` (used by the
+# Emergent Google OAuth cookie session), browsers REJECT a wildcard
+# `Access-Control-Allow-Origin: *` paired with
+# `Access-Control-Allow-Credentials: true`. Starlette's CORSMiddleware
+# does NOT auto-echo the request origin when `allow_origins=["*"]`; it
+# only does so when `allow_origin_regex` is used. So we use the regex
+# form here. `CORS_ORIGINS` env var is honoured for explicit lockdowns
+# in production (comma-separated origins).
+_cors_env = (os.environ.get("CORS_ORIGINS") or "*").strip()
+if _cors_env in ("", "*"):
+    # Permissive but credential-compatible: echo any origin.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origin_regex=".*",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=[o.strip() for o in _cors_env.split(",") if o.strip()],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.on_event("startup")
