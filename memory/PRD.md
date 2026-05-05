@@ -866,6 +866,69 @@ lobby failed to load tables after auth attempt.
 5. Refresh → `GET /api/v2/auth/me` (cookie auth) restores name; user
    re-clicks Google sign-in to mint a fresh JWT for table actions.
 
+## 2026-05 v2 — Phase-progression flake fix (multiplayer reliability)
+**Issue:** `tests/test_phase11_validation.py::test_f3_f4_f11_canonical_flow_with_bot`
+flaked under full-suite concurrent load — observed ~6% failure rate.
+Failure case: `PHASES_SEEN: ['BETTING_R1', 'DRAW_1', 'BETTING_R2',
+'DRAW_2', 'PAYOUT']` — missing `BETTING_R3`.
+
+**Root cause (NOT a race / NOT a code bug):** the test asserted a fixed
+5-phase progression that the locked reducer is **not contractually
+required to produce**. The deck includes 2 JOKERs (54 cards). When a
+player draws a JOKER during DRAW_1 or DRAW_2, scoring marks them
+`disqualified=True` → `in_hand=False` (`scoring.py:31-32`,
+`types.py:30`). At the end of the next draw round,
+`_enter_betting_round(N)` sees `len(in_hand) == 1` and short-circuits
+to SHOWDOWN per `reducer.py:232` — BETTING_R3 is **correctly
+skipped**. Diagnostic harness confirmed: 28/30 hands take the canonical
+path, 2/30 hit the JOKER-DQ short-circuit. **Pure game-rule outcome,
+not a timing race.**
+
+**Fix (test contract correction, no engine change):**
+- **`tests/test_phase11_validation.py::test_f3_f4_f11_canonical_flow_with_bot`**:
+  rewrote the assertion to encode the actual reducer contract.
+  Always asserted: `BETTING_R1` entered + terminal phase reached.
+  Conditional on `≥2 alive players in the terminal STATE_UPDATE`,
+  assert the full 5-phase canonical progression. When `<2 alive`
+  (degenerate hand from JOKER / FOLD), assert that a disqualified or
+  folded player exists to justify the skip — guards against the
+  short-circuit happening for any reason OTHER than a legitimate
+  rule trigger.
+- **NEW `tests/test_phase_progression_contract_2026_05.py`**:
+  4 deterministic, pure-Python reducer-level tests that lock in the
+  contract WITHOUT live backend / network — sub-30ms total runtime,
+  zero flake surface:
+    - `TestCanonical5PhaseProgression` — 2 alive players walk all 5
+      phases in order.
+    - `TestJokerCollapsesProgression::test_joker_in_draw_2_skips_betting_r3`
+      — JOKER in DRAW_2 ⇒ BETTING_R3 must NEVER appear.
+    - `TestJokerCollapsesProgression::test_joker_in_draw_1_skips_directly_to_showdown`
+      — JOKER in DRAW_1 ⇒ neither BETTING_R2, DRAW_2 nor BETTING_R3
+      may appear.
+    - `TestFoldCollapsesProgression::test_fold_in_betting_r2_skips_draw_2_and_r3`
+      — FOLD in BETTING_R2 ⇒ skip to SHOWDOWN.
+
+**Reducer / engine: untouched.** No game-rule change, no broadcast
+change, no bridge change. The existing rules were correct from day
+one; only the test was over-specified.
+
+**Verification:**
+- `test_f3_f4_f11_canonical_flow_with_bot` + `TestStartLifecycle` +
+  `TestTwoUserE2E` co-run: **30/30 PASS** (zero flakes; was 2/15
+  failing before).
+- New contract tests: **4/4 PASS** in 0.02s.
+- Full canonical suite: **244 passed / 2 skipped**, repeated 3×.
+  One run hit a single F2 failure; root cause was `requests.exceptions.ConnectTimeout`
+  to the Cloudflare-fronted preview URL under burst load — a
+  network-level flake outside our codebase. Per scope ("eliminate,
+  not hide"), no retry / sleep / skip was added; this isn't a code
+  flake. F2 in isolation: 5/5 PASS.
+
+**Pre-existing flake `TestStartLifecycle` (mentioned in handoff)
+is now non-reproducible** — the `submit_server_intent` synchronization
+fix from earlier 2026-05 v2 work eliminated it. Verified: 25/25 PASS
+under load alongside all other multiplayer tests.
+
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
@@ -883,6 +946,7 @@ lobby failed to load tables after auth attempt.
 15. ✅ P1: Emergent-managed Google OAuth (with guest-auth gating) — **DONE 2026-05 v2**.
 16. ✅ P2: Flaky-test fix — deterministic `/start` → `BETTING_R1` synchronization — **DONE 2026-05 v2**.
 17. ✅ P0: Google OAuth bugfix — CORS-with-credentials + StrictMode race — **DONE 2026-05 v2**.
+18. ✅ P2: Phase-progression flake fix — JOKER → BETTING_R3 skip contract — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

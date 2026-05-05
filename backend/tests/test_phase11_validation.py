@@ -189,6 +189,24 @@ async def test_f2_two_humans_betting_r1():
 # =========================================================================
 @pytest.mark.asyncio
 async def test_f3_f4_f11_canonical_flow_with_bot():
+    """Verify the multi-round phase progression contract.
+
+    Expected canonical progression with two non-disqualified players:
+      BETTING_R1 → DEAL_INITIAL → DRAW_1 → BETTING_R2 → DRAW_2 →
+      BETTING_R3 → SHOWDOWN/PAYOUT
+
+    Per reducer rules (`_enter_betting_round` short-circuits when
+    `len(in_hand) <= 1`), a JOKER draw legitimately disqualifies a
+    player, which in a 2-seat table collapses `in_hand` to 1 and
+    forces a SHOWDOWN ahead of the next betting round. The test must
+    encode this contract — assertion is conditional on the final
+    in_hand count seen in the SHOWDOWN/PAYOUT snapshot.
+
+    The 2026-05 v2 reproduction showed a ~6% rate of JOKER-driven
+    skips at target=30 with bot_count=1 — entirely correct engine
+    behaviour, not a flake. The previous version of this test
+    asserted a fixed 5-phase order regardless of in_hand count.
+    """
     uid, tok = _auth(_mk_name("F3"))
     t = _create_table(tok, target=30, bot_count=1)
     tid = t["table_id"]
@@ -258,24 +276,87 @@ async def test_f3_f4_f11_canonical_flow_with_bot():
 
         phases = _phases_seen(msgs)
         print("PHASES_SEEN:", phases)
-        # F3 — canonical progression
-        expected_order = ["BETTING_R1", "DRAW_1", "BETTING_R2", "BETTING_R3", "PAYOUT"]
-        # Extract just the expected_order items in phase stream, preserving order
-        filtered = [p for p in phases if p in expected_order]
-        # must appear in this subsequence
-        i = 0
-        for ph in filtered:
-            if ph == expected_order[i]:
-                i += 1
-                if i == len(expected_order): break
-        assert i == len(expected_order), f"missing phases in order; saw {phases}"
+        # Mandatory invariants — these must hold regardless of which
+        # JOKER-disqualification path the deal took:
+        # (i) BETTING_R1 always entered (every hand opens with R1).
+        # (ii) PAYOUT always reached (no hand strands).
+        assert "BETTING_R1" in phases, f"missing BETTING_R1; saw {phases}"
+        assert any(p in ("PAYOUT", "HAND_COMPLETE") for p in phases), \
+            f"never reached PAYOUT/HAND_COMPLETE; saw {phases}"
 
-        # F4 — DRAW_1 reached & player could attempt HIT/STAND (we sent STAND)
-        assert "DRAW_1" in phases
+        # Find the terminal STATE_UPDATE (PAYOUT / HAND_COMPLETE / SHOWDOWN
+        # if the engine ended there). It carries the authoritative
+        # `disqualified` / `folded` flags we use to derive the expected
+        # phase contract.
+        terminal = next(
+            (m for m in reversed(msgs)
+             if m.get("type") == "STATE_UPDATE"
+             and m.get("phase") in ("PAYOUT", "HAND_COMPLETE")),
+            None,
+        )
+        assert terminal is not None, "no terminal STATE_UPDATE captured"
 
-        # F11 — DRAW_2 present (even if transient). We record whether we saw it.
-        draw2_seen = "DRAW_2" in phases
-        # Also check PHASE events in events arrays
+        def _alive(p) -> bool:
+            # Mirrors `Player.in_hand`: not folded / disqualified / sitting_out.
+            return not (p.get("folded") or p.get("disqualified")
+                        or p.get("sitting_out"))
+
+        alive_at_end = [p for p in terminal["players"] if _alive(p)]
+        # Phase-skip contract per reducer `_enter_betting_round`:
+        #   len(in_hand) <= 1 at the end of any betting/draw round
+        #   collapses the rest of the round structure into SHOWDOWN.
+        # We can't reconstruct in_hand at every transition from the
+        # public broadcast, but the terminal alive count is a tight
+        # lower bound: if 2+ players are still alive at PAYOUT, the
+        # full 5-phase canonical progression MUST have occurred.
+        # Conversely, if only 1 (or 0) is alive, intermediate betting
+        # rounds may be legitimately skipped.
+        full_progression_required = len(alive_at_end) >= 2
+
+        if full_progression_required:
+            # F3 — full canonical phase progression for a non-degenerate hand.
+            expected_order = [
+                "BETTING_R1", "DRAW_1", "BETTING_R2", "DRAW_2",
+                "BETTING_R3", "PAYOUT",
+            ]
+            filtered = [p for p in phases if p in expected_order]
+            i = 0
+            for ph in filtered:
+                if ph == expected_order[i]:
+                    i += 1
+                    if i == len(expected_order):
+                        break
+            assert i == len(expected_order), (
+                f"missing phases in canonical order; alive_at_end="
+                f"{[p['user_id'] for p in alive_at_end]} saw {phases}"
+            )
+            # F4 — DRAW_1 reached & player could attempt HIT/STAND.
+            assert "DRAW_1" in phases, f"missing DRAW_1; saw {phases}"
+            # F11 — DRAW_2 must have occurred when both players survived.
+            assert "DRAW_2" in phases, f"missing DRAW_2; saw {phases}"
+            globals()["_F11_DRAW2_SEEN"] = True
+        else:
+            # Degenerate hand (JOKER disqualification or fold collapsed
+            # the table to ≤1 alive). Validate only the invariants that
+            # the reducer guarantees in this case:
+            #   - BETTING_R1 + PAYOUT (already asserted above).
+            #   - The disqualified/folded player carries the flag that
+            #     justifies the skip; ensures the test is observing a
+            #     legitimate degenerate path, not a bug elsewhere.
+            dead_at_end = [p for p in terminal["players"] if not _alive(p)]
+            assert dead_at_end, (
+                f"phase-skip path taken but no disqualified/folded "
+                f"player to justify it; players={terminal['players']}"
+            )
+            print(
+                f"DEGENERATE_HAND: skip justified by "
+                f"{[(p['seat'], 'DQ' if p.get('disqualified') else 'FOLD' if p.get('folded') else 'SIT_OUT') for p in dead_at_end]}"
+            )
+            # Soft-record DRAW_2 occurrence for F11 reporting (degenerate
+            # path may legitimately not exercise it).
+            globals()["_F11_DRAW2_SEEN"] = "DRAW_2" in phases
+
+        # F11 audit trail (informational): all PHASE events ever seen.
         phase_events = []
         for m in msgs:
             if m.get("type") == "STATE_UPDATE":
@@ -283,9 +364,6 @@ async def test_f3_f4_f11_canonical_flow_with_bot():
                     if ev.get("type") == "PHASE":
                         phase_events.append(ev.get("phase"))
         print("PHASE_EVENTS:", phase_events)
-        draw2_evt = "DRAW_2" in phase_events
-        # Record as soft (document) — do not fail if only one hand didn't exercise DRAW_2
-        globals()["_F11_DRAW2_SEEN"] = bool(draw2_seen or draw2_evt)
     finally:
         await ws.close()
 
