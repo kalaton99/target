@@ -262,15 +262,19 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
         # `lobby/router.py`, so every entry point shares one RNG story
         # (commit-reveal SHA-256 + per-seat client_seed contribution).
         plain_seed, seed_hash = generate_server_seed()
-        await engine.submit({
-            "type": "START_HAND",
-            "source": "SERVER",
-            "hand_id": f"h_{uuid.uuid4().hex[:10]}",
-            "nonce": 1,
-            "server_seed": plain_seed,
-            "server_seed_hash": seed_hash,
-            "target_score": 30,
-        })
+        await bridge.submit_server_intent(
+            table_id,
+            {
+                "type": "START_HAND",
+                "source": "SERVER",
+                "hand_id": f"h_{uuid.uuid4().hex[:10]}",
+                "nonce": 1,
+                "server_seed": plain_seed,
+                "server_seed_hash": seed_hash,
+                "target_score": 30,
+            },
+            timeout=3.0,
+        )
 
         token = create_token(user_id)
         return {

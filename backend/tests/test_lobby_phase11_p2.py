@@ -418,6 +418,17 @@ class TestStartLifecycle:
 
 class TestTwoUserE2E:
     def test_two_real_users_both_get_betting_r1_state(self):
+        """After /start returns, the engine MUST already be in BETTING_R1.
+
+        This guards against a previous async-race regression where
+        `/start` returned before the engine processed START_HAND,
+        causing WS clients connecting immediately after to snapshot
+        the engine in WAITING phase. The fix is in
+        `realtime_v2/bridge.EngineBridge.submit_server_intent` —
+        `_spawn_engine_for_table` now awaits the START_HAND completion
+        future before HTTP returns. We assert phase=BETTING_R1 +
+        state_version>=1 here to lock the contract in.
+        """
         u1 = _auth(_name("e1"))
         u2 = _auth(_name("e2"))
         t = _create_table(u1["token"]).json()
@@ -436,6 +447,11 @@ class TestTwoUserE2E:
             with ws_connect(url, open_timeout=10, close_timeout=5) as ws:
                 got_state = False
                 got_my_private = False
+                # First STATE_UPDATE must already reflect BETTING_R1 with
+                # state_version >= 1 — proves /start awaited engine
+                # processing.
+                first_state_phase = None
+                first_state_version = None
                 for _ in range(15):
                     m = json.loads(ws.recv(timeout=5))
                     if m.get("type") == "PING":
@@ -443,6 +459,11 @@ class TestTwoUserE2E:
                         continue
                     if m.get("type") == "WELCOME":
                         assert m["user_id"] == u["user_id"]
+                        # WELCOME's state_version must already be >= 1.
+                        assert m.get("state_version", 0) >= 1, (
+                            f"WELCOME state_version={m.get('state_version')} "
+                            "but engine was supposed to have processed START_HAND"
+                        )
                         continue
                     if m.get("type") == "STATE_UPDATE":
                         assert m["target_score"] == 30
@@ -451,6 +472,9 @@ class TestTwoUserE2E:
                         ids = [p["user_id"] for p in m["players"]]
                         assert u1["user_id"] in ids
                         assert u2["user_id"] in ids
+                        if first_state_phase is None:
+                            first_state_phase = m["phase"]
+                            first_state_version = m["state_version"]
                         got_state = True
                     if m.get("type") == "PRIVATE_STATE":
                         assert m["user_id"] == u["user_id"]
@@ -459,3 +483,12 @@ class TestTwoUserE2E:
                         break
                 assert got_state, f"no STATE_UPDATE for {u['user_id']}"
                 assert got_my_private, f"no PRIVATE_STATE for {u['user_id']}"
+                # Determinism contract: by the time the client connects,
+                # the engine MUST have transitioned to BETTING_R1.
+                assert first_state_phase == "BETTING_R1", (
+                    f"first STATE_UPDATE phase={first_state_phase} for "
+                    f"{u['user_id']} — expected BETTING_R1 (race regression)"
+                )
+                assert first_state_version >= 1, (
+                    f"first STATE_UPDATE state_version={first_state_version}"
+                )

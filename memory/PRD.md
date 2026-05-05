@@ -716,6 +716,76 @@ happens against the real table shape:
   carries a fresh `rng_commit_hash` (no longer `"h"*64`).
 - Canonical suite: **240 passed / 2 skipped** (zero regression).
 
+## 2026-05 v2 — Emergent-managed Google OAuth (P1)
+- **New module `backend/auth_oauth/`** sitting beside the existing
+  guest/JWT flow. No legacy auth code touched.
+  - `POST /api/v2/auth/google/session` — exchanges a one-time
+    `session_id` (from the URL fragment after the Emergent OAuth
+    redirect) for `{user, jwt}` + a 7-day `session_token` httpOnly
+    cookie.
+  - `GET  /api/v2/auth/me` — resolves identity from cookie OR bearer
+    (cookie wins; bearer is fallback for WS/lobby compatibility).
+  - `POST /api/v2/auth/logout` — clears cookie + DB session.
+  - The minted JWT uses `core.security.create_token` so the existing
+    WebSocket gateway and lobby endpoints accept the OAuth user
+    transparently.
+- **Identity persistence**:
+  - `users` collection (uniqued by `email`) for OAuth identities.
+  - `user_sessions` collection for cookie-backed session lookup.
+  - `lobby_users` mirror written on first login so
+    `lobby/service.get_user` finds the same user without a rewrite.
+- **Guest auth gated by `ALLOW_GUEST_AUTH`** (default ON in dev). When
+  set to `0`/`false`, `POST /api/v2/lobby/auth` returns
+  `403 GUEST_AUTH_DISABLED`. Lets ops disable the dev login path in
+  production without touching code.
+- **Frontend wiring** (`LobbyPage.jsx`): added a Google sign-in button
+  that redirects to `https://auth.emergentagent.com/?redirect=<origin>`
+  and a fragment handler that POSTs the returned `session_id` to the
+  backend. Guest login button is preserved for dev / CI use.
+- **No user-supplied credentials required** — uses the Emergent-managed
+  OAuth proxy (`demobackend.emergentagent.com/auth/v1/env/oauth/session-data`).
+  `OAUTH_COOKIE_SECURE` env var defaults to `1`; set to `0` only for
+  plain-HTTP test harnesses.
+- **New tests** — `tests/test_auth_oauth_2026_05.py` covers
+  exchange→cookie→`/me`→logout, bearer fallback, 401/422 error paths,
+  guest-auth gating, and the lobby-mirror writeback.
+- **Suite**: **244 passed / 2 skipped** (was 240; +4 OAuth tests).
+- See [`/app/memory/test_credentials.md`](./test_credentials.md) for
+  the full auth-surface contract used by the testing agent.
+
+## 2026-05 v2 — Race-condition fix: deterministic `/start` → `BETTING_R1`
+**Issue:** `tests/test_lobby_phase11_p2.py::TestTwoUserE2E::test_two_real_users_both_get_betting_r1_state`
+intermittently flaked under load. Root cause: `_spawn_engine_for_table`
+in `lobby/router.py` called `engine.submit(START_HAND)` and returned
+the HTTP 200 immediately — without awaiting the engine's serial
+processor. WebSocket clients connecting in the gap snapshotted the
+engine in `WAITING` (state_version=0) instead of `BETTING_R1`.
+
+**Fix (synchronization, no game-rule / reducer change):**
+- New public method `EngineBridge.submit_server_intent(table_id, intent,
+  *, timeout)` in `realtime_v2/bridge.py`. Uses the same
+  `client_action_id` future plumbing as `handle_action` to await
+  full engine processing (including the `_on_event` broadcast)
+  before returning.
+- `lobby/router.py::_spawn_engine_for_table` now awaits
+  `bridge.submit_server_intent(...)` for `START_HAND` (timeout=3s)
+  instead of fire-and-forget `engine.submit(...)`.
+- `realtime_v2/dev_router.py::spawn_solo_table` mirrored to the same
+  pattern so `/api/v2/dev/spawn_solo_table` is equally deterministic.
+- Test strengthened: now asserts `WELCOME.state_version >= 1` AND
+  the first `STATE_UPDATE.phase == "BETTING_R1"` for both users.
+
+**Verification:**
+- `test_two_real_users_both_get_betting_r1_state` — **10/10 runs pass**.
+- Full canonical suite — **3/3 runs pass at 240 / 240** (excluding
+  the slow live `test_bot_stress_2026_05.py` and `test_balance_sim_2026_05.py`,
+  which are gated to manual / nightly runs and unaffected).
+- No reducer, scoring, betting, or RNG semantics changed. Pre-existing
+  flakiness in the unrelated `test_phase11_validation.py::test_f3_f4_f11_canonical_flow_with_bot`
+  (interactive multi-round flow with a bot, sensitive to bot timing)
+  is **out of scope for this task** and was not introduced by these
+  changes.
+
 ## Next Action Items
 2. ✅ P0: Multi-round betting — **DONE 2026-05**.
 3. ✅ P0: Special-card UI/intent for PLAY_TWO / PLAY_TEN — **DONE 2026-02**.
@@ -730,6 +800,8 @@ happens against the real table shape:
 12. ✅ P1: Frontend wiring for SUBMIT_CLIENT_SEED + verify-result modal — **DONE 2026-05 v2**.
 13. ✅ P1: Quarantined `backend/realtime/` directory deletion — **DONE 2026-05 v2**.
 14. ✅ P2: RNG consistency cleanup (dev_router uses generate_server_seed) — **DONE 2026-05 v2**.
+15. ✅ P1: Emergent-managed Google OAuth (with guest-auth gating) — **DONE 2026-05 v2**.
+16. ✅ P2: Flaky-test fix — deterministic `/start` → `BETTING_R1` synchronization — **DONE 2026-05 v2**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline

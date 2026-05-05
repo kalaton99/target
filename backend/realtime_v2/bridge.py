@@ -328,6 +328,51 @@ class EngineBridge:
             self._pending[table_id].pop(cid, None)
             return {"accepted": False, "error": {"reason": "ENGINE_TIMEOUT"}}
 
+    async def submit_server_intent(
+        self,
+        table_id: str,
+        intent: Dict[str, Any],
+        *,
+        timeout: float = 2.0,
+    ) -> Dict[str, Any]:
+        """Submit a SERVER-source intent (e.g. START_HAND from the lobby)
+        and await its completion deterministically.
+
+        Uses the same future-based completion tracking as `handle_action`
+        so callers can be sure the engine has fully processed the intent
+        (including the on_event broadcast) before this coroutine returns.
+        Eliminates the race where HTTP `/start` returned before the
+        engine had transitioned WAITING → BETTING_R1, causing WS clients
+        connecting immediately after to snapshot a stale state.
+
+        Returns:
+            {"accepted": True,  "state_version": int}  — engine version advanced.
+            {"accepted": False, "error": {...}}        — rejected or timed out.
+        """
+        engine = self._engines.get(table_id)
+        if engine is None:
+            return {"accepted": False, "error": "TABLE_NOT_FOUND"}
+
+        # Inject a tracking id so `_install_intent_tracking` resolves
+        # our future when this specific intent finishes processing.
+        intent = dict(intent)  # avoid mutating caller's dict
+        intent.setdefault("source", "SERVER")
+        cid = intent.get("client_action_id") or uuid.uuid4().hex
+        intent["client_action_id"] = cid
+
+        loop = asyncio.get_event_loop()
+        fut: asyncio.Future = loop.create_future()
+        self._pending[table_id][cid] = fut
+
+        async with self._locks[table_id]:
+            await engine.submit(intent)
+
+        try:
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except asyncio.TimeoutError:
+            self._pending[table_id].pop(cid, None)
+            return {"accepted": False, "error": {"reason": "ENGINE_TIMEOUT"}}
+
     # ---- presence / reconnect-grace ----
 
     @property

@@ -145,18 +145,27 @@ async def _spawn_engine_for_table(
     # current hand_number+1 so subsequent hands at the same table get
     # distinct shuffles even with a fixed seed.
     plain_seed, seed_hash = generate_server_seed()
-    await engine.submit({
-        "type": "START_HAND",
-        "source": "SERVER",
-        "hand_id": f"h_{uuid.uuid4().hex[:10]}",
-        "nonce": int(state.hand_number) + 1,
-        "server_seed": plain_seed,
-        "server_seed_hash": seed_hash,
-        # Per-seat client seeds will be auto-collected from
-        # `state.pending_client_seeds` (populated via SUBMIT_CLIENT_SEED).
-        # No `client_seeds_by_seat` here so the reducer reads pending.
-        "target_score": int(table_doc["target_score"]),
-    })
+    # Submit-and-await so the engine has fully transitioned WAITING
+    # → BETTING_R1 (and broadcast the corresponding STATE_UPDATE)
+    # before the HTTP /start response returns. This eliminates the
+    # race where a WS client connecting immediately after /start
+    # would snapshot the engine in WAITING phase.
+    await bridge.submit_server_intent(
+        table_id,
+        {
+            "type": "START_HAND",
+            "source": "SERVER",
+            "hand_id": f"h_{uuid.uuid4().hex[:10]}",
+            "nonce": int(state.hand_number) + 1,
+            "server_seed": plain_seed,
+            "server_seed_hash": seed_hash,
+            # Per-seat client seeds will be auto-collected from
+            # `state.pending_client_seeds` (populated via SUBMIT_CLIENT_SEED).
+            # No `client_seeds_by_seat` here so the reducer reads pending.
+            "target_score": int(table_doc["target_score"]),
+        },
+        timeout=3.0,
+    )
     return table_doc
 
 
