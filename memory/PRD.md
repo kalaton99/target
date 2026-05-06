@@ -949,6 +949,7 @@ under load alongside all other multiplayer tests.
 18. ✅ P2: Phase-progression flake fix — JOKER → BETTING_R3 skip contract — **DONE 2026-05 v2**.
 19. ✅ P3: Wording cleanup — "no 2-seat table type" rule + per-tier min seated to start (4-seat tier → ≥2, 5-seat tier → ≥3) — **DONE 2026-05 v3**.
 20. ✅ P1: Reconnect-grace orphan-task race fix — `_grace_expiry` now checks `player.connected` after sleep — **DONE 2026-05 v3**.
+21. ✅ P0: Release-Candidate stability pass — 9/9 scenarios PASS (4×10 full-game tiers w/ max bots, reconnect spam, refresh mid-hand, 5 concurrent tables, disconnect-forever, start/join/leave edge cases). No engine bugs found: no deadlocks, no stuck phases, no card leaks before SHOWDOWN, no payout mismatches. RC harness added at `backend/tests/test_rc_stability_2026_05.py`. **DONE 2026-05 v3**.
 # P2 (per architecture v3.2)
 - Telegram linking + notifications + wallet bridge
 - Web3 deposit / withdrawal pipeline
