@@ -87,9 +87,14 @@ export default function LobbyPage() {
         if (!r.ok) {
           let detail = "";
           try { detail = (await r.json())?.detail || ""; } catch (_) {}
+          // 2026-05 v3 demo polish: show a friendly message; keep the
+          // technical detail only if helpful for debugging in dev.
+          const friendly =
+            "Google sign-in didn't complete. Please try again, or use guest sign-in below.";
           setOauthErr(
-            `Google sign-in failed (${r.status})${detail ? ` — ${detail}` : ""}. ` +
-            `Please try again or use guest sign-in below.`,
+            detail && r.status >= 500
+              ? `${friendly} (server error: ${detail})`
+              : friendly,
           );
           return;
         }
@@ -108,8 +113,7 @@ export default function LobbyPage() {
         setUser(stored);
       } catch (e) {
         setOauthErr(
-          `Google sign-in error: ${e?.message || e}. ` +
-          `Please try again or use guest sign-in below.`,
+          "Google sign-in didn't complete. Please try again, or use guest sign-in below.",
         );
       } finally {
         setOauthBusy(false);
@@ -161,6 +165,8 @@ export default function LobbyPage() {
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(30);
   const [stake, setStake] = useState(100);
+  // 2026-05 v3 — How-to-play overlay (X1)
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   // 2026-05: max/min are server-derived from target_score (locked-rules
   // migration). The form no longer collects them.
   const [botCount, setBotCount] = useState(0);
@@ -329,7 +335,12 @@ export default function LobbyPage() {
           <div className="text-3xl font-bold tracking-widest text-zinc-100 mb-2 text-center">
             <span className="text-yellow-400">▲</span> lobby
           </div>
-          <p className="text-zinc-500 text-sm mb-8 text-center">Sign in to enter.</p>
+          <p className="text-zinc-400 text-sm mb-2 text-center">
+            A live multi-round card game. Get the closest score to the target without going over.
+          </p>
+          <p className="text-zinc-600 text-xs mb-8 text-center">
+            Sign in to start a hand. Free to play, no download.
+          </p>
           {redirectMsg && (
             <div
               data-testid="redirect-msg"
@@ -356,12 +367,14 @@ export default function LobbyPage() {
           </button>
           {oauthErr && <div data-testid="oauth-err" className="text-rose-400 mb-3 text-xs text-center">{oauthErr}</div>}
           <div className="text-zinc-700 text-[10px] tracking-[0.3em] uppercase text-center my-4">— or —</div>
-          <p className="text-zinc-600 text-xs mb-2 text-center">Guest sign-in (dev / staging only).</p>
+          <p className="text-zinc-600 text-xs mb-2 text-center">
+            Quick play — no email needed.
+          </p>
           <input
             data-testid="username-input"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="guest username"
+            placeholder="Choose a username (2–16 chars)"
             className="w-full mb-3 bg-zinc-900 border border-zinc-700 rounded-md p-3 text-zinc-100"
           />
           <button
@@ -394,76 +407,106 @@ export default function LobbyPage() {
             <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — lobby</div>
             <div className="text-zinc-100 text-lg" data-testid="lobby-username">{user.username}</div>
           </div>
-          <button
-            data-testid="logout-btn"
-            onClick={doLogout}
-            className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 text-xs uppercase tracking-widest"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              data-testid="how-to-play-btn"
+              onClick={() => setHowToPlayOpen(true)}
+              title="How to play"
+              className="px-3 py-2 rounded-md border border-yellow-700/60 text-yellow-300 hover:bg-yellow-500/10 text-xs uppercase tracking-widest"
+            >
+              How to play
+            </button>
+            <button
+              data-testid="logout-btn"
+              onClick={doLogout}
+              className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 text-xs uppercase tracking-widest"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Create table */}
         <div className="rounded-lg border border-zinc-800 p-4 mb-6 bg-zinc-950/40">
           <div className="text-zinc-400 text-xs uppercase tracking-widest mb-3">Create table</div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3">
-            <input
-              data-testid="table-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="name"
-              className="bg-zinc-900 border border-zinc-700 rounded p-2 col-span-2"
-            />
-            <select
-              data-testid="target-select"
-              value={target}
-              onChange={(e) => setTarget(Number(e.target.value))}
-              className="bg-zinc-900 border border-zinc-700 rounded p-2"
-            >
-              {/*
-                Hardcoded options (instead of TARGETS.map(...)) to avoid the
-                Emergent dev-tool wrapping the dynamic `{t}` expression in a
-                <span style={{display:"contents"}} />, which is invalid HTML
-                inside <option> and produces a hydration warning. Static
-                children = no expression to wrap.
-              */}
-              <option value={30}>target 30</option>
-              <option value={50}>target 50</option>
-              <option value={75}>target 75</option>
-              <option value={100}>target 100</option>
-            </select>
-            <input
-              data-testid="stake-input"
-              type="number"
-              min={0}
-              value={stake}
-              onChange={(e) => setStake(e.target.value)}
-              className="bg-zinc-900 border border-zinc-700 rounded p-2"
-              placeholder="stake"
-            />
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-3 gap-y-2 mb-3">
+            <div className="col-span-2 flex flex-col">
+              <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Table name</label>
+              <input
+                data-testid="table-name-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Friday night"
+                className="bg-zinc-900 border border-zinc-700 rounded p-2"
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Target score</label>
+              <select
+                data-testid="target-select"
+                value={target}
+                onChange={(e) => setTarget(Number(e.target.value))}
+                className="bg-zinc-900 border border-zinc-700 rounded p-2"
+              >
+                {/*
+                  Hardcoded options (instead of TARGETS.map(...)) to avoid the
+                  Emergent dev-tool wrapping the dynamic `{t}` expression in a
+                  <span style={{display:"contents"}} />, which is invalid HTML
+                  inside <option> and produces a hydration warning. Static
+                  children = no expression to wrap.
+                */}
+                <option value={30}>30 — fast (4 seats)</option>
+                <option value={50}>50 — fast (4 seats)</option>
+                <option value={75}>75 — long (5 seats)</option>
+                <option value={100}>100 — long (5 seats)</option>
+              </select>
+            </div>
+            <div className="flex flex-col">
+              <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Stake (per ante)</label>
+              <input
+                data-testid="stake-input"
+                type="number"
+                min={0}
+                value={stake}
+                onChange={(e) => setStake(e.target.value)}
+                className="bg-zinc-900 border border-zinc-700 rounded p-2"
+                placeholder="e.g. 100"
+              />
+            </div>
             {/* 2026-05: derived seat count is shown read-only beside the
                 target select (locked-rules migration). max/min inputs are
                 gone — server derives `max_players` from `target_score`. */}
-            <div
-              data-testid="seats-derived"
-              className="bg-zinc-900 border border-zinc-700 rounded p-2 text-zinc-500 text-sm flex items-center"
-            >
-              {(config.table_seats_by_target?.[Number(target)] ?? "—")} seats
+            <div className="flex flex-col">
+              <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Seats</label>
+              <div
+                data-testid="seats-derived"
+                className="bg-zinc-900 border border-zinc-700 rounded p-2 text-zinc-500 text-sm flex items-center"
+              >
+                {(config.table_seats_by_target?.[Number(target)] ?? "—")} seats
+              </div>
             </div>
             {config.allow_bots && (
-              <input
-                data-testid="bot-count-input"
-                type="number"
-                min={0}
-                max={perTargetBotMax}
-                value={botCount}
-                onChange={(e) => setBotCount(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 rounded p-2"
-                placeholder="bots"
-                title={`Dev: 0–${perTargetBotMax} CPU bots (seats − 1)`}
-              />
+              <div className="flex flex-col">
+                <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">CPU bots (dev)</label>
+                <input
+                  data-testid="bot-count-input"
+                  type="number"
+                  min={0}
+                  max={perTargetBotMax}
+                  value={botCount}
+                  onChange={(e) => setBotCount(e.target.value)}
+                  className="bg-zinc-900 border border-zinc-700 rounded p-2"
+                  placeholder={`0–${perTargetBotMax}`}
+                  title={`Dev: 0–${perTargetBotMax} CPU bots (seats − 1)`}
+                />
+              </div>
             )}
           </div>
+          <p className="text-zinc-500 text-xs mb-3" data-testid="target-hint">
+            {Number(target) <= 50
+              ? `Target ${target}: fast 4-seat table. Starts when 2+ players are seated.`
+              : `Target ${target}: longer 5-seat table. Starts when 3+ players are seated.`}
+          </p>
           <button
             data-testid="create-table-btn"
             onClick={doCreate}
@@ -540,6 +583,69 @@ export default function LobbyPage() {
         </div>
 
         {err && <div data-testid="lobby-err" className="text-rose-400 mt-4 text-sm">{err}</div>}
+
+        {/* 2026-05 v3 — How-to-play overlay (X1).
+            Three-card explainer: goal, hand flow, fairness. Pure copy,
+            no engine ties. */}
+        {howToPlayOpen && (
+          <div
+            data-testid="how-to-play-modal"
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80"
+            onClick={() => setHowToPlayOpen(false)}
+          >
+            <div
+              className="max-w-3xl w-full rounded-lg border border-yellow-700/40 bg-zinc-950 p-5 max-h-[90vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-yellow-300 uppercase tracking-widest text-xs">How to play TARGET</div>
+                <button
+                  data-testid="how-to-play-close"
+                  type="button"
+                  onClick={() => setHowToPlayOpen(false)}
+                  className="text-zinc-500 hover:text-zinc-200 text-xs uppercase tracking-widest"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded border border-zinc-800 bg-black/40 p-4">
+                  <div className="text-yellow-400 text-base font-semibold mb-2">1 · Goal</div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">
+                    Get your card score as close to the table's <span className="text-yellow-300">target</span> as you can — without going over.
+                    Closest score wins the pot at the end of the hand.
+                  </p>
+                </div>
+                <div className="rounded border border-zinc-800 bg-black/40 p-4">
+                  <div className="text-yellow-400 text-base font-semibold mb-2">2 · One hand</div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">
+                    Each hand has 5 phases:
+                  </p>
+                  <ol className="text-zinc-400 text-xs leading-5 mt-2 list-decimal list-inside">
+                    <li>Round 1 — bet, call or check</li>
+                    <li>Draw 1 — hit (take a card) or stand</li>
+                    <li>Round 2 — bet again</li>
+                    <li>Draw 2 — last chance to draw</li>
+                    <li>Round 3 — final bets, then showdown</li>
+                  </ol>
+                </div>
+                <div className="rounded border border-zinc-800 bg-black/40 p-4">
+                  <div className="text-emerald-400 text-base font-semibold mb-2">3 · Provably fair</div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">
+                    Every shuffle is committed (locked) before the deal and revealed at PAYOUT.
+                    Click <span className="text-emerald-300">Verify result</span> on the play
+                    screen to recompute the deck yourself with SHA-256 — no trust required.
+                  </p>
+                </div>
+              </div>
+              <p className="text-zinc-500 text-xs mt-4 text-center">
+                Cards: 2–10 score face value, A=1, J/Q/K=10. Drawing a Joker disqualifies you for the hand.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -125,6 +125,38 @@ function computeHandLabels(player, eligibleMaxScore, handFinished) {
   return out;
 }
 
+// 2026-05 v3 demo polish — friendly phase labels (P2). Engine
+// emits raw enum values (BETTING_R1, DRAW_2, …); the UI maps to
+// natural English so first-time users understand the round
+// progression without a tutorial.
+const PHASE_LABEL = {
+  WAITING: "Waiting",
+  ANTE: "Ante",
+  BETTING_R1: "Round 1 — Betting",
+  DEAL_INITIAL: "Dealing cards",
+  DRAW: "Draw",
+  DRAW_1: "Draw 1",
+  BETTING_R2: "Round 2 — Betting",
+  DRAW_2: "Draw 2",
+  BETTING_R3: "Round 3 — Betting",
+  SHOWDOWN: "Showdown",
+  PAYOUT: "Payout",
+  HAND_COMPLETE: "Hand complete",
+  ENDED: "Ended",
+};
+function friendlyPhase(p) {
+  return PHASE_LABEL[p] || p || "—";
+}
+
+// 2026-05 v3 demo polish — friendly WS connection label (P8 nice-to-have
+// promoted to come along with P3 since both share the header strip).
+function friendlyWs(s) {
+  if (s === "open") return "Connected";
+  if (s === "error") return "Reconnecting…";
+  if (s === "closed") return "Disconnected";
+  return s;
+}
+
 function PlayPage() {
   const { tableId: lobbyTableId } = useParams();
   const navigate = useNavigate();
@@ -169,6 +201,8 @@ function PlayPage() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
   const [verifyBusy, setVerifyBusy] = useState(false);
+  // 2026-05 v3 demo polish — fairness-explainer modal (P4).
+  const [fairnessExplainerOpen, setFairnessExplainerOpen] = useState(false);
   const wsRef = useRef(null);
   const myUserIdRef = useRef(null);
 
@@ -929,21 +963,28 @@ function PlayPage() {
             on multiple lines when the viewport narrows (≤ 430px). */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-3 mb-6">
           <div>
-            <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — phase 11 mvp</div>
+            <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — table</div>
             <div className="text-zinc-100 text-lg" data-testid="my-username">{session.username}</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Pill testid="phase-pill" tone="gold">{view.phase || "—"}</Pill>
+            <Pill testid="phase-pill" tone="gold" title={`Engine phase: ${view.phase || "—"}`}>{friendlyPhase(view.phase)}</Pill>
             <Pill testid="sv-pill">v{view.sv}</Pill>
             <Pill tone="gold" testid="target-pill">TARGET {view.targetScore || "—"}</Pill>
             <Pill tone="gold" testid="pot-pill">POT {view.pot}</Pill>
             {view.rngCommitHash && (
-              <Pill testid="fairness-pill" tone="ok" title="The shuffle is provably fair. Click 'Verify result' at the end of the hand.">
-                FAIRNESS ON
-              </Pill>
+              <button
+                type="button"
+                data-testid="fairness-pill"
+                onClick={() => setFairnessExplainerOpen(true)}
+                title="Click to learn how this hand is provably fair"
+                className="inline-flex items-center gap-1 text-xs uppercase tracking-wider px-2 py-0.5 rounded-full border bg-black/40 border-emerald-700/60 text-emerald-300 hover:bg-emerald-500/10"
+              >
+                <span>FAIR</span>
+                <span aria-hidden className="rounded-full border border-emerald-600/60 w-4 h-4 inline-flex items-center justify-center text-[10px]">?</span>
+              </button>
             )}
             <Pill testid="ws-state-pill" tone={wsState === "open" ? "ok" : wsState === "error" ? "danger" : "default"}>
-              WS {wsState}
+              {friendlyWs(wsState)}
             </Pill>
           </div>
         </div>
@@ -964,6 +1005,28 @@ function PlayPage() {
             >
               dismiss
             </button>
+          </div>
+        )}
+
+        {/* 2026-05 v3 demo polish — your-turn coaching (P3).
+            One-line plain-English hint shown ONLY when it's the
+            local player's turn. Pure UI, no engine ties — derived
+            from existing `myTurn` / `myBettingTurn`. */}
+        {(myTurn || myBettingTurn) && (
+          <div
+            data-testid="turn-coach"
+            data-coach-kind={myTurn ? "draw" : "bet"}
+            role="status"
+            className="mb-4 rounded-md border border-yellow-700/50 bg-yellow-500/10 px-4 py-2 text-yellow-200 text-sm flex items-center"
+          >
+            <span className="text-yellow-400 font-semibold mr-2">Your turn —</span>
+            <span data-testid="turn-coach-text">
+              {myTurn
+                ? "tap HIT to draw another card, or STAND to lock in your score."
+                : (Number(view.currentCallOwed || 0) > 0
+                    ? "match the current bet (Call) or Fold to drop out."
+                    : "Check to pass, or place a Bet to raise the pot.")}
+            </span>
           </div>
         )}
 
@@ -1582,6 +1645,45 @@ function PlayPage() {
           );
         })()}
 
+        {/* 2026-05 v3 demo polish — fairness explainer (P4).
+            Lightweight 2-sentence overlay invoked from the FAIR pill.
+            Engine-agnostic copy. */}
+        {fairnessExplainerOpen && (
+          <div
+            data-testid="fairness-explainer-modal"
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80"
+            onClick={() => setFairnessExplainerOpen(false)}
+          >
+            <div
+              className="max-w-md w-full rounded-lg border border-emerald-700/40 bg-zinc-950 p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-emerald-300 uppercase tracking-widest text-xs">Provably fair</div>
+                <button
+                  data-testid="fairness-explainer-close"
+                  type="button"
+                  onClick={() => setFairnessExplainerOpen(false)}
+                  className="text-zinc-500 hover:text-zinc-200 text-xs uppercase tracking-widest"
+                >
+                  Close
+                </button>
+              </div>
+              <p className="text-zinc-200 text-sm leading-relaxed mb-3">
+                Before this hand started, the server <span className="text-emerald-300">committed</span> to a secret shuffle by publishing its SHA-256 hash. You can see it now under <span className="text-emerald-300">FAIR</span> in the header.
+              </p>
+              <p className="text-zinc-200 text-sm leading-relaxed mb-3">
+                When the hand ends at <span className="text-yellow-300">PAYOUT</span>, the server reveals the secret. Tap <span className="text-emerald-300">Verify result</span> to recompute the deck yourself — if it matches, the shuffle was honest.
+              </p>
+              <p className="text-zinc-500 text-xs leading-relaxed">
+                You can also submit your own random text via <span className="text-zinc-300">Add client seed</span> before a hand to mix into the shuffle — making it impossible for either side to predict the deal.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Verify modal — pure-frontend re-derivation of the deck. */}
         {verifyOpen && (
           <div
@@ -1612,12 +1714,24 @@ function PlayPage() {
                 The shuffle used these inputs. Anyone can plug them into a SHA-256
                 + Fisher–Yates implementation to reconstruct the same deck.
               </div>
-              <FairnessRow label="Commit (locked at deal)" value={view.rngCommitHash} testid="verify-commit-hash" />
-              <FairnessRow label="Revealed seed" value={view.rngRevealedSeed} testid="verify-revealed-seed" />
-              <FairnessRow label="Nonce" value={String(view.rngNonce ?? 0)} testid="verify-nonce" />
+              <FairnessRow
+                label="Server's promise (locked before the deal)"
+                value={view.rngCommitHash}
+                testid="verify-commit-hash"
+              />
+              <FairnessRow
+                label="Server's secret (revealed at payout)"
+                value={view.rngRevealedSeed}
+                testid="verify-revealed-seed"
+              />
+              <FairnessRow
+                label="Hand number (nonce)"
+                value={String(view.rngNonce ?? 0)}
+                testid="verify-nonce"
+              />
               <div className="my-3 border-t border-zinc-800" />
               <div className="text-zinc-500 text-[10px] uppercase tracking-widest mb-2">
-                Per-seat random seeds (yours and opponents')
+                Each player's contribution to the shuffle
               </div>
               <div className="space-y-1 mb-3" data-testid="verify-client-seeds">
                 {(view.players || [])
