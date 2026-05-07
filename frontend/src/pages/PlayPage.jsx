@@ -5,6 +5,7 @@ import {
   randomClientSeed,
   verifyCommit,
 } from "../lib/fairness";
+import { Avatar } from "../components/Avatar";
 
 // Phase 11 P2 — supports two modes:
 //   /play           → dev solo mode (POST /api/v2/dev/spawn_solo_table)
@@ -962,9 +963,17 @@ function PlayPage() {
             crowding the username. `flex-wrap` on the pills keeps them
             on multiple lines when the viewport narrows (≤ 430px). */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-3 mb-6">
-          <div>
-            <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — table</div>
-            <div className="text-zinc-100 text-lg" data-testid="my-username">{session.username}</div>
+          <div className="flex items-center gap-3">
+            <Avatar
+              userId={myUserId}
+              size={64}
+              active={myTurn || myBettingTurn}
+              testid="my-avatar"
+            />
+            <div>
+              <div className="text-yellow-400/90 tracking-[0.4em] text-[10px] uppercase">TARGET — table</div>
+              <div className="text-zinc-100 text-lg" data-testid="my-username">{session.username}</div>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Pill testid="phase-pill" tone="gold" title={`Engine phase: ${view.phase || "—"}`}>{friendlyPhase(view.phase)}</Pill>
@@ -1141,12 +1150,18 @@ function PlayPage() {
                   className={`w-full sm:min-w-[220px] sm:w-auto rounded-lg border p-4 bg-zinc-900/60 ${borderCls}`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="font-semibold">
-                      {p.username}
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Avatar
+                        userId={p.user_id}
+                        size={24}
+                        active={isTurn && !handFinished}
+                        testid={`opponent-${p.seat}-avatar`}
+                      />
+                      <span>{p.username}</span>
                       {flavor && (
                         <span
                           data-testid={`opponent-${p.seat}-flavor`}
-                          className="ml-2 text-[10px] uppercase tracking-widest text-zinc-500"
+                          className="ml-1 text-[10px] uppercase tracking-widest text-zinc-500"
                         >
                           · {flavor}
                         </span>
