@@ -1442,7 +1442,7 @@ function PlayPage() {
           >
             Back to lobby
           </button>
-          {handFinished && !lobbyMode && (
+          {handFinished && (
             <>
               <button
                 data-testid="deal-again-btn"
