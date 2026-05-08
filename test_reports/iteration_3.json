@@ -1,0 +1,36 @@
+{
+  "summary": "Tested Deal-Again target-selector bug fix end-to-end. Backend (8/8 pytest cases pass) and Frontend (full E2E) pass — but I found and fixed a critical regression in PlayPage.jsx where clicking PLAY threw a circular-JSON error because onClick={startPlay} passed a SyntheticEvent as the targetScore arg. Fixed to onClick={() => startPlay()} and re-validated.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_solo_table_target_2026_01.py",
+    "/app/test_reports/pytest/solo_target_2026_01.xml"
+  ],
+  "action_items": [
+    "Review the one-line fix at /app/frontend/src/pages/PlayPage.jsx line ~980 (onClick={() => startPlay()} instead of onClick={startPlay}). This regression was introduced by adding the optional targetScore parameter to startPlay; React passed the click SyntheticEvent into JSON.stringify(body) and crashed before the spawn fetch."
+  ],
+  "critical_code_review_comments": [
+    "PlayPage.jsx is 1962 lines — well over the 700-line guideline. Should be split into smaller modules (target-selector modal, hand area, opponents panel, betting controls, event log).",
+    "startPlay accepts (targetScore = null, previousTableId = null). Any future onClick wiring must wrap in arrow fn. Consider adding a guard: `if (targetScore && typeof targetScore !== 'number') targetScore = null;` to be defensive against this class of bug.",
+    "dev_router.py spawn endpoint duplicates the HTTPException raise pattern — the `from fastapi import HTTPException` is imported 3 times locally. Move to module-level import.",
+    "teardown_solo_table relies on closure-scoped `bots` dict; if the dev_router is rebuilt, in-flight bot drivers leak. Acceptable for dev-only scope."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/PlayPage.jsx (one-line: onClick={() => startPlay()})",
+    "/app/backend/tests/test_solo_table_target_2026_01.py (new pytest suite)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (all E2E flows: modal opens, 4 options visible, cancel works, target=75 spawns 5-seat/2-bot table, target=50 spawns 4-seat/1-bot table, target-pill updates correctly, no console errors)"},
+  "test_credentials": "None required (TARGET_ALLOW_BOTS=1 enables /api/v2/dev/* unauthenticated)",
+  "seed_data_creation": "None — tests spawn-and-teardown ephemeral solo tables.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_solo_table_target_2026_01.py (8 tests). The Deal-Again modal flow is fully wired: PlayPage.jsx has startPlay(targetScore, previousTableId) which calls /api/v2/dev/teardown_solo_table then /api/v2/dev/spawn_solo_table. Modal data-testids: target-selector-modal, target-option-{30|50|75|100}, target-selector-close, target-selector-spawning. Note: REACT_APP_BACKEND_URL is the public URL.",
+  "rca of the issue": "RCA — Critical regression introduced by the Deal-Again refactor: PlayPage.jsx had `<button onClick={startPlay}>` (line ~980). After startPlay was changed from a no-arg fn to `startPlay(targetScore=null, previousTableId=null)`, React began passing the click SyntheticEvent as targetScore. At line 254 `body = targetScore != null ? { target_score: targetScore } : {}` evaluated truthy (SyntheticEvent is not null), so `JSON.stringify(body)` attempted to serialize the React fiber graph and threw 'Converting circular structure to JSON --> HTMLButtonElement'. The catch set statusLine to ERROR and the spawn never occurred. Reproduction: visit /play, click PLAY, see error text under buttons. Fix: wrap in arrow fn so handler is invoked with no args. Verified by re-running the full E2E flow with zero console errors and successful target=75 / target=50 deal-again paths."
+}

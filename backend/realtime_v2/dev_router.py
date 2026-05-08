@@ -33,10 +33,16 @@ import logging
 import uuid
 from typing import Dict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from fastapi.responses import HTMLResponse
 
-from core.constants import ALLOW_BOTS
+from core.constants import (
+    ALLOW_BOTS,
+    DEFAULT_TARGET_SCORE,
+    VALID_TARGET_SCORES,
+    min_seated_for_target,
+    seats_for_target,
+)
 from core.security import create_token
 from game_engine.rng import generate_server_seed
 from game_engine.turn_engine import TurnEngine
@@ -220,11 +226,14 @@ class _BotDriver:
 
 def build_dev_router(bridge: EngineBridge) -> APIRouter:
     router = APIRouter(prefix="/v2/dev", tags=["realtime_v2.dev"])
-    bots: Dict[str, _BotDriver] = {}
+    # 2026-05 v3 — multi-bot solo tables (target 75/100 require 2
+    # bots to satisfy `min_seated_for_target`). One table_id maps to
+    # the list of `_BotDriver`s that need to be stopped on teardown.
+    bots: Dict[str, list[_BotDriver]] = {}
 
     @router.post("/spawn_solo_table")
-    async def spawn_solo_table():
-        # 2026-05: solo tables pair the user with a bot. Per
+    async def spawn_solo_table(payload: dict | None = Body(default=None)):
+        # 2026-05: solo tables pair the user with one or more bots. Per
         # GAME_RULES_LOCKED.md §5 this MUST be off in production.
         if not ALLOW_BOTS:
             from fastapi import HTTPException
@@ -233,31 +242,80 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
                 detail={"code": "BOTS_DISABLED",
                         "message": "solo/bot tables are disabled on this server"},
             )
+
+        # 2026-05 v3 — accept optional `target_score` so the
+        # frontend Deal-Again target-selector modal can spawn the
+        # correct tier (30/50 → 4 seats, 75/100 → 5 seats). Default
+        # remains the legacy DEFAULT_TARGET_SCORE for back-compat
+        # with the standalone PLAY button and any internal callers
+        # that posted with no body.
+        target_score = DEFAULT_TARGET_SCORE
+        if payload:
+            raw = payload.get("target_score")
+            if raw is not None:
+                try:
+                    target_score = int(raw)
+                except (TypeError, ValueError):
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"code": "INVALID_TARGET_SCORE",
+                                "message": "target_score must be an integer"},
+                    )
+        if target_score not in VALID_TARGET_SCORES:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_TARGET_SCORE",
+                        "message": f"target_score must be one of {list(VALID_TARGET_SCORES)}"},
+            )
+
+        # Tier-locked sizing. We seat the human creator + (min_seated-1)
+        # bots so the table can start immediately at the per-tier
+        # minimum (4-seat tiers: 1 bot; 5-seat tiers: 2 bots).
+        min_seated = min_seated_for_target(target_score)
+        bot_count = max(1, min_seated - 1)
+
         suffix = uuid.uuid4().hex[:6]
         user_id = f"u_anon_{suffix}"
-        bot_user_id = f"u_bot_{suffix}"
         username = f"You_{suffix}"
-        bot_username = f"Bot_{suffix}"
         table_id = f"tbl_{uuid.uuid4().hex[:12]}"
 
         state = GameState(table_id=table_id)
-        state.players = [
+        players = [
             PlayerState(
                 seat_index=0, user_id=user_id, username=username,
                 balance_at_start=1000,
             ),
-            PlayerState(
-                seat_index=1, user_id=bot_user_id, username=bot_username,
-                balance_at_start=1000,
-            ),
         ]
+        bot_user_ids: list[tuple[int, str, str]] = []
+        for i in range(bot_count):
+            bot_suffix = f"{suffix}_{i}" if bot_count > 1 else suffix
+            bot_user_id = f"u_bot_{bot_suffix}"
+            bot_username = f"Bot_{bot_suffix}"
+            seat_idx = i + 1
+            players.append(
+                PlayerState(
+                    seat_index=seat_idx, user_id=bot_user_id, username=bot_username,
+                    balance_at_start=1000,
+                )
+            )
+            bot_user_ids.append((seat_idx, bot_user_id, bot_username))
+        state.players = players
         engine = TurnEngine(state, turn_timeout_ms=15000)
         bridge.register_engine(table_id, engine)
         await engine.start()
 
-        bot = _BotDriver(bridge, table_id, bot_user_id, bot_seat=1)
-        await bot.start()
-        bots[table_id] = bot
+        # Spawn one driver per bot seat.
+        spawned_drivers: list[_BotDriver] = []
+        for seat_idx, bot_user_id, _ in bot_user_ids:
+            driver = _BotDriver(bridge, table_id, bot_user_id, bot_seat=seat_idx)
+            await driver.start()
+            spawned_drivers.append(driver)
+        # Track all drivers so teardown can stop them. We keep the
+        # list under the table_id key (legacy code stored a single
+        # driver — this is the multi-bot generalisation).
+        bots[table_id] = spawned_drivers
 
         # Start the hand (server-driven). Do not await a particular phase here;
         # the gateway's WELCOME → first STATE_UPDATE flow will surface it.
@@ -275,20 +333,59 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
                 "nonce": 1,
                 "server_seed": plain_seed,
                 "server_seed_hash": seed_hash,
-                "target_score": 30,
+                "target_score": target_score,
             },
             timeout=3.0,
         )
 
         token = create_token(user_id)
+        primary_bot = bot_user_ids[0] if bot_user_ids else (None, None, None)
         return {
             "table_id": table_id,
             "token": token,
             "user_id": user_id,
             "username": username,
-            "bot_user_id": bot_user_id,
-            "bot_username": bot_username,
+            "target_score": target_score,
+            "seats": seats_for_target(target_score),
+            "bot_user_id": primary_bot[1],
+            "bot_username": primary_bot[2],
+            "bot_user_ids": [b[1] for b in bot_user_ids],
         }
+
+    @router.post("/teardown_solo_table")
+    async def teardown_solo_table(payload: dict = Body(...)):
+        """Tear down a previously-spawned solo table.
+
+        Used by the frontend "Deal Again" flow so the abandoned table
+        does not leak into the bridge's engine map. Idempotent — a
+        missing table_id is treated as already-torn-down (200 OK).
+        """
+        table_id = (payload or {}).get("table_id")
+        if not table_id or not isinstance(table_id, str):
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "MISSING_TABLE_ID",
+                        "message": "table_id is required"},
+            )
+        # Stop bot driver(s) for this table.
+        drivers = bots.pop(table_id, None)
+        if drivers is not None:
+            # Tolerate the legacy single-driver shape just in case.
+            if not isinstance(drivers, list):
+                drivers = [drivers]
+            for d in drivers:
+                try:
+                    await d.stop()
+                except Exception:  # noqa: BLE001
+                    logger.exception("teardown: bot stop failed table=%s", table_id)
+        existed = bridge.has_engine(table_id)
+        if existed:
+            try:
+                await bridge.unregister_engine(table_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("teardown: bridge unregister failed table=%s", table_id)
+        return {"ok": True, "table_id": table_id, "existed": existed}
 
     @router.get("/play", response_class=HTMLResponse)
     async def play():

@@ -204,6 +204,12 @@ function PlayPage() {
   const [verifyBusy, setVerifyBusy] = useState(false);
   // 2026-05 v3 demo polish — fairness-explainer modal (P4).
   const [fairnessExplainerOpen, setFairnessExplainerOpen] = useState(false);
+  // 2026-05 v3 — Deal-Again target-selector modal. Opens when the
+  // local player clicks "Deal Again" at PAYOUT/SHOWDOWN/ENDED so
+  // they can pick the next hand's target tier (30/50 → 4 seats,
+  // 75/100 → 5 seats) instead of being silently put back into a
+  // hardcoded target=30 table.
+  const [targetSelectorOpen, setTargetSelectorOpen] = useState(false);
   const wsRef = useRef(null);
   const myUserIdRef = useRef(null);
 
@@ -212,11 +218,45 @@ function PlayPage() {
   }, []);
 
   // ----- spawn + connect -----
-  const startPlay = useCallback(async () => {
+  // 2026-05 v3 — `targetScore` is optional; defaults to legacy
+  // behavior (solo target 30). The "Deal Again" flow passes an
+  // explicit value chosen by the user via the target-selector
+  // modal. `previousTableId` (when provided) is torn down server-
+  // side first so the abandoned engine doesn't leak.
+  const startPlay = useCallback(async (targetScore = null, previousTableId = null) => {
     setConnecting(true);
     setStatusLine("Spawning table…");
     try {
-      const r = await fetch("/api/v2/dev/spawn_solo_table", { method: "POST" });
+      // Best-effort cleanup of the previous solo table. We swallow
+      // failures here because the new table spawn must not be
+      // blocked by stale-table cleanup.
+      if (previousTableId) {
+        try {
+          await fetch("/api/v2/dev/teardown_solo_table", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ table_id: previousTableId }),
+          });
+        } catch (e) {
+          console.debug("PlayPage: teardown of previous solo table failed", e);
+        }
+      }
+      // Close the existing WS (if any) before opening a new one,
+      // otherwise the old socket lingers until GC and can race with
+      // the new STATE_UPDATE stream.
+      try {
+        const cur = wsRef.current;
+        if (cur && cur.readyState !== WebSocket.CLOSED) cur.close();
+      } catch (e) {
+        console.debug("PlayPage: error closing previous WS", e);
+      }
+
+      const body = targetScore != null ? { target_score: targetScore } : {};
+      const r = await fetch("/api/v2/dev/spawn_solo_table", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       if (!r.ok) throw new Error("spawn failed " + r.status);
       const data = await r.json();
       myUserIdRef.current = data.user_id;
@@ -233,7 +273,7 @@ function PlayPage() {
         handNumber: (v.handNumber || 0) + 1,
       }));
       setMe({ cards: [], score: 0, soft: false, busted: false, disqualified: false });
-      setLog([`spawned ${data.table_id}`]);
+      setLog([`spawned ${data.table_id} (target ${data.target_score})`]);
       setStatusLine("Connecting…");
     } catch (e) {
       setStatusLine("ERROR: " + (e?.message || e));
@@ -937,7 +977,7 @@ function PlayPage() {
           </p>
           <button
             data-testid="play-btn"
-            onClick={startPlay}
+            onClick={() => startPlay()}
             disabled={connecting}
             className="px-12 py-4 rounded-md border border-yellow-600/60 bg-yellow-500/10 text-yellow-300 tracking-[0.4em] uppercase hover:bg-yellow-500/20 disabled:opacity-40 transition mr-3"
           >
@@ -1372,11 +1412,21 @@ function PlayPage() {
           >
             FOLD
           </button>
-          {handFinished && (
+          {handFinished && lobbyMode && (
+            <a
+              data-testid="back-to-lobby-btn"
+              href="/lobby"
+              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
+            >
+              Back to lobby
+            </a>
+          )}
+          {handFinished && !lobbyMode && (
             <button
               data-testid="deal-again-btn"
-              onClick={startPlay}
-              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
+              onClick={() => setTargetSelectorOpen(true)}
+              disabled={connecting}
+              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base disabled:opacity-30 disabled:cursor-not-allowed"
             >
               Deal again
             </button>
@@ -1663,6 +1713,87 @@ function PlayPage() {
         {/* 2026-05 v3 demo polish — fairness explainer (P4).
             Lightweight 2-sentence overlay invoked from the FAIR pill.
             Engine-agnostic copy. */}
+        {/* 2026-05 v3 — Deal-Again target-selector modal.
+            Replaces the old auto-spawn-target-30 behaviour: at PAYOUT,
+            "Deal Again" opens this modal so the player explicitly
+            chooses the next hand's target tier. The previous solo
+            table is torn down server-side as part of the spawn flow
+            (see `startPlay`). */}
+        {targetSelectorOpen && (() => {
+          const tiers = [
+            { score: 30, seats: 4, label: "Quick · 4 seats" },
+            { score: 50, seats: 4, label: "Standard · 4 seats" },
+            { score: 75, seats: 5, label: "Long · 5 seats" },
+            { score: 100, seats: 5, label: "Marathon · 5 seats" },
+          ];
+          return (
+            <div
+              data-testid="target-selector-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Choose target tier for the next hand"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85"
+              onClick={() => !connecting && setTargetSelectorOpen(false)}
+            >
+              <div
+                className="max-w-md w-full rounded-lg border border-yellow-700/40 bg-zinc-950 p-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-yellow-300 uppercase tracking-widest text-xs">Choose target</div>
+                  <button
+                    data-testid="target-selector-close"
+                    type="button"
+                    onClick={() => setTargetSelectorOpen(false)}
+                    disabled={connecting}
+                    className="text-zinc-500 hover:text-zinc-200 text-xs uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-zinc-400 text-xs mb-4">
+                  Pick the score you’ll be racing toward. Higher targets
+                  mean longer hands and bigger tables.
+                </p>
+                <div className="space-y-2">
+                  {tiers.map((t) => (
+                    <button
+                      key={t.score}
+                      type="button"
+                      data-testid={`target-option-${t.score}`}
+                      disabled={connecting}
+                      onClick={async () => {
+                        const prev = session?.table_id || null;
+                        setTargetSelectorOpen(false);
+                        await startPlay(t.score, prev);
+                      }}
+                      className="w-full flex items-center justify-between rounded-md border border-yellow-700/40 bg-zinc-900/60 hover:bg-yellow-500/10 px-4 py-3 text-left disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <div>
+                        <div className="text-yellow-200 text-base font-semibold tracking-wider">
+                          TARGET {t.score}
+                        </div>
+                        <div className="text-zinc-500 text-xs">{t.label}</div>
+                      </div>
+                      <span className="text-zinc-500 text-xs uppercase tracking-widest">
+                        {t.seats} seats
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {connecting && (
+                  <div
+                    data-testid="target-selector-spawning"
+                    className="mt-4 text-zinc-500 text-xs uppercase tracking-widest text-center"
+                  >
+                    spawning…
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {fairnessExplainerOpen && (
           <div
             data-testid="fairness-explainer-modal"
