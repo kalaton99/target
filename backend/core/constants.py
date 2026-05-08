@@ -24,8 +24,8 @@ TIMEOUT_GRACE_MS = 500           # network jitter tolerance
 # ---------- Game rules ----------
 VALID_TARGET_SCORES = (30, 50, 75, 100)
 DEFAULT_TARGET_SCORE = 30        # used by dev spawn; production must be explicit
-JOKERS_IN_DECK = 2
-DECK_SIZE_WITH_JOKERS = 54
+JOKERS_IN_DECK = 1
+DECK_SIZE_WITH_JOKERS = 53
 
 # ---------- Table sizes locked per target tier (2026-05 v2) ----------
 # Source of truth: GAME_RULES_LOCKED.md §2. Server derives `max_players`

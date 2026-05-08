@@ -1,0 +1,29 @@
+{
+  "summary": "Validated TARGET game follow-up fixes: (1) Joker rule (initial 53/refill 52) — 4 backend tests pass. (2) Post-PAYOUT 'Deal again' replays SAME target without modal; 'Change target' opens modal with options 30/50/75/100. (3) 'Back to lobby' button always visible in actions bar; opens confirm modal during ACTIVE hand (cancel keeps on /play, confirm navigates to /lobby); navigates DIRECTLY to /lobby at PAYOUT. All 16 backend regression tests (joker_count + deck_refill + solo_table_target) pass. All 3 frontend E2E flows pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_joker_count_2026_02.py",
+    "/app/backend/tests/test_deck_refill_2026_05.py",
+    "/app/backend/tests/test_solo_table_target_2026_01.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PlayPage.jsx is ~2100+ lines — consider splitting into smaller components (actions bar, modals, opponents grid) to improve maintainability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (3/3 flows)"},
+  "test_credentials": "Guest auth — no credentials required; PLAY button auto-enters as guest",
+  "seed_data_creation": "None — solo tables spawn dynamically via /api/solo/spawn",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Driving solo /play to PAYOUT: click PLAY, then loop CHECK while enabled then STAND when DRAW; PAYOUT reached in ~5 iterations (~12s). Important testids: deal-again-btn (replays same target, label 'Deal again · T{N}'), change-target-btn (opens target-selector-modal), back-to-lobby-btn (always visible), back-confirm-modal+back-confirm-cancel/confirm (only during active hand).",
+  "rca_of_the_issue": "N/A — all three follow-up fixes verified working as specified in /app/frontend/src/pages/PlayPage.jsx (back-to-lobby-btn @1433, deal-again-btn @1448 calls startPlay(view.targetScore), change-target-btn @1474 opens setTargetSelectorOpen, back-confirm-modal @1773 only renders during active hand)."
+}

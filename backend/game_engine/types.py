@@ -48,10 +48,11 @@ class GameState:
     version: int = 0                # state_version
     players: List[PlayerState] = field(default_factory=list)
     deck: List[Dict[str, Any]] = field(default_factory=list)  # face-down to clients
-    # 2026-05 rule addition — when the initial 54-card deck is exhausted
-    # mid-hand, the engine refills with a fresh 52-card jokerless deck.
-    # `deck_refills` counts refills in the current hand and seeds a
-    # deterministic reshuffle so replays reproduce.
+    # 2026-05 rule addition — when the initial deck (52 + 1 Joker = 53
+    # cards as of 2026-02) is exhausted mid-hand, the engine refills
+    # with a fresh 52-card jokerless deck. `deck_refills` counts
+    # refills in the current hand and seeds a deterministic reshuffle
+    # so replays reproduce.
     deck_refills: int = 0
     pot: int = 0
 

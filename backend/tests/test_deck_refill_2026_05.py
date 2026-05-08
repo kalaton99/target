@@ -1,7 +1,10 @@
-"""2026-05 deck-refill rule — when the initial 54-card deck exhausts
+"""2026-05 deck-refill rule — when the initial deck exhausts
 mid-hand, the engine refills with a fresh 52-card JOKERLESS deck.
 Discard pile is not reshuffled. Refills are deterministic (replays
 reproduce the same card order from the same hand seed).
+
+2026-02 update: the initial deck is now 52 + 1 Joker (= 53 cards),
+not 52 + 2 (= 54). Refill behaviour is unchanged.
 """
 from __future__ import annotations
 
@@ -42,8 +45,8 @@ def _make_hand_with_empty_deck():
     for u in ("u0", "u1"):
         state, _ = reduce(state, {"type": "CHECK", "user_id": u})
     assert state.phase == "DRAW_1"
-    # Starting deck was 54; DEAL_INITIAL consumed 2 → 52 remain.
-    assert len(state.deck) == 52
+    # Starting deck was 53 (52 + 1 Joker); DEAL_INITIAL consumed 2 → 51 remain.
+    assert len(state.deck) == 51
     # Artificially drain the deck so the next HIT triggers a refill.
     state.deck = []
     return state

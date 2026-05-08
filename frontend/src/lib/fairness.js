@@ -22,8 +22,10 @@ export function buildFreshDeck({ includeJokers = true } = {}) {
   for (const s of SUITS) {
     for (const r of RANKS) deck.push({ rank: r, suit: s });
   }
+  // 2026-02 rule: initial deck is 52 + exactly 1 Joker (was 52 + 2).
+  // Refills are Joker-less, so a single hand/deck sequence may see
+  // at most one Joker before a refill.
   if (includeJokers) {
-    deck.push({ rank: "JOKER", suit: "*" });
     deck.push({ rank: "JOKER", suit: "*" });
   }
   return deck;

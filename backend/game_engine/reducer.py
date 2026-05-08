@@ -72,7 +72,7 @@ class ReducerError(Exception):
 # ============================================================
 
 def _refill_deck_if_empty(state: GameState, events: List[Dict[str, Any]]) -> None:
-    """2026-05 rule: when the initial 54-card deck (52 + 2 jokers) is
+    """2026-02 rule: when the initial 53-card deck (52 + 1 Joker) is
     exhausted mid-hand, continue with a fresh 52-card jokerless deck.
 
     The discard pile is NOT reshuffled — we build a brand-new 52-card

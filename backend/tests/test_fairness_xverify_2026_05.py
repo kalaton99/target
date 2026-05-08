@@ -133,6 +133,6 @@ def test_deck_refill_breaks_naive_topn_match():
     state, _ = _drive_to_payout(state)
     assert state.phase == "PAYOUT"
     assert state.deck_refills == 0, (
-        "balanced HIT/STAND policy should never deplete the 54-card "
+        "balanced HIT/STAND policy should never deplete the 53-card "
         f"deck mid-hand at target=100; got {state.deck_refills}"
     )

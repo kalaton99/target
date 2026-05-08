@@ -6,9 +6,16 @@ from .cards import Card, SUITS, RANKS
 
 
 def build_fresh_deck(include_jokers: bool = True) -> List[Card]:
+    """Build a fresh deck.
+
+    2026-02 (rules tightening): the standard initial deck is 52 cards
+    + exactly **one** Joker. The previous 52+2 Joker layout has been
+    removed — within a single hand/deck sequence, the engine must
+    never deal more than one Joker before a refill (and refills are
+    Joker-less per `_refill_deck_if_empty`).
+    """
     deck: List[Card] = [Card(r, s) for s in SUITS for r in RANKS]
     if include_jokers:
-        deck.append(Card("JOKER", "*"))
         deck.append(Card("JOKER", "*"))
     return deck
 

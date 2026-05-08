@@ -205,11 +205,15 @@ function PlayPage() {
   // 2026-05 v3 demo polish — fairness-explainer modal (P4).
   const [fairnessExplainerOpen, setFairnessExplainerOpen] = useState(false);
   // 2026-05 v3 — Deal-Again target-selector modal. Opens when the
-  // local player clicks "Deal Again" at PAYOUT/SHOWDOWN/ENDED so
-  // they can pick the next hand's target tier (30/50 → 4 seats,
-  // 75/100 → 5 seats) instead of being silently put back into a
-  // hardcoded target=30 table.
+  // local player clicks "Change target" at PAYOUT/SHOWDOWN/ENDED so
+  // they can pick a different target tier (30/50 → 4 seats, 75/100
+  // → 5 seats). The default Deal-Again behaviour replays the
+  // current tier — see the deal-again-btn handler.
   const [targetSelectorOpen, setTargetSelectorOpen] = useState(false);
+  // 2026-02 — Back-to-Lobby confirmation modal. Shown whenever the
+  // user clicks Back-to-Lobby while a hand is still active so they
+  // do not accidentally forfeit the current table.
+  const [backConfirmOpen, setBackConfirmOpen] = useState(false);
   const wsRef = useRef(null);
   const myUserIdRef = useRef(null);
 
@@ -1419,24 +1423,63 @@ function PlayPage() {
           >
             FOLD
           </button>
-          {handFinished && lobbyMode && (
-            <a
-              data-testid="back-to-lobby-btn"
-              href="/lobby"
-              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
-            >
-              Back to lobby
-            </a>
-          )}
+          {/* 2026-02 — Back to lobby is always available during
+              gameplay. While a hand is active we open a confirmation
+              modal so the user does not accidentally forfeit the
+              current table; once the hand has finished
+              (PAYOUT/SHOWDOWN/ENDED) we navigate directly. */}
+          <button
+            type="button"
+            data-testid="back-to-lobby-btn"
+            onClick={() => {
+              if (handFinished || wsState !== "open") {
+                navigate("/lobby");
+              } else {
+                setBackConfirmOpen(true);
+              }
+            }}
+            className="px-4 sm:px-5 py-3 rounded-md border border-zinc-600 text-zinc-300 hover:bg-zinc-200/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
+          >
+            Back to lobby
+          </button>
           {handFinished && !lobbyMode && (
-            <button
-              data-testid="deal-again-btn"
-              onClick={() => setTargetSelectorOpen(true)}
-              disabled={connecting}
-              className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              Deal again
-            </button>
+            <>
+              <button
+                data-testid="deal-again-btn"
+                onClick={() => {
+                  // 2026-02 — primary path: replay the same target
+                  // tier directly so the user keeps the rhythm
+                  // they're already in. Falls back to opening the
+                  // selector if for some reason we don't have a
+                  // current target_score (shouldn't happen post-
+                  // PAYOUT, but defensive).
+                  const t = view.targetScore;
+                  if (typeof t !== "number") {
+                    setTargetSelectorOpen(true);
+                    return;
+                  }
+                  startPlay(t, session?.table_id || null);
+                }}
+                disabled={connecting}
+                title={
+                  typeof view.targetScore === "number"
+                    ? `Deal another hand at TARGET ${view.targetScore}`
+                    : "Deal another hand"
+                }
+                className="px-4 sm:px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Deal again{typeof view.targetScore === "number" ? ` · T${view.targetScore}` : ""}
+              </button>
+              <button
+                data-testid="change-target-btn"
+                onClick={() => setTargetSelectorOpen(true)}
+                disabled={connecting}
+                title="Pick a different target tier for the next hand"
+                className="px-3 sm:px-5 py-3 rounded-md border border-yellow-700/60 text-yellow-300 hover:bg-yellow-500/10 tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Change target
+              </button>
+            </>
           )}
           <span className="hidden sm:inline-block ml-auto text-zinc-500 text-xs" data-testid="status-line">{statusLine}</span>
         </div>
@@ -1720,6 +1763,70 @@ function PlayPage() {
         {/* 2026-05 v3 demo polish — fairness explainer (P4).
             Lightweight 2-sentence overlay invoked from the FAIR pill.
             Engine-agnostic copy. */}
+        {/* 2026-02 — Back-to-Lobby confirmation. Mounted only while
+            a hand is still active; PAYOUT/finished navigates direct.
+            Confirm walks the user away from the current table; in
+            solo (dev) mode we also tear down the engine server-side
+            so the abandoned table doesn't leak. */}
+        {backConfirmOpen && (
+          <div
+            data-testid="back-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Leave active game?"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85"
+            onClick={() => setBackConfirmOpen(false)}
+          >
+            <div
+              className="max-w-sm w-full rounded-lg border border-rose-700/40 bg-zinc-950 p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-rose-300 uppercase tracking-widest text-xs mb-3">
+                Leave active game?
+              </div>
+              <p className="text-zinc-200 text-sm leading-relaxed mb-4">
+                A hand is still in progress. Leaving now may forfeit
+                your seat and any chips at stake on this table.
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  data-testid="back-confirm-cancel"
+                  onClick={() => setBackConfirmOpen(false)}
+                  className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs uppercase tracking-widest"
+                >
+                  Stay
+                </button>
+                <button
+                  type="button"
+                  data-testid="back-confirm-confirm"
+                  onClick={async () => {
+                    setBackConfirmOpen(false);
+                    // Best-effort cleanup of the abandoned solo
+                    // table (no-op in lobby mode — the lobby owns
+                    // that table's lifecycle).
+                    if (!lobbyMode && session?.table_id) {
+                      try {
+                        await fetch("/api/v2/dev/teardown_solo_table", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ table_id: session.table_id }),
+                        });
+                      } catch (e) {
+                        console.debug("PlayPage: forfeit-teardown failed", e);
+                      }
+                    }
+                    navigate("/lobby");
+                  }}
+                  className="px-4 py-2 rounded-md border border-rose-600/60 text-rose-200 hover:bg-rose-500/10 text-xs uppercase tracking-widest"
+                >
+                  Leave
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 2026-05 v3 — Deal-Again target-selector modal.
             Replaces the old auto-spawn-target-30 behaviour: at PAYOUT,
             "Deal Again" opens this modal so the player explicitly
