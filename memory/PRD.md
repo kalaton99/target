@@ -1,5 +1,36 @@
 # TARGET — Premium Card Game
 
+## Last Updated: 2026-02 (Deal-Again target-selector fix)
+
+## Recent Changes
+
+### 2026-02 — Deal-Again target-selector modal (P0 fix)
+- **Backend** (`backend/realtime_v2/dev_router.py`):
+  - `POST /api/v2/dev/spawn_solo_table` now accepts optional body
+    `{target_score: 30|50|75|100}`. Validates against
+    `VALID_TARGET_SCORES`; defaults to 30 for back-compat.
+  - Spawns `min_seated_for_target(target) - 1` bots so the table can
+    start at the per-tier minimum (4-seat tiers: 1 bot; 5-seat tiers:
+    2 bots).
+  - New `POST /api/v2/dev/teardown_solo_table` (idempotent) stops bot
+    drivers and unregisters the engine via `bridge.unregister_engine`.
+- **Frontend** (`frontend/src/pages/PlayPage.jsx`):
+  - "Deal Again" button no longer auto-spawns a hardcoded target=30
+    table. It now opens an in-place target-selector modal
+    (`data-testid="target-selector-modal"`) with options for
+    30/50/75/100; selecting a tier tears down the previous solo
+    table and spawns a new one without leaving the play screen.
+  - In lobby mode (`/play/:tableId`) "Deal Again" is replaced by a
+    "Back to lobby" link so lobby-driven hands cannot be replaced
+    by solo tables.
+  - `startPlay(targetScore, previousTableId)` is the unified spawn
+    helper; defends against non-numeric `targetScore` to prevent
+    SyntheticEvent regressions.
+- **Tests**: `backend/tests/test_solo_table_target_2026_01.py` (8
+  cases) — all pass. Frontend E2E validated via testing agent (modal
+  opens, 4 options visible, target=75 spawns 5-seat/2-bot table,
+  target=50 spawns 4-seat/1-bot, cancel works, no console errors).
+
 ## Original Problem Statement
 Build a production-ready, real-money-capable multiplayer card game called **TARGET**: 2–8 players, controlled card drawing (Blackjack-like score ≤ 21 target), poker-like betting, special cards (2 = strategic, 10 = attack, Joker = DQ), commission, lottery accumulator. Server-authoritative, deterministic, integer-only money, anti-fraud.
 

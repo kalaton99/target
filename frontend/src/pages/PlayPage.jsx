@@ -224,6 +224,13 @@ function PlayPage() {
   // modal. `previousTableId` (when provided) is torn down server-
   // side first so the abandoned engine doesn't leak.
   const startPlay = useCallback(async (targetScore = null, previousTableId = null) => {
+    // Defensive: a previous regression wired this fn directly to an
+    // onClick which passed the React SyntheticEvent as `targetScore`,
+    // causing JSON.stringify to throw on the circular fiber graph.
+    // If we ever get a non-numeric value here, coerce to null.
+    if (targetScore != null && typeof targetScore !== "number") {
+      targetScore = null;
+    }
     setConnecting(true);
     setStatusLine("Spawning table…");
     try {
