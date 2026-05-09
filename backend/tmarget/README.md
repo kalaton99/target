@@ -21,7 +21,8 @@ cancelled/invalid refunds use deterministic wallet idempotency keys.
 
 The active storage implementation is `InMemoryTmargetRepository` in
 `repository.py`. It preserves the current local/demo behavior while making the
-next durable phase explicit. Future storage must persist:
+next durable phase explicit. The durable schema and repository contract are
+documented in `STORAGE_MODEL.md`. Future storage must persist:
 
 - markets and market rules
 - liquidity pool state
