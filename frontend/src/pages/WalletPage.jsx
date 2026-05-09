@@ -36,6 +36,9 @@ const REASON_LABELS = {
   admin_credit: "admin credit",
 };
 
+const DEMO_CREDIT_NOTICE =
+  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
+
 function storedUser() {
   try {
     return JSON.parse(localStorage.getItem("target_user") || "null");
@@ -142,12 +145,14 @@ export default function WalletPage() {
           <Link to="/" className="flex items-center gap-3">
             <Logo size={40} />
             <div>
-              <div className="font-luxe text-xs uppercase tracking-[0.4em] text-yellow-300">Platform Wallet</div>
-              <div className="text-xs text-zinc-500">Internal demo credits</div>
+              <div className="font-luxe text-xs uppercase tracking-[0.4em] text-yellow-300">Axwins Wallet</div>
+              <div className="text-xs text-zinc-500">Internal demo-credit core service</div>
             </div>
           </Link>
-          <nav className="flex gap-2 text-xs uppercase tracking-widest text-zinc-400">
+          <nav className="flex flex-wrap gap-2 text-xs uppercase tracking-widest text-zinc-400">
+            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/">Home</Link>
             <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/games">Games</Link>
+            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget">Tmarget</Link>
             <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/profile">Profile</Link>
           </nav>
         </div>
@@ -155,12 +160,10 @@ export default function WalletPage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="mb-6">
-          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Wallet</div>
-          <h1 className="mt-2 font-display text-5xl tracking-widest">Internal Credits</h1>
+          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Platform Core</div>
+          <h1 className="mt-2 font-display text-5xl tracking-widest">Wallet and Ledger</h1>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
-            This platform currently uses internal demo credits. Live deposits,
-            withdrawals, card payments, crypto transfers, and Telegram wallet
-            linking are not enabled.
+            {DEMO_CREDIT_NOTICE}
           </p>
         </div>
 
@@ -176,7 +179,7 @@ export default function WalletPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <WalletCard title="Current Balance" value={summary.balance} caption={summary.currency_label} />
               <WalletCard title="Locked Balance" value={summary.locked_balance ?? summary.locked} caption="Reserved by active tables" />
-              <WalletCard title="Available Balance" value={summary.available_balance} caption="Internal demo credits" />
+              <WalletCard title="Available Balance" value={summary.available_balance} caption="Available internal demo credits" />
             </div>
 
             <div className="mt-8 rounded-lg border border-zinc-800 bg-zinc-950 p-5">

@@ -117,7 +117,7 @@ export default function FlipgetPage() {
         <div className="mx-auto max-w-3xl">
           <Link className="btn-ghost" to="/games">Back</Link>
           <h1 className="mt-6 font-display text-5xl tracking-widest">Flipget</h1>
-          <p className="mt-4 text-zinc-400">Sign in through the Target lobby before playing Flipget.</p>
+          <p className="mt-4 text-zinc-400">Sign in through the Axwins lobby before playing Flipget.</p>
           <Link className="btn-primary mt-6 inline-flex" to="/lobby">Sign in</Link>
         </div>
       </div>
@@ -128,12 +128,16 @@ export default function FlipgetPage() {
     return (
       <div className="min-h-screen bg-black px-4 py-8 text-zinc-100">
         <div className="mx-auto max-w-6xl">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Game module</div>
+              <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Axwins Game</div>
               <h1 className="mt-2 font-display text-5xl tracking-widest">Flipget</h1>
             </div>
-            <Link className="btn-ghost" to="/games">Products</Link>
+            <div className="flex flex-wrap gap-2">
+              <Link className="btn-ghost" to="/">Axwins</Link>
+              <Link className="btn-ghost" to="/games">Games</Link>
+              <Link className="btn-ghost" to="/wallet">Wallet</Link>
+            </div>
           </div>
           <div className="mt-8 flex flex-wrap items-end gap-3">
             <label className="text-xs uppercase tracking-widest text-zinc-500">
@@ -191,7 +195,12 @@ export default function FlipgetPage() {
             <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Flipget Table</div>
             <h1 className="mt-2 font-display text-5xl tracking-widest">{table?.status || "Loading"}</h1>
           </div>
-          <Link className="btn-ghost" to="/flipget">Lobby</Link>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn-ghost" to="/">Axwins</Link>
+            <Link className="btn-ghost" to="/games">Games</Link>
+            <Link className="btn-ghost" to="/wallet">Wallet</Link>
+            <Link className="btn-ghost" to="/flipget">Lobby</Link>
+          </div>
         </div>
         {error && <div className="mt-4 text-sm text-rose-300">{error}</div>}
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Logo } from "../components/game/Logo";
 
 const DISCLAIMER =
-  "Tmarget is currently a demo/simulation prediction market using internal demo credits. Live deposits, withdrawals, crypto transfers, card payments, and real-money trading are not enabled.";
+  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
 
 const SAMPLE_MARKETS = [
   {
@@ -94,10 +94,16 @@ function TmargetShell({ children }) {
               <div className="font-luxe text-xs uppercase tracking-[0.4em] text-yellow-300">
                 Tmarget
               </div>
-              <div className="text-xs text-zinc-500">Demo prediction market platform</div>
+              <div className="text-xs text-zinc-500">Axwins demo prediction market product</div>
             </div>
           </Link>
           <nav className="flex flex-wrap items-center justify-end gap-2 text-xs uppercase tracking-widest text-zinc-400">
+            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/">
+              Axwins
+            </Link>
+            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/games">
+              Games
+            </Link>
             <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget/markets">
               Markets
             </Link>
@@ -181,7 +187,7 @@ export function TmargetHomePage() {
           </div>
           <h1 className="mt-2 font-display text-6xl tracking-widest text-zinc-100">Tmarget</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
-            Tmarget is a demo prediction market platform. It is separate from
+            Tmarget is a demo prediction market product. It is separate from
             Target, Diceget, and Flipget game modules, while sharing internal
             auth, wallet, ledger, audit, and admin infrastructure.
           </p>
@@ -421,7 +427,7 @@ export function TmargetMarketDetailPlaceholder() {
                 onClick={() => trade("sell")}
                 className="rounded border border-rose-700 px-4 py-3 text-sm uppercase tracking-widest text-rose-200 disabled:border-zinc-700 disabled:text-zinc-500"
               >
-                {canTrade ? "Sell Demo Shares" : "Coming Soon"}
+                {canTrade ? "Sell Demo Shares" : "Trading Not Enabled"}
               </button>
             </div>
           </aside>
