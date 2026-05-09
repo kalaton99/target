@@ -22,6 +22,11 @@ from realtime_v2.bridge import EngineBridge
 from realtime_v2.dev_router import build_dev_router
 from realtime_v2.pubsub import PubSub as _V2PubSub
 from lobby.router import build_lobby_router
+from diceget.router import build_diceget_router
+from flipget.router import build_flipget_router
+from platform_wallet.router import router as platform_wallet_router
+from tmarget.router import build_tmarget_router
+from target.wallet_bridge import build_ledger_from_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -71,7 +76,8 @@ async def _v2_authenticate(token: str):
 
 
 _v2_pubsub = _V2PubSub()
-engine_bridge = EngineBridge(_v2_pubsub)
+target_wallet_ledger = build_ledger_from_db(core_db.db, audit_col=core_db.db["audit_log"])
+engine_bridge = EngineBridge(_v2_pubsub, target_wallet_ledger=target_wallet_ledger)
 
 
 _v2_realtime = RealtimeV2(
@@ -91,6 +97,10 @@ v2_router.realtime_v2 = _v2_realtime  # type: ignore[attr-defined]
 api_router.include_router(v2_router)
 api_router.include_router(build_dev_router(engine_bridge))
 api_router.include_router(build_lobby_router(engine_bridge))
+api_router.include_router(build_diceget_router())
+api_router.include_router(build_flipget_router())
+api_router.include_router(build_tmarget_router())
+api_router.include_router(platform_wallet_router)
 
 # Expose for tests / future engine-spawning code.
 app.state.engine_bridge = engine_bridge  # type: ignore[attr-defined]

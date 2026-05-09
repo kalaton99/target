@@ -37,13 +37,18 @@ server-only intent. The gateway also rejects them at the protocol layer.
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState
+from ledger.service import LedgerService
+from target.wallet_bridge import settle_target_state_if_payout
 
 from .pubsub import PubSub
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- public broadcast envelope ----------
@@ -216,10 +221,12 @@ class EngineBridge:
         self,
         pubsub: PubSub,
         *,
+        target_wallet_ledger: Optional[LedgerService] = None,
         ack_timeout: float = 2.0,
         grace_seconds: float = GRACE_DEFAULT,
     ) -> None:
         self._pubsub = pubsub
+        self._target_wallet_ledger = target_wallet_ledger
         self._engines: Dict[str, TurnEngine] = {}
         self._pending: Dict[str, Dict[str, asyncio.Future]] = {}
         self._locks: Dict[str, asyncio.Lock] = {}
@@ -516,6 +523,15 @@ class EngineBridge:
     async def _publish_state(
         self, table_id: str, state: GameState, events: List[Dict[str, Any]],
     ) -> None:
+        if state.phase == "PAYOUT":
+            try:
+                await settle_target_state_if_payout(
+                    self._target_wallet_ledger,
+                    state=state,
+                )
+            except Exception:
+                logger.exception("target wallet settlement failed for table %s", table_id)
+
         # 1) Public broadcast — face-down cards for everyone.
         public = _public_state_payload(table_id, state, events)
         await self._pubsub.publish(f"table:{table_id}", public)

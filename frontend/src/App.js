@@ -7,7 +7,22 @@ import { AuthPage } from "@/pages/AuthPage";
 import { MenuPage } from "@/pages/MenuPage";
 import { TablesPage } from "@/pages/TablesPage";
 import PlayPage from "@/pages/PlayPage";
+import DicegetPage from "@/pages/DicegetPage";
+import FlipgetPage from "@/pages/FlipgetPage";
+import WalletPage from "@/pages/WalletPage";
 import LobbyPage from "@/pages/LobbyPage";
+import {
+  GamesPage,
+  PlatformHome,
+  ProfilePlaceholder,
+} from "@/pages/PlatformPages";
+import {
+  TmargetAdminMarketsPage,
+  TmargetHomePage,
+  TmargetMarketDetailPlaceholder,
+  TmargetMarketsPage,
+  TmargetPortfolioPage,
+} from "@/pages/TmargetPages";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -28,7 +43,22 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/lobby" replace />} />
+          <Route path="/" element={<PlatformHome />} />
+          <Route path="/games" element={<GamesPage />} />
+          <Route path="/games/target" element={<Navigate to="/lobby" replace />} />
+          <Route path="/games/diceget" element={<Navigate to="/diceget" replace />} />
+          <Route path="/diceget" element={<DicegetPage />} />
+          <Route path="/diceget/:tableId" element={<DicegetPage />} />
+          <Route path="/games/flipget" element={<Navigate to="/flipget" replace />} />
+          <Route path="/flipget" element={<FlipgetPage />} />
+          <Route path="/flipget/:tableId" element={<FlipgetPage />} />
+          <Route path="/tmarget" element={<TmargetHomePage />} />
+          <Route path="/tmarget/markets" element={<TmargetMarketsPage />} />
+          <Route path="/tmarget/markets/:slug" element={<TmargetMarketDetailPlaceholder />} />
+          <Route path="/tmarget/portfolio" element={<TmargetPortfolioPage />} />
+          <Route path="/tmarget/admin/markets" element={<TmargetAdminMarketsPage />} />
+          <Route path="/wallet" element={<WalletPage />} />
+          <Route path="/profile" element={<ProfilePlaceholder />} />
           <Route path="/lobby" element={<LobbyPage />} />
           <Route path="/play" element={<PlayPage />} />
           <Route path="/play/:tableId" element={<PlayPage />} />

@@ -1,0 +1,1 @@
+"""Diceget game module."""

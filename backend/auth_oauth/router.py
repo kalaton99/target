@@ -31,7 +31,9 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, 
 from pydantic import BaseModel
 
 from core import db as core_db
+from core.config import SIGNUP_BONUS
 from core.security import create_token, decode_token
+from target.wallet_bridge import build_ledger_from_db
 
 logger = logging.getLogger("auth_oauth")
 
@@ -194,6 +196,10 @@ async def google_session(body: _SessionRequest, response: Response):
         {"user_id": user_id},
         {"$set": {"user_id": user_id, "username": candidate, "auth_provider": "google"}},
         upsert=True,
+    )
+    await build_ledger_from_db(db, audit_col=db["audit_log"]).open_wallet(
+        user_id,
+        opening_balance=SIGNUP_BONUS,
     )
 
     # Cookie — httpOnly, samesite=None+secure for cross-site WS / iframe

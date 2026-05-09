@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from core import db as core_db
+from core.config import SIGNUP_BONUS
 from core.security import create_token, current_user_id
 from core.constants import (
     ALLOW_BOTS,
@@ -33,6 +34,13 @@ from game_engine.rng import generate_server_seed
 from game_engine.turn_engine import TurnEngine
 from game_engine.types import GameState, PlayerState
 from realtime_v2.bridge import EngineBridge
+from target.wallet_bridge import (
+    TargetWalletBridgeError,
+    TargetWalletInsufficientFunds,
+    build_ledger_from_db,
+    lock_target_stake,
+    unlock_target_stake,
+)
 
 from . import service
 
@@ -183,6 +191,16 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
     def _err(exc: service.LobbyError) -> HTTPException:
         return HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message})
 
+    def _target_ledger():
+        return build_ledger_from_db(core_db.db, audit_col=core_db.db["audit_log"])
+
+    def _wallet_err(exc: TargetWalletBridgeError) -> HTTPException:
+        status_code = 402 if isinstance(exc, TargetWalletInsufficientFunds) else 400
+        return HTTPException(
+            status_code=status_code,
+            detail={"code": exc.__class__.__name__, "message": str(exc)},
+        )
+
     @router.post("/auth")
     async def auth(body: AuthRequest):
         # 2026-05 v2 — guest auth gated by ALLOW_GUEST_AUTH (default ON).
@@ -200,6 +218,10 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
             user = await service.upsert_guest_user(core_db.db, body.username)
         except service.LobbyError as e:
             raise _err(e)
+        await _target_ledger().open_wallet(
+            user["user_id"],
+            opening_balance=SIGNUP_BONUS,
+        )
         token = create_token(user["user_id"])
         return {"user_id": user["user_id"], "username": user["username"], "token": token}
 
@@ -269,7 +291,7 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
                     },
                 )
         try:
-            return await service.create_table(
+            created = await service.create_table(
                 core_db.db,
                 creator_user_id=user_id,
                 name=body.name,
@@ -277,6 +299,19 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
                 stake=body.stake,
                 bot_count=body.bot_count,
             )
+            try:
+                await lock_target_stake(
+                    _target_ledger(),
+                    table_id=created["table_id"],
+                    user_id=user_id,
+                    stake=int(created.get("stake", 0)),
+                )
+            except TargetWalletBridgeError as wallet_exc:
+                await core_db.db["lobby_tables"].delete_one(
+                    {"table_id": created["table_id"], "status": "LOBBY"},
+                )
+                raise _wallet_err(wallet_exc)
+            return created
         except service.LobbyError as e:
             raise _err(e)
 
@@ -289,15 +324,41 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
 
     @router.post("/tables/{table_id}/join")
     async def join_table(table_id: str, user_id: str = Depends(current_user_id)):
+        table_before = await service.get_table(core_db.db, table_id)
+        if not table_before:
+            raise HTTPException(status_code=404, detail="TABLE_NOT_FOUND")
         try:
-            return await service.join_table(core_db.db, table_id=table_id, user_id=user_id)
+            joined = await service.join_table(core_db.db, table_id=table_id, user_id=user_id)
+            try:
+                await lock_target_stake(
+                    _target_ledger(),
+                    table_id=table_id,
+                    user_id=user_id,
+                    stake=int(table_before.get("stake", 0)),
+                )
+            except TargetWalletBridgeError as wallet_exc:
+                await service.leave_table(core_db.db, table_id=table_id, user_id=user_id)
+                raise _wallet_err(wallet_exc)
+            return joined
         except service.LobbyError as e:
             raise _err(e)
 
     @router.post("/tables/{table_id}/leave")
     async def leave_table(table_id: str, user_id: str = Depends(current_user_id)):
+        table_before = await service.get_table(core_db.db, table_id)
+        if not table_before:
+            raise HTTPException(status_code=404, detail="TABLE_NOT_FOUND")
         try:
+            await unlock_target_stake(
+                _target_ledger(),
+                table_id=table_id,
+                user_id=user_id,
+                stake=int(table_before.get("stake", 0)),
+                table_status=str(table_before.get("status", "")),
+            )
             return await service.leave_table(core_db.db, table_id=table_id, user_id=user_id)
+        except TargetWalletBridgeError as wallet_exc:
+            raise _wallet_err(wallet_exc)
         except service.LobbyError as e:
             raise _err(e)
 

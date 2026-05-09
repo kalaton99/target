@@ -1,0 +1,1 @@
+"""Flipget game module."""
