@@ -15,6 +15,7 @@ from .models import (
     TmargetTrade,
 )
 from .pricing import estimate_trade, prices
+from .repository import InMemoryTmargetRepository
 from .settlement import credit_refund, credit_settlement, payout_amount
 
 
@@ -39,20 +40,28 @@ def _slug(title: str) -> str:
 
 
 class TmargetService:
-    def __init__(self):
-        self.markets: dict[str, TmargetMarket] = {}
-        self.positions: dict[tuple[str, str, str], TmargetPosition] = {}
-        self.trades: list[TmargetTrade] = []
+    def __init__(self, repository: Optional[InMemoryTmargetRepository] = None):
+        self.repo = repository or InMemoryTmargetRepository()
+
+    @property
+    def markets(self) -> dict[str, TmargetMarket]:
+        return self.repo.markets
+
+    @property
+    def positions(self) -> dict[tuple[str, str, str], TmargetPosition]:
+        return self.repo.positions
+
+    @property
+    def trades(self) -> list[TmargetTrade]:
+        return self.repo.trades
 
     def list_markets(self) -> list[dict[str, Any]]:
-        return [self.market_payload(market) for market in self.markets.values()]
+        return [self.market_payload(market) for market in self.repo.list_markets()]
 
     def get_market(self, market_id_or_slug: str) -> TmargetMarket:
-        if market_id_or_slug in self.markets:
-            return self.markets[market_id_or_slug]
-        for market in self.markets.values():
-            if market.slug == market_id_or_slug:
-                return market
+        market = self.repo.get_market(market_id_or_slug)
+        if market is not None:
+            return market
         raise TmargetError("MARKET_NOT_FOUND")
 
     def market_payload(self, market: TmargetMarket) -> dict[str, Any]:
@@ -123,7 +132,8 @@ class TmargetService:
             rule=rule,
             pool=pool,
         )
-        self.markets[market_id] = market
+        self.repo.create_market(market)
+        self.repo.record_admin_action("create_market", market.id, created_by, {"title": market.title})
         return market
 
     def update_market(self, market_id: str, **fields: Any) -> TmargetMarket:
@@ -138,6 +148,8 @@ class TmargetService:
         if "source_url" in fields and fields["source_url"] is not None:
             market.rule.source_url = str(fields["source_url"])
         market.updated_at = _now()
+        self.repo.update_market(market)
+        self.repo.record_admin_action("update_market", market.id, None, fields)
         return market
 
     def open_market(self, market_id: str) -> TmargetMarket:
@@ -146,6 +158,8 @@ class TmargetService:
             raise TmargetError("MARKET_NOT_OPENABLE")
         market.status = "open"
         market.updated_at = _now()
+        self.repo.update_market(market)
+        self.repo.record_admin_action("open_market", market.id, None)
         return market
 
     def pause_market(self, market_id: str) -> TmargetMarket:
@@ -154,6 +168,8 @@ class TmargetService:
             raise TmargetError("MARKET_NOT_PAUSABLE")
         market.status = "paused"
         market.updated_at = _now()
+        self.repo.update_market(market)
+        self.repo.record_admin_action("pause_market", market.id, None)
         return market
 
     def close_market(self, market_id: str) -> TmargetMarket:
@@ -162,6 +178,8 @@ class TmargetService:
             raise TmargetError("MARKET_NOT_CLOSABLE")
         market.status = "closed"
         market.updated_at = _now()
+        self.repo.update_market(market)
+        self.repo.record_admin_action("close_market", market.id, None)
         return market
 
     async def cancel_market(self, market_id: str, ledger: Optional[LedgerService] = None) -> TmargetMarket:
@@ -173,6 +191,8 @@ class TmargetService:
         market.updated_at = _now()
         if ledger is not None:
             await self.refund_market(market, ledger, outcome="cancelled")
+        self.repo.update_market(market)
+        self.repo.record_admin_action("cancel_market", market.id, None)
         return market
 
     async def buy(
@@ -212,7 +232,9 @@ class TmargetService:
         market.pool.yes_pool = quote["next_yes_pool"]
         market.pool.no_pool = quote["next_no_pool"]
         market.pool.updated_at = _now()
+        self.repo.update_pool(market.id, market.pool)
         market.volume += quote["cost"]
+        self.repo.update_market(market)
         return trade
 
     async def sell(
@@ -247,7 +269,9 @@ class TmargetService:
         market.pool.yes_pool = quote["next_yes_pool"]
         market.pool.no_pool = quote["next_no_pool"]
         market.pool.updated_at = _now()
+        self.repo.update_pool(market.id, market.pool)
         market.volume += quote["cost"]
+        self.repo.update_market(market)
         return trade
 
     async def resolve_market(
@@ -278,6 +302,8 @@ class TmargetService:
             await self.settle_market(market, ledger, outcome=outcome)
         market.status = "resolved"
         market.updated_at = _now()
+        self.repo.update_market(market)
+        self.repo.record_admin_action("resolve_market", market.id, None, {"outcome": outcome})
         return market
 
     async def settle_market(self, market: TmargetMarket, ledger: LedgerService, *, outcome: str) -> None:
@@ -286,15 +312,18 @@ class TmargetService:
                 continue
             if pos.outcome == outcome and pos.shares > 0:
                 amount = payout_amount(pos.shares)
+                idempotency_key = f"tmarget:{market.id}:settlement:{pos.user_id}:{outcome}"
                 await credit_settlement(
                     ledger,
                     user_id=pos.user_id,
                     market_id=market.id,
                     amount=amount,
-                    idempotency_key=f"tmarget:{market.id}:settlement:{pos.user_id}:{outcome}",
+                    idempotency_key=idempotency_key,
                 )
+                self.repo.record_settlement(market.id, pos.user_id, outcome, amount, idempotency_key)
                 pos.realized_pnl += amount
             pos.settled = True
+            self.repo.upsert_position(pos)
 
     async def refund_market(self, market: TmargetMarket, ledger: LedgerService, *, outcome: str) -> None:
         for pos in list(self.positions.values()):
@@ -302,27 +331,29 @@ class TmargetService:
                 continue
             amount = int(pos.cost_basis)
             if amount > 0:
+                idempotency_key = f"tmarget:{market.id}:refund:{pos.user_id}:{outcome}:{pos.outcome}"
                 await credit_refund(
                     ledger,
                     user_id=pos.user_id,
                     market_id=market.id,
                     amount=amount,
-                    idempotency_key=f"tmarget:{market.id}:refund:{pos.user_id}:{outcome}:{pos.outcome}",
+                    idempotency_key=idempotency_key,
                 )
+                self.repo.record_refund(market.id, pos.user_id, outcome, amount, idempotency_key)
             pos.refunded = True
+            self.repo.upsert_position(pos)
 
     def market_positions(self, market_id: str, user_id: Optional[str] = None) -> list[dict[str, Any]]:
         return [
             pos.to_dict()
-            for pos in self.positions.values()
-            if pos.market_id == market_id and (user_id is None or pos.user_id == user_id)
+            for pos in self.repo.list_market_positions(market_id, user_id)
         ]
 
     def user_positions(self, user_id: str) -> list[dict[str, Any]]:
-        return [pos.to_dict() for pos in self.positions.values() if pos.user_id == user_id]
+        return [pos.to_dict() for pos in self.repo.get_user_positions(user_id)]
 
     def market_trades(self, market_id: str) -> list[dict[str, Any]]:
-        return [trade.to_dict() for trade in self.trades if trade.market_id == market_id]
+        return [trade.to_dict() for trade in self.repo.list_market_trades(market_id)]
 
     def _validate_trade(self, market: TmargetMarket, outcome: str, shares: int) -> None:
         if market.status != "open":
@@ -333,10 +364,11 @@ class TmargetService:
             raise TmargetError("SHARES_MUST_BE_POSITIVE")
 
     def _position(self, user_id: str, market_id: str, outcome: str) -> TmargetPosition:
-        key = (user_id, market_id, outcome)
-        if key not in self.positions:
-            self.positions[key] = TmargetPosition(user_id=user_id, market_id=market_id, outcome=outcome)  # type: ignore[arg-type]
-        return self.positions[key]
+        position = self.repo.get_position(user_id, market_id, outcome)
+        if position is None:
+            position = TmargetPosition(user_id=user_id, market_id=market_id, outcome=outcome)  # type: ignore[arg-type]
+            self.repo.upsert_position(position)
+        return position
 
     def _record_trade(self, market: TmargetMarket, user_id: str, side: str, outcome: str, shares: int, quote: dict) -> TmargetTrade:
         trade = TmargetTrade(
@@ -352,5 +384,4 @@ class TmargetService:
             status="filled",
             created_at=_now(),
         )
-        self.trades.append(trade)
-        return trade
+        return self.repo.create_trade(trade)

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core import db as core_db
 from core.security import current_user_id
 from target.wallet_bridge import build_ledger_from_db
 
+from .admin_guard import demo_admin_guard
 from .service import TmargetError, TmargetService
 
 
@@ -45,6 +45,12 @@ class ResolveRequest(BaseModel):
     resolver_notes: str
 
 
+def _body_dict(body: BaseModel, *, exclude_unset: bool = False) -> dict:
+    if hasattr(body, "model_dump"):
+        return body.model_dump(exclude_unset=exclude_unset)
+    return body.dict(exclude_unset=exclude_unset)
+
+
 def build_tmarget_router(service: TmargetService | None = None) -> APIRouter:
     router = APIRouter(prefix="/tmarget", tags=["tmarget"])
     svc = service or TmargetService()
@@ -54,11 +60,6 @@ def build_tmarget_router(service: TmargetService | None = None) -> APIRouter:
 
     def _err(exc: TmargetError) -> HTTPException:
         return HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message})
-
-    async def demo_admin_guard(x_demo_admin: str = Header(default="1")):
-        enabled = os.environ.get("TMARGET_DEMO_ADMIN_ENABLED", "1").lower() not in {"0", "false", "no"}
-        if not enabled or x_demo_admin not in {"1", "true", "demo"}:
-            raise HTTPException(status_code=403, detail="TMARGET_DEMO_ADMIN_ONLY")
 
     @router.get("/markets")
     async def list_markets():
@@ -122,7 +123,7 @@ def build_tmarget_router(service: TmargetService | None = None) -> APIRouter:
     @router.post("/admin/markets", dependencies=[Depends(demo_admin_guard)])
     async def create_market(body: MarketCreateRequest, user_id: str = Depends(current_user_id)):
         try:
-            market = svc.create_market(created_by=user_id, **body.dict())
+            market = svc.create_market(created_by=user_id, **_body_dict(body))
             return svc.market_payload(market)
         except TmargetError as exc:
             raise _err(exc)
@@ -130,7 +131,7 @@ def build_tmarget_router(service: TmargetService | None = None) -> APIRouter:
     @router.patch("/admin/markets/{market_id}", dependencies=[Depends(demo_admin_guard)])
     async def update_market(market_id: str, body: MarketUpdateRequest):
         try:
-            return svc.market_payload(svc.update_market(market_id, **body.dict(exclude_unset=True)))
+            return svc.market_payload(svc.update_market(market_id, **_body_dict(body, exclude_unset=True)))
         except TmargetError as exc:
             raise _err(exc)
 

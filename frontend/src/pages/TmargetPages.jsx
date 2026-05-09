@@ -543,7 +543,7 @@ export function TmargetAdminMarketsPage() {
     try {
       await apiJson("/api/tmarget/admin/markets", {
         method: "POST",
-        headers: authHeaders({ "X-Demo-Admin": "1" }),
+        headers: authHeaders({ "X-Axwins-Demo-Admin": "true" }),
         body: JSON.stringify({
           ...form,
           initial_liquidity: Number(form.initial_liquidity),
@@ -564,7 +564,7 @@ export function TmargetAdminMarketsPage() {
       const body = name === "resolve" ? JSON.stringify(resolution) : undefined;
       await apiJson(`/api/tmarget/admin/markets/${marketId}/${name}`, {
         method: "POST",
-        headers: authHeaders({ "X-Demo-Admin": "1" }),
+        headers: authHeaders({ "X-Axwins-Demo-Admin": "true" }),
         body,
       });
       setNotice(`Market ${name} complete.`);
@@ -583,6 +583,9 @@ export function TmargetAdminMarketsPage() {
           <p className="mt-4 text-sm leading-6 text-zinc-400">
             Demo-only controls for binary YES/NO markets. This does not create
             real-money markets, payment flows, deposits, withdrawals, or compliance claims.
+          </p>
+          <p className="mt-3 rounded border border-yellow-700/40 bg-yellow-500/10 p-3 text-sm leading-6 text-yellow-100">
+            Demo admin tooling is enabled for local/internal testing only. This is not production authorization.
           </p>
           <form onSubmit={createMarket} className="mt-6 grid gap-4">
             {[
