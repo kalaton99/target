@@ -299,4 +299,12 @@ def test_platform_shell_and_target_routes_are_still_present():
     assert 'to="/lobby"' in app_js
     assert "PlatformHome" in platform_pages
     assert "GamesPage" in platform_pages
-    assert "Existing strategic table game" in platform_pages
+    assert "Axwins" in platform_pages
+    assert "Games" in platform_pages
+    assert "Target" in platform_pages
+    assert 'href: "/games/target"' in platform_pages
+    assert "Diceget" in platform_pages
+    assert "Flipget" in platform_pages
+    assert "Prediction Markets" in platform_pages
+    assert "Tmarget" in platform_pages
+    assert "Platform Core" in platform_pages
