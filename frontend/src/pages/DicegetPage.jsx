@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 const TARGETS = [30, 50, 75, 100];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
+const DEMO_CREDIT_NOTICE =
+  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
 
 function storedUser() {
   try {
@@ -56,6 +58,23 @@ function SeatCard({ seat, active }) {
       <div className="mt-2 text-xs uppercase tracking-widest text-zinc-400">
         {seat.status}{seat.is_bot ? ` / ${seat.bot_profile}` : ""}
       </div>
+    </div>
+  );
+}
+
+function Notice({ children }) {
+  return (
+    <div className="rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
+      {children}
+    </div>
+  );
+}
+
+function ErrorNotice({ error }) {
+  if (!error) return null;
+  return (
+    <div className="rounded-lg border border-rose-800 bg-rose-950/30 p-4 text-sm text-rose-200">
+      {error}
     </div>
   );
 }
@@ -123,6 +142,10 @@ export default function DicegetPage() {
         <div className="mx-auto max-w-3xl">
           <Link className="btn-ghost" to="/games">Back</Link>
           <h1 className="mt-6 font-display text-5xl tracking-widest">Diceget</h1>
+          <p className="mt-4 text-zinc-400">4-player dice game inside Axwins.</p>
+          <div className="mt-5">
+            <Notice>{DEMO_CREDIT_NOTICE}</Notice>
+          </div>
           <p className="mt-4 text-zinc-400">Sign in through the Axwins lobby before playing Diceget.</p>
           <Link className="btn-primary mt-6 inline-flex" to="/lobby">Sign in</Link>
         </div>
@@ -138,12 +161,18 @@ export default function DicegetPage() {
             <div>
               <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Axwins Game</div>
               <h1 className="mt-2 font-display text-5xl tracking-widest">Diceget</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+                4-player dice game inside Axwins. Pick a target, create or join a table, then roll, hold, or forfeit on your turn.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link className="btn-ghost" to="/">Axwins</Link>
               <Link className="btn-ghost" to="/games">Games</Link>
               <Link className="btn-ghost" to="/wallet">Wallet</Link>
             </div>
+          </div>
+          <div className="mt-6">
+            <Notice>{DEMO_CREDIT_NOTICE}</Notice>
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
@@ -182,12 +211,19 @@ export default function DicegetPage() {
                 navigate(`/diceget/${created.table_id}`);
               })}
             >
-              Create Table
+              Create Diceget Table
             </button>
           </div>
-          {error && <div className="mt-4 text-sm text-rose-300">{error}</div>}
+          <div className="mt-4">
+            <ErrorNotice error={error} />
+          </div>
 
           <div className="mt-10 grid gap-3">
+            {tables.length === 0 && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-sm text-zinc-400">
+                No active Diceget tables. Create a 4-player table to start.
+              </div>
+            )}
             {tables.map((item) => (
               <div key={item.table_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
                 <div>
@@ -198,7 +234,7 @@ export default function DicegetPage() {
                   <button className="btn-secondary" disabled={busy || item.status !== "waiting"} onClick={() => run(async () => {
                     await api(`/tables/${item.table_id}/join`, { method: "POST" });
                     navigate(`/diceget/${item.table_id}`);
-                  })}>Join</button>
+                  })}>Join Table</button>
                   <Link className="btn-ghost" to={`/diceget/${item.table_id}`}>View</Link>
                 </div>
               </div>
@@ -218,6 +254,9 @@ export default function DicegetPage() {
             <h1 className="mt-2 font-display text-5xl tracking-widest">
               Target {table?.target_score || "-"}
             </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+              4-player dice game inside Axwins. Actions unlock only for the current player on their turn.
+            </p>
             <div className="mt-2 text-sm uppercase tracking-widest text-zinc-500">
               {table?.status || "loading"} / turn: {currentSeat?.username || currentSeat?.user_id || "-"}
             </div>
@@ -229,12 +268,27 @@ export default function DicegetPage() {
             <Link className="btn-ghost" to="/diceget">Lobby</Link>
           </div>
         </div>
-        {error && <div className="mt-4 text-sm text-rose-300">{error}</div>}
+        <div className="mt-6">
+          <Notice>{DEMO_CREDIT_NOTICE}</Notice>
+        </div>
+        <div className="mt-4">
+          <ErrorNotice error={error} />
+        </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {!table && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-sm text-zinc-400 lg:col-span-4">
+              Loading Diceget table...
+            </div>
+          )}
           {(table?.seats || []).map((seat) => (
             <SeatCard key={seat.user_id} seat={seat} active={seat.user_id === table.current_turn_user_id} />
           ))}
+          {table && table.seats?.length < 4 && (
+            <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/40 p-5 text-sm leading-6 text-zinc-500">
+              Waiting for {4 - table.seats.length} more player{4 - table.seats.length === 1 ? "" : "s"}.
+            </div>
+          )}
         </div>
 
         {table?.status === "waiting" && (
@@ -249,12 +303,12 @@ export default function DicegetPage() {
             <button className="btn-secondary" disabled={busy || table.seats.length >= 4} onClick={() => run(() => api(`/tables/${table.table_id}/add-bot`, {
               method: "POST",
               body: JSON.stringify({ profile: botProfile }),
-            }))}>Add Bot</button>
-            <button className="btn-primary" disabled={busy || table.seats.length !== 4} onClick={() => run(() => api(`/tables/${table.table_id}/start`, { method: "POST" }))}>Start</button>
+            }))}>Add Bot Seat</button>
+            <button className="btn-primary" disabled={busy || table.seats.length !== 4} onClick={() => run(() => api(`/tables/${table.table_id}/start`, { method: "POST" }))}>Start Diceget</button>
             <button className="btn-ghost" disabled={busy} onClick={() => run(async () => {
               await api(`/tables/${table.table_id}/leave`, { method: "POST" });
               navigate("/diceget");
-            })}>Leave</button>
+            })}>Leave Table</button>
           </div>
         )}
 
@@ -274,6 +328,11 @@ export default function DicegetPage() {
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
             <div className="mb-4 text-xs uppercase tracking-widest text-zinc-500">Roll History</div>
             <div className="max-h-72 space-y-2 overflow-auto">
+              {(table?.rolls || []).length === 0 && (
+                <div className="rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-500">
+                  No rolls yet.
+                </div>
+              )}
               {(table?.rolls || []).slice().reverse().map((roll, index) => (
                 <div key={`${roll.user_id}-${index}`} className="rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-300">
                   {roll.user_id}: {roll.dice_1}+{roll.dice_2} = {roll.total}; {roll.score_before} -> {roll.score_after}{roll.is_bust ? " / bust" : ""}
