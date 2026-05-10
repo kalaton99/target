@@ -11,29 +11,45 @@ const SOURCE_LABELS = {
   admin: "Admin",
 };
 
+const SOURCE_GROUPS = {
+  target: "games",
+  diceget: "games",
+  flipget: "games",
+  tmarget: "prediction",
+  payment: "admin_demo",
+  admin: "admin_demo",
+};
+
+const SOURCE_GROUP_LABELS = {
+  all: "All",
+  games: "Games",
+  prediction: "Prediction Markets",
+  admin_demo: "Admin / Demo Credit",
+};
+
 const REASON_LABELS = {
-  target_join_lock: "join lock",
-  diceget_join_lock: "join lock",
-  flipget_join_lock: "join lock",
-  target_cancel_unlock: "cancel unlock",
-  diceget_cancel_unlock: "cancel unlock",
-  flipget_cancel_unlock: "cancel unlock",
+  target_join_lock: "stake locked",
+  diceget_join_lock: "stake locked",
+  flipget_join_lock: "stake locked",
+  target_cancel_unlock: "stake unlocked",
+  diceget_cancel_unlock: "stake unlocked",
+  flipget_cancel_unlock: "stake unlocked",
   target_win_payout: "win payout",
   diceget_win_payout: "win payout",
   flipget_win_payout: "win payout",
-  tmarget_buy_cost: "market buy cost",
-  tmarget_sell_credit: "market sell credit",
-  tmarget_settlement_win: "market settlement win",
-  tmarget_settlement_loss: "market settlement loss",
+  tmarget_buy_cost: "market buy",
+  tmarget_sell_credit: "market sell",
+  tmarget_settlement_win: "market settlement",
+  tmarget_settlement_loss: "market settlement",
   tmarget_refund: "market refund",
   tmarget_fee: "market fee",
   tmarget_admin_market_create: "demo market create",
   target_refund: "refund",
   diceget_refund: "refund",
   flipget_refund: "refund",
-  SIGNUP_BONUS: "signup bonus",
-  sandbox_deposit: "sandbox deposit",
-  admin_credit: "admin credit",
+  SIGNUP_BONUS: "demo credit",
+  sandbox_deposit: "demo credit",
+  admin_credit: "demo credit",
 };
 
 const DEMO_CREDIT_NOTICE =
@@ -74,6 +90,10 @@ function labelSource(entry) {
   return entry.source_label || SOURCE_LABELS[entry.source_module] || entry.source_module || "Unknown";
 }
 
+function valueOrDash(value) {
+  return value == null ? "-" : money(value);
+}
+
 function WalletCard({ title, value, caption }) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
@@ -84,10 +104,44 @@ function WalletCard({ title, value, caption }) {
   );
 }
 
+function TransactionDetail({ label, value, align = "left", tone = "" }) {
+  return (
+    <div className={align === "right" ? "text-right" : ""}>
+      <div className="text-[10px] uppercase tracking-widest text-zinc-600">{label}</div>
+      <div className={`mt-1 text-sm text-zinc-300 ${tone}`}>{value}</div>
+    </div>
+  );
+}
+
+function TransactionCard({ entry }) {
+  const positive = Number(entry.amount) >= 0;
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-black/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.25em] text-yellow-300">{labelSource(entry)}</div>
+          <div className="mt-2 text-lg text-zinc-100">{labelReason(entry)}</div>
+          <div className="mt-1 text-xs text-zinc-500">{entry.created_at ? new Date(entry.created_at).toLocaleString() : "-"}</div>
+        </div>
+        <div className={`font-display text-2xl tracking-widest ${positive ? "text-emerald-300" : "text-rose-300"}`}>
+          {positive ? "+" : ""}{money(entry.amount)}
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <TransactionDetail label="Balance before" value={valueOrDash(entry.balance_before)} />
+        <TransactionDetail label="Balance after" value={valueOrDash(entry.balance_after)} align="right" />
+        <TransactionDetail label="Locked before" value={valueOrDash(entry.locked_before)} />
+        <TransactionDetail label="Locked after" value={valueOrDash(entry.locked_after)} align="right" />
+      </div>
+      <div className="mt-4 text-xs uppercase tracking-widest text-zinc-500">Status: {entry.status || "POSTED"}</div>
+    </div>
+  );
+}
+
 export default function WalletPage() {
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [sourceGroupFilter, setSourceGroupFilter] = useState("all");
   const [reasonFilter, setReasonFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -122,9 +176,9 @@ export default function WalletPage() {
     };
   }, [user?.token]);
 
-  const sources = useMemo(() => {
-    const values = new Set(entries.map((entry) => entry.source_module).filter(Boolean));
-    return ["all", ...Array.from(values).sort()];
+  const sourceGroups = useMemo(() => {
+    const values = new Set(entries.map((entry) => SOURCE_GROUPS[entry.source_module]).filter(Boolean));
+    return ["all", ...["games", "prediction", "admin_demo"].filter((value) => values.has(value))];
   }, [entries]);
 
   const reasons = useMemo(() => {
@@ -133,7 +187,7 @@ export default function WalletPage() {
   }, [entries]);
 
   const filtered = entries.filter((entry) => {
-    if (sourceFilter !== "all" && entry.source_module !== sourceFilter) return false;
+    if (sourceGroupFilter !== "all" && SOURCE_GROUPS[entry.source_module] !== sourceGroupFilter) return false;
     if (reasonFilter !== "all" && entry.reason !== reasonFilter) return false;
     return true;
   });
@@ -166,6 +220,9 @@ export default function WalletPage() {
           <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
             {DEMO_CREDIT_NOTICE}
           </p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-500">
+            Wallet and transaction history are read-only here. Game actions and demo market actions create ledger entries automatically.
+          </p>
         </div>
 
         {loading && <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-zinc-400">Loading wallet...</div>}
@@ -191,15 +248,15 @@ export default function WalletPage() {
                 </div>
                 <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
                   <label className="text-xs uppercase tracking-widest text-zinc-500">
-                    Source
+                    Group
                     <select
                       className="mt-2 block w-full rounded border border-zinc-700 bg-black px-3 py-2 text-zinc-200"
-                      value={sourceFilter}
-                      onChange={(event) => setSourceFilter(event.target.value)}
+                      value={sourceGroupFilter}
+                      onChange={(event) => setSourceGroupFilter(event.target.value)}
                     >
-                      {sources.map((source) => (
-                        <option key={source} value={source}>
-                          {source === "all" ? "All" : SOURCE_LABELS[source] || source}
+                      {sourceGroups.map((group) => (
+                        <option key={group} value={group}>
+                          {SOURCE_GROUP_LABELS[group] || group}
                         </option>
                       ))}
                     </select>
@@ -226,34 +283,47 @@ export default function WalletPage() {
                   No wallet activity to show.
                 </div>
               ) : (
-                <div className="-mx-5 mt-6 overflow-x-auto px-5">
-                  <table className="w-full min-w-[760px] text-left text-sm">
-                    <thead className="border-b border-zinc-800 text-xs uppercase tracking-widest text-zinc-500">
-                      <tr>
-                        <th className="py-3 pr-4">Date</th>
-                        <th className="py-3 pr-4">Source</th>
-                        <th className="py-3 pr-4">Reason</th>
-                        <th className="py-3 pr-4 text-right">Amount</th>
-                        <th className="py-3 pr-4 text-right">Balance After</th>
-                        <th className="py-3 pr-4">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((entry) => (
-                        <tr key={entry.id} className="border-b border-zinc-900 text-zinc-300">
-                          <td className="py-3 pr-4 text-zinc-500">{entry.created_at ? new Date(entry.created_at).toLocaleString() : "-"}</td>
-                          <td className="py-3 pr-4">{labelSource(entry)}</td>
-                          <td className="py-3 pr-4">{labelReason(entry)}</td>
-                          <td className={`py-3 pr-4 text-right ${Number(entry.amount) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                            {Number(entry.amount) >= 0 ? "+" : ""}{money(entry.amount)}
-                          </td>
-                          <td className="py-3 pr-4 text-right">{entry.balance_after == null ? "-" : money(entry.balance_after)}</td>
-                          <td className="py-3 pr-4 text-xs uppercase tracking-widest text-zinc-500">{entry.status || "POSTED"}</td>
+                <>
+                  <div className="mt-6 grid gap-3 lg:hidden">
+                    {filtered.map((entry) => (
+                      <TransactionCard key={entry.id} entry={entry} />
+                    ))}
+                  </div>
+                  <div className="-mx-5 mt-6 hidden overflow-x-auto px-5 lg:block">
+                    <table className="w-full min-w-[1080px] text-left text-sm">
+                      <thead className="border-b border-zinc-800 text-xs uppercase tracking-widest text-zinc-500">
+                        <tr>
+                          <th className="py-3 pr-4">Date</th>
+                          <th className="py-3 pr-4">Source</th>
+                          <th className="py-3 pr-4">Reason</th>
+                          <th className="py-3 pr-4 text-right">Amount</th>
+                          <th className="py-3 pr-4 text-right">Balance Before</th>
+                          <th className="py-3 pr-4 text-right">Balance After</th>
+                          <th className="py-3 pr-4 text-right">Locked Before</th>
+                          <th className="py-3 pr-4 text-right">Locked After</th>
+                          <th className="py-3 pr-4">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {filtered.map((entry) => (
+                          <tr key={entry.id} className="border-b border-zinc-900 text-zinc-300">
+                            <td className="py-3 pr-4 text-zinc-500">{entry.created_at ? new Date(entry.created_at).toLocaleString() : "-"}</td>
+                            <td className="py-3 pr-4">{labelSource(entry)}</td>
+                            <td className="py-3 pr-4">{labelReason(entry)}</td>
+                            <td className={`py-3 pr-4 text-right ${Number(entry.amount) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                              {Number(entry.amount) >= 0 ? "+" : ""}{money(entry.amount)}
+                            </td>
+                            <td className="py-3 pr-4 text-right">{valueOrDash(entry.balance_before)}</td>
+                            <td className="py-3 pr-4 text-right">{valueOrDash(entry.balance_after)}</td>
+                            <td className="py-3 pr-4 text-right">{valueOrDash(entry.locked_before)}</td>
+                            <td className="py-3 pr-4 text-right">{valueOrDash(entry.locked_after)}</td>
+                            <td className="py-3 pr-4 text-xs uppercase tracking-widest text-zinc-500">{entry.status || "POSTED"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </>

@@ -38,7 +38,7 @@ def test_ledger_entry_sanitizes_game_lock_row():
         "source_label": "Target",
         "source_id": "tbl1",
         "reason": "target_join_lock",
-        "reason_label": "join lock",
+        "reason_label": "stake locked",
         "amount": -100,
         "balance_before": 1000,
         "balance_after": 900,
@@ -59,17 +59,17 @@ def test_ledger_entry_infers_legacy_signup_bonus_as_admin():
 
     assert entry["source_module"] == "admin"
     assert entry["source_label"] == "Admin"
-    assert entry["reason_label"] == "signup bonus"
+    assert entry["reason_label"] == "demo credit"
     assert entry["balance_before"] == 0
 
 
 def test_ledger_entry_labels_all_known_modules_and_reasons():
     samples = [
-        ("diceget", "diceget_cancel_unlock", "Diceget", "cancel unlock"),
+        ("diceget", "diceget_cancel_unlock", "Diceget", "stake unlocked"),
         ("flipget", "flipget_win_payout", "Flipget", "win payout"),
         ("tmarget", "tmarget_refund", "Tmarget", "market refund"),
-        ("payment", "sandbox_deposit", "Payment / Demo Credit", "sandbox deposit"),
-        ("admin", "admin_credit", "Admin", "admin credit"),
+        ("payment", "sandbox_deposit", "Payment / Demo Credit", "demo credit"),
+        ("admin", "admin_credit", "Admin", "demo credit"),
     ]
 
     for source_module, reason, source_label, reason_label in samples:
