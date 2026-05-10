@@ -87,7 +87,7 @@ function TmargetShell({ children }) {
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       <header className="border-b border-zinc-800 bg-zinc-950/80">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-6">
           <Link to="/tmarget" className="flex items-center gap-3">
             <Logo size={40} />
             <div>
@@ -97,24 +97,27 @@ function TmargetShell({ children }) {
               <div className="text-xs text-zinc-500">Axwins demo prediction market product</div>
             </div>
           </Link>
-          <nav className="flex flex-wrap items-center justify-end gap-2 text-xs uppercase tracking-widest text-zinc-400">
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/">
+          <nav className="flex w-full flex-wrap items-center justify-start gap-2 text-xs uppercase tracking-widest text-zinc-400 sm:w-auto sm:justify-end">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/">
               Axwins
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/games">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/games">
               Games
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget/markets">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget">
+              Tmarget
+            </Link>
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget/markets">
               Markets
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget/portfolio">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget/portfolio">
               Portfolio
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget/admin/markets">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget/admin/markets">
               Admin
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/wallet">
-              Wallet
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/wallet">
+              Wallet / Ledger
             </Link>
           </nav>
         </div>
@@ -135,7 +138,7 @@ function MarketCard({ market, fallback = false }) {
       to={`/tmarget/markets/${market.slug || market.id}`}
       className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 transition hover:border-yellow-600/70"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-[0.3em] text-zinc-500">{market.category}</div>
           <h2 className="mt-2 font-display text-2xl tracking-widest text-zinc-100">{market.title}</h2>
@@ -185,7 +188,7 @@ export function TmargetHomePage() {
           <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">
             Separate product module
           </div>
-          <h1 className="mt-2 font-display text-6xl tracking-widest text-zinc-100">Tmarget</h1>
+          <h1 className="mt-2 font-display text-5xl tracking-widest text-zinc-100 sm:text-6xl">Tmarget</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
             Tmarget is a demo prediction market product. It is separate from
             Target, Diceget, and Flipget game modules, while sharing internal
@@ -255,17 +258,17 @@ export function TmargetMarketsPage() {
           <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Demo Markets</div>
           <h1 className="mt-2 font-display text-5xl tracking-widest">Markets</h1>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search markets"
-            className="rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
           />
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className="rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
           >
             {categories.map((item) => <option key={item}>{item}</option>)}
           </select>
@@ -355,7 +358,7 @@ export function TmargetMarketDetailPlaceholder() {
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section>
             <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">{market.category}</div>
-            <h1 className="mt-2 font-display text-5xl tracking-widest">{market.title}</h1>
+            <h1 className="mt-2 font-display text-4xl tracking-widest sm:text-5xl">{market.title}</h1>
             <p className="mt-5 text-base leading-7 text-zinc-400">{market.description}</p>
             <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950 p-5">
               <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Resolution Criteria</div>
@@ -371,7 +374,7 @@ export function TmargetMarketDetailPlaceholder() {
               ) : (
                 <div className="mt-3 grid gap-2 text-sm">
                   {trades.slice(-8).reverse().map((trade) => (
-                    <div key={trade.id} className="flex justify-between border-b border-zinc-900 py-2 text-zinc-400">
+                    <div key={trade.id} className="flex flex-wrap justify-between gap-2 border-b border-zinc-900 py-2 text-zinc-400">
                       <span>{trade.side.toUpperCase()} {trade.outcome.toUpperCase()} x{trade.shares}</span>
                       <span>{formatCredits(trade.cost)} credits @ {formatPrice(trade.price)}</span>
                     </div>
@@ -628,11 +631,11 @@ export function TmargetAdminMarketsPage() {
                 <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Lifecycle</div>
                 <h2 className="mt-2 font-display text-3xl tracking-widest">Markets</h2>
               </div>
-              <div className="flex gap-2">
+              <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[140px_1fr]">
                 <select
                   value={resolution.outcome}
                   onChange={(event) => setResolution((prev) => ({ ...prev, outcome: event.target.value }))}
-                  className="rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
+                  className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
                 >
                   <option value="yes">YES</option>
                   <option value="no">NO</option>
@@ -643,7 +646,7 @@ export function TmargetAdminMarketsPage() {
                   value={resolution.resolver_notes}
                   onChange={(event) => setResolution((prev) => ({ ...prev, resolver_notes: event.target.value }))}
                   placeholder="Resolver notes"
-                  className="rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
+                  className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
                 />
               </div>
             </div>

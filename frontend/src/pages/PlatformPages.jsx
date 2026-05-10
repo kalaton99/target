@@ -54,7 +54,7 @@ function PlatformShell({ children }) {
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       <header className="border-b border-zinc-800 bg-zinc-950/80">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-6">
           <Link to="/" className="flex items-center gap-3">
             <Logo size={40} />
             <div>
@@ -64,20 +64,20 @@ function PlatformShell({ children }) {
               <div className="text-xs text-zinc-500">Multi-product demo platform</div>
             </div>
           </Link>
-          <nav className="flex flex-wrap items-center justify-end gap-2 text-xs uppercase tracking-widest text-zinc-400">
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/">
+          <nav className="flex w-full flex-wrap items-center justify-start gap-2 text-xs uppercase tracking-widest text-zinc-400 sm:w-auto sm:justify-end">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/">
               Home
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/games">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/games">
               Games
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/tmarget">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget">
               Tmarget
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/wallet">
-              Wallet
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/wallet">
+              Wallet / Ledger
             </Link>
-            <Link className="rounded border border-zinc-800 px-3 py-2 hover:text-yellow-300" to="/profile">
+            <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/profile">
               Profile
             </Link>
           </nav>
@@ -96,8 +96,8 @@ function ProductCard({ product }) {
       data-testid={`product-card-${product.name.toLowerCase()}`}
       className="group rounded-lg border border-zinc-800 bg-zinc-950/70 p-5 transition hover:border-yellow-600/70 hover:bg-zinc-900/70"
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="font-display text-3xl tracking-widest text-zinc-100">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="font-display text-2xl tracking-widest text-zinc-100 sm:text-3xl">
           {product.name}
         </div>
         <span
@@ -126,7 +126,7 @@ export function PlatformHome() {
           <div className="mb-3 font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">
             Platform hub
           </div>
-          <h1 className="font-display text-6xl tracking-widest text-zinc-100 sm:text-7xl">
+          <h1 className="font-display text-5xl tracking-widest text-zinc-100 sm:text-7xl">
             AXWINS
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
@@ -138,14 +138,14 @@ export function PlatformHome() {
           <p className="mt-5 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
             {DEMO_CREDIT_NOTICE}
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link className="btn-primary" to="/games">
+          <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
+            <Link className="btn-primary text-center" to="/games">
               View Products
             </Link>
-            <Link className="btn-secondary" to="/games/target">
+            <Link className="btn-secondary text-center" to="/games/target">
               Play Target
             </Link>
-            <Link className="btn-secondary" to="/tmarget">
+            <Link className="btn-secondary text-center" to="/tmarget">
               Open Tmarget
             </Link>
           </div>
@@ -208,7 +208,7 @@ export function GamesPage() {
           Home
         </Link>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         {gameProducts.map((product) => (
           <ProductCard key={product.name} product={product} />
         ))}

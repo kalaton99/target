@@ -140,7 +140,12 @@ export default function DicegetPage() {
     return (
       <div className="min-h-screen bg-black px-4 py-10 text-zinc-100">
         <div className="mx-auto max-w-3xl">
-          <Link className="btn-ghost" to="/games">Back</Link>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn-ghost" to="/">Axwins</Link>
+            <Link className="btn-ghost" to="/games">Games</Link>
+            <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
+            <Link className="btn-ghost" to="/wallet">Wallet</Link>
+          </div>
           <h1 className="mt-6 font-display text-5xl tracking-widest">Diceget</h1>
           <p className="mt-4 text-zinc-400">4-player dice game inside Axwins.</p>
           <div className="mt-5">
@@ -157,7 +162,7 @@ export default function DicegetPage() {
     return (
       <div className="min-h-screen bg-black px-4 py-8 text-zinc-100">
         <div className="mx-auto max-w-6xl">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Axwins Game</div>
               <h1 className="mt-2 font-display text-5xl tracking-widest">Diceget</h1>
@@ -165,9 +170,10 @@ export default function DicegetPage() {
                 4-player dice game inside Axwins. Pick a target, create or join a table, then roll, hold, or forfeit on your turn.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
               <Link className="btn-ghost" to="/">Axwins</Link>
               <Link className="btn-ghost" to="/games">Games</Link>
+              <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
               <Link className="btn-ghost" to="/wallet">Wallet</Link>
             </div>
           </div>
@@ -189,19 +195,19 @@ export default function DicegetPage() {
             ))}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-end gap-3">
+          <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="text-xs uppercase tracking-widest text-zinc-500">
               Stake
               <input
                 value={stake}
                 onChange={(event) => setStake(Number(event.target.value) || 0)}
-                className="mt-2 block rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className="mt-2 block w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 sm:w-36"
                 type="number"
                 min="0"
               />
             </label>
             <button
-              className="btn-primary"
+              className="btn-primary text-center"
               disabled={busy}
               onClick={() => run(async () => {
                 const created = await api("/tables", {
@@ -225,12 +231,12 @@ export default function DicegetPage() {
               </div>
             )}
             {tables.map((item) => (
-              <div key={item.table_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+              <div key={item.table_id} className="flex flex-col items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
                 <div>
                   <div className="font-display text-2xl tracking-widest">Target {item.target_score}</div>
                   <div className="text-sm text-zinc-500">{item.seats.length}/4 seats / {item.status}</div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                   <button className="btn-secondary" disabled={busy || item.status !== "waiting"} onClick={() => run(async () => {
                     await api(`/tables/${item.table_id}/join`, { method: "POST" });
                     navigate(`/diceget/${item.table_id}`);
@@ -248,7 +254,7 @@ export default function DicegetPage() {
   return (
     <div className="min-h-screen bg-black px-4 py-8 text-zinc-100">
       <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Diceget Table</div>
             <h1 className="mt-2 font-display text-5xl tracking-widest">
@@ -261,9 +267,10 @@ export default function DicegetPage() {
               {table?.status || "loading"} / turn: {currentSeat?.username || currentSeat?.user_id || "-"}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             <Link className="btn-ghost" to="/">Axwins</Link>
             <Link className="btn-ghost" to="/games">Games</Link>
+            <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
             <Link className="btn-ghost" to="/wallet">Wallet</Link>
             <Link className="btn-ghost" to="/diceget">Lobby</Link>
           </div>
@@ -292,7 +299,7 @@ export default function DicegetPage() {
         </div>
 
         {table?.status === "waiting" && (
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap">
             <select
               value={botProfile}
               onChange={(event) => setBotProfile(event.target.value)}
@@ -319,7 +326,7 @@ export default function DicegetPage() {
               <Dice value={latestRoll?.dice_1} />
               <Dice value={latestRoll?.dice_2} />
             </div>
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
               <button className="btn-primary" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
               <button className="btn-secondary" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
               <button className="btn-ghost" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
