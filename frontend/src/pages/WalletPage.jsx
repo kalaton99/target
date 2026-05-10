@@ -7,7 +7,7 @@ const SOURCE_LABELS = {
   diceget: "Diceget",
   flipget: "Flipget",
   tmarget: "Tmarget",
-  payment: "Payment",
+  payment: "Payment / Demo Credit",
   admin: "Admin",
 };
 
@@ -25,7 +25,7 @@ const REASON_LABELS = {
   tmarget_sell_credit: "market sell credit",
   tmarget_settlement_win: "market settlement win",
   tmarget_settlement_loss: "market settlement loss",
-  tmarget_refund: "tmarget refund",
+  tmarget_refund: "market refund",
   tmarget_fee: "market fee",
   tmarget_admin_market_create: "demo market create",
   target_refund: "refund",

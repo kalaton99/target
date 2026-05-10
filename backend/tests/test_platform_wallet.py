@@ -67,8 +67,8 @@ def test_ledger_entry_labels_all_known_modules_and_reasons():
     samples = [
         ("diceget", "diceget_cancel_unlock", "Diceget", "cancel unlock"),
         ("flipget", "flipget_win_payout", "Flipget", "win payout"),
-        ("tmarget", "tmarget_refund", "Tmarget", "tmarget refund"),
-        ("payment", "sandbox_deposit", "Payment", "sandbox deposit"),
+        ("tmarget", "tmarget_refund", "Tmarget", "market refund"),
+        ("payment", "sandbox_deposit", "Payment / Demo Credit", "sandbox deposit"),
         ("admin", "admin_credit", "Admin", "admin credit"),
     ]
 
