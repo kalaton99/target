@@ -45,6 +45,18 @@ need to be stated:
   - Future durable repository plan for Tmarget, grounded in the current
     repository contract and contract tests. It does not implement durable
     storage.
+- `TMARGET_DURABLE_BACKEND_SELECTION.md`
+  - Future durable backend evaluation and direction. It recommends Postgres as
+    the future backend candidate and SQLite as a local-only fallback option.
+- `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+  - Draft Postgres schema planning for future Tmarget durable persistence. It
+    does not add migrations or database dependencies.
+- `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+  - Mapping between the current Tmarget repository contract and a future
+    Postgres adapter. It does not implement the adapter.
+- `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+  - Future Postgres test database strategy for adapter, migration, idempotency,
+    and activation-gate testing. It does not add a test database dependency.
 
 ## Recommended Reading Order
 
@@ -54,6 +66,10 @@ need to be stated:
 4. `AXWINS_DEPLOYMENT_PREP.md`
 5. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
 6. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+7. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+8. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+9. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+10. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
 
 ## Current Release / Demo State
 
