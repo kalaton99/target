@@ -516,7 +516,12 @@ No database transaction behavior is implemented now.
 Planning only:
 
 - Keep the adapter inactive initially.
-- Implement behind the existing `DurableTmargetRepository` class later.
+- A passive `PostgresTmargetRepository` skeleton exists at
+  `backend/tmarget/postgres_repository.py`.
+- The skeleton is inactive and fail-closed. It imports no database packages,
+  reads no environment variables, executes no SQL, and opens no database
+  connections.
+- Implement behind the existing `PostgresTmargetRepository` class later.
 - Contract tests must pass against a Postgres test database before activation.
 - Dev-only activation must be explicit and config-gated later.
 - Never activate in a remote demo until backup, rollback, and logging are
