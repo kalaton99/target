@@ -85,6 +85,14 @@ Current concrete methods:
 Future durable adapters should implement this same behavior before runtime
 activation is considered.
 
+## Passive Skeleton Checkpoint
+
+A passive durable adapter skeleton exists at
+`backend/tmarget/durable_repository.py`. It is intentionally inactive and fails
+closed with `NotImplementedError` for every repository method. Active runtime
+storage remains `InMemoryTmargetRepository`; no durable backend is selected,
+configured, or imported, and no production persistence is implemented.
+
 ## 4. Durable Storage Goals
 
 A future durable repository should:
