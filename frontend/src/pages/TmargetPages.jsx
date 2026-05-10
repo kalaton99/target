@@ -39,6 +39,24 @@ const SAMPLE_MARKETS = [
   },
 ];
 
+const ADMIN_FIELD_HELP = {
+  title: "Short public question for the demo market list.",
+  description: "Plain-language context shown on the market detail page.",
+  category: "Grouping label for filtering and scanning.",
+  close_time: "ISO timestamp used by the demo backend lifecycle rules.",
+  resolution_criteria: "How a demo resolver should decide YES, NO, cancelled, or invalid.",
+  source_url: "Optional reference URL for the demo resolver.",
+  initial_liquidity: "Internal demo-credit liquidity seed. This is not real money.",
+};
+
+const ADMIN_ACTIONS = [
+  ["open", "Open", "Allow demo-credit buying and selling."],
+  ["pause", "Pause", "Temporarily stop trading without resolving."],
+  ["close", "Close", "Stop trading before resolution."],
+  ["cancel", "Cancel", "Trigger demo-credit refund handling."],
+  ["resolve", "Resolve", "Set the selected outcome and run demo settlement."],
+];
+
 function storedUser() {
   try {
     return JSON.parse(localStorage.getItem("target_user") || "null");
@@ -585,16 +603,31 @@ export function TmargetAdminMarketsPage() {
 
   return (
     <TmargetShell>
-      <div className="grid gap-8 lg:grid-cols-[420px_1fr]">
+      <div className="mb-8 grid gap-4 lg:grid-cols-[1fr_360px]">
         <section>
-          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Demo Admin</div>
-          <h1 className="mt-2 font-display text-5xl tracking-widest">Market Setup</h1>
-          <p className="mt-4 text-sm leading-6 text-zinc-400">
-            Demo-only controls for binary YES/NO markets. This does not create
-            real-money markets, payment flows, deposits, withdrawals, or compliance claims.
+          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Tmarget Demo Admin</div>
+          <h1 className="mt-2 font-display text-5xl tracking-widest">Admin Markets</h1>
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
+            Tmarget is a demo prediction market product inside Axwins. It is not
+            a game, and this page is only local/internal demo tooling for binary
+            YES/NO markets.
           </p>
-          <p className="mt-3 rounded border border-yellow-700/40 bg-yellow-500/10 p-3 text-sm leading-6 text-yellow-100">
-            Demo admin tooling is enabled for local/internal testing only. This is not production authorization.
+        </section>
+        <aside className="rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
+          Demo admin requests use <span className="font-mono text-xs">X-Axwins-Demo-Admin: true</span>.
+          This header is not production authorization. Resolving or cancelling a
+          market affects internal demo-credit settlement/refund records only; no
+          real funds are involved.
+        </aside>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[420px_1fr]">
+        <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
+          <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Create Demo Market</div>
+          <h2 className="mt-2 font-display text-3xl tracking-widest">Market Details</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">
+            Create only demo binary markets backed by internal demo credits. No
+            payment, compliance, oracle, dispute, or real-money flow is enabled here.
           </p>
           <form onSubmit={createMarket} className="mt-6 grid gap-4">
             {[
@@ -615,9 +648,12 @@ export function TmargetAdminMarketsPage() {
                   onChange={(event) => update(field, event.target.value)}
                   className="mt-2 block w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-3 text-zinc-100"
                 />
+                <span className="mt-2 block text-[11px] normal-case leading-5 tracking-normal text-zinc-500">
+                  {ADMIN_FIELD_HELP[field]}
+                </span>
               </label>
             ))}
-            <button className="rounded border border-yellow-700 px-4 py-3 text-sm uppercase tracking-widest text-yellow-200">
+            <button className="rounded border border-yellow-700 px-4 py-3 text-sm uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10">
               Create Demo Market
             </button>
           </form>
@@ -626,32 +662,48 @@ export function TmargetAdminMarketsPage() {
           <ErrorBox error={error} />
           {notice && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/30 p-4 text-emerald-200">{notice}</div>}
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
-            <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
-                <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Lifecycle</div>
-                <h2 className="mt-2 font-display text-3xl tracking-widest">Markets</h2>
+                <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Demo Lifecycle</div>
+                <h2 className="mt-2 font-display text-3xl tracking-widest">Market Controls</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+                  Use open, pause, close, resolve, and cancel actions only for
+                  demo markets. Resolution and cancellation use internal
+                  demo-credit settlement/refund behavior.
+                </p>
               </div>
-              <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[140px_1fr]">
-                <select
-                  value={resolution.outcome}
-                  onChange={(event) => setResolution((prev) => ({ ...prev, outcome: event.target.value }))}
-                  className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
-                >
-                  <option value="yes">YES</option>
-                  <option value="no">NO</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="invalid">Invalid</option>
-                </select>
-                <input
-                  value={resolution.resolver_notes}
-                  onChange={(event) => setResolution((prev) => ({ ...prev, resolver_notes: event.target.value }))}
-                  placeholder="Resolver notes"
-                  className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
-                />
+              <div className="w-full rounded border border-zinc-800 bg-black/40 p-4 xl:max-w-md">
+                <div className="text-xs uppercase tracking-[0.3em] text-zinc-500">Resolution Settings</div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[140px_1fr]">
+                  <select
+                    value={resolution.outcome}
+                    onChange={(event) => setResolution((prev) => ({ ...prev, outcome: event.target.value }))}
+                    className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
+                  >
+                    <option value="yes">YES</option>
+                    <option value="no">NO</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="invalid">Invalid</option>
+                  </select>
+                  <input
+                    value={resolution.resolver_notes}
+                    onChange={(event) => setResolution((prev) => ({ ...prev, resolver_notes: event.target.value }))}
+                    placeholder="Resolver notes required by backend"
+                    className="w-full rounded border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <p className="mt-3 text-xs leading-5 text-zinc-500">
+                  These fields are sent only when Resolve is clicked. Cancel uses
+                  the demo refund path; Resolve uses the selected outcome.
+                </p>
               </div>
             </div>
             <div className="mt-5 grid gap-3">
-              {markets.length === 0 && <div className="text-sm text-zinc-500">No demo markets created yet.</div>}
+              {markets.length === 0 && (
+                <div className="rounded border border-dashed border-zinc-800 bg-black/30 p-4 text-sm leading-6 text-zinc-500">
+                  No demo markets created yet. Use the form to create an internal-credit sample market.
+                </div>
+              )}
               {markets.map((market) => (
                 <div key={market.id} className="rounded border border-zinc-800 bg-black/40 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -665,15 +717,19 @@ export function TmargetAdminMarketsPage() {
                       YES {formatPrice(market.yes_price)} / NO {formatPrice(market.no_price)}
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {["open", "pause", "close", "cancel", "resolve"].map((name) => (
-                      <button
-                        key={name}
-                        onClick={() => action(market.id, name)}
-                        className="rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:border-yellow-700 hover:text-yellow-200"
-                      >
-                        {name}
-                      </button>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                    {ADMIN_ACTIONS.map(([name, label, helper]) => (
+                      <div key={name} className="rounded border border-zinc-800 bg-zinc-950/70 p-3">
+                        <button
+                          onClick={() => action(market.id, name)}
+                          className="w-full rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:border-yellow-700 hover:text-yellow-200"
+                        >
+                          {label}
+                        </button>
+                        <div className="mt-2 text-[11px] leading-5 text-zinc-500">
+                          {helper}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
