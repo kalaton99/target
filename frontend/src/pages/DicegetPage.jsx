@@ -35,6 +35,18 @@ async function api(path, options = {}) {
   return data;
 }
 
+function friendlyErrorMessage(message) {
+  const raw = String(message || "");
+  if (raw.includes("DicegetInsufficientFunds") || raw.toLowerCase().includes("insufficient")) {
+    return "Not enough available internal demo credits to reserve this stake. Check Wallet / Transaction History and try again.";
+  }
+  return raw.split("_").join(" ");
+}
+
+function dealAgainErrorMessage() {
+  return "Could not create the next Diceget table because demo credits could not be locked. Check Wallet / Transaction History and try again.";
+}
+
 function Dice({ value }) {
   return (
     <div className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950 text-2xl text-yellow-200">
@@ -129,7 +141,7 @@ export default function DicegetPage() {
       if (next?.table_id || next?.id) setTable(next);
       return next;
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err.message));
       return null;
     } finally {
       setBusy(false);
@@ -205,6 +217,9 @@ export default function DicegetPage() {
                 type="number"
                 min="0"
               />
+              <span className="mt-2 block max-w-xs text-[11px] normal-case leading-5 tracking-normal text-zinc-500">
+                Stake is reserved from internal demo credits while the table is active.
+              </span>
             </label>
             <button
               className="btn-primary text-center"
@@ -278,6 +293,11 @@ export default function DicegetPage() {
         <div className="mt-6">
           <Notice>{DEMO_CREDIT_NOTICE}</Notice>
         </div>
+        {table?.stake > 0 && (
+          <div className="mt-3 text-sm leading-6 text-zinc-500">
+            Stake reserved: {table.stake} internal demo credits per human participant.
+          </div>
+        )}
         <div className="mt-4">
           <ErrorNotice error={error} />
         </div>
@@ -349,6 +369,22 @@ export default function DicegetPage() {
           </div>
         </div>
 
+        {table?.status === "showdown" && (
+          <div className="mt-8 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-5">
+            <div className="text-xs uppercase tracking-widest text-yellow-300">Showdown</div>
+            <div className="mt-3 text-sm leading-6 text-yellow-100">
+              Final rolls are complete and Diceget is finalizing the result. If this does not update shortly, refresh the table.
+            </div>
+            <div className="mt-4 grid gap-2">
+              {(table.seats || []).map((seat) => (
+                <div key={seat.user_id} className="rounded border border-yellow-700/30 bg-black/30 p-3 text-sm text-zinc-200">
+                  {seat.username || seat.user_id}: {seat.status === "held" ? `held at ${seat.locked_score}` : seat.status}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {table?.status === "settled" && (
           <div className="mt-8 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-5">
             <div className="text-xs uppercase tracking-widest text-yellow-300">Result</div>
@@ -356,7 +392,12 @@ export default function DicegetPage() {
               {table.winners?.length ? `Winner${table.winners.length > 1 ? "s" : ""}: ${table.winners.join(", ")}` : "No winner"}
             </div>
             <button className="btn-primary mt-5" disabled={busy} onClick={() => run(async () => {
-              const next = await api(`/tables/${table.table_id}/deal-again`, { method: "POST" });
+              let next;
+              try {
+                next = await api(`/tables/${table.table_id}/deal-again`, { method: "POST" });
+              } catch {
+                throw new Error(dealAgainErrorMessage());
+              }
               navigate(`/diceget/${next.table_id}`);
             })}>Deal Again</button>
           </div>

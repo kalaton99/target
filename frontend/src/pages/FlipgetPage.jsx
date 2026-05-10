@@ -34,6 +34,18 @@ async function api(path, options = {}) {
   return data;
 }
 
+function friendlyErrorMessage(message) {
+  const raw = String(message || "");
+  if (raw.includes("FlipgetInsufficientFunds") || raw.toLowerCase().includes("insufficient")) {
+    return "Not enough available internal demo credits to reserve this stake. Check Wallet / Transaction History and try again.";
+  }
+  return raw.split("_").join(" ");
+}
+
+function dealAgainErrorMessage() {
+  return "Could not create the next Flipget table because demo credits could not be locked. Check Wallet / Transaction History and try again.";
+}
+
 function Coin({ result, status }) {
   const label = status === "flipping" ? "Flipping" : result || "Ready";
   return (
@@ -96,9 +108,21 @@ export default function FlipgetPage() {
     [table],
   );
   const canFlip = Boolean(
-    table?.status === "ready"
+    mySeat
+      && table?.status === "ready"
       && table?.seats?.length === 2
       && table.seats.every((seat) => seat.ready && seat.side),
+  );
+  const canLeavePreFlip = Boolean(
+    mySeat
+      && table
+      && !["flipping", "settled"].includes(table.status),
+  );
+  const waitingForReady = Boolean(
+    table
+      && table.status === "waiting"
+      && table.seats?.length === 2
+      && table.seats.some((seat) => !seat.ready || !seat.side),
   );
 
   const refresh = useCallback(async () => {
@@ -123,7 +147,7 @@ export default function FlipgetPage() {
       if (next?.table_id || next?.id) setTable(next);
       return next;
     } catch (err) {
-      setError(err.message);
+      setError(friendlyErrorMessage(err.message));
       return null;
     } finally {
       setBusy(false);
@@ -184,6 +208,9 @@ export default function FlipgetPage() {
                 type="number"
                 min="0"
               />
+              <span className="mt-2 block max-w-xs text-[11px] normal-case leading-5 tracking-normal text-zinc-500">
+                Stake is reserved from internal demo credits until the pre-flip table is left or the result settles.
+              </span>
             </label>
             <button
               className="btn-primary text-center"
@@ -251,6 +278,11 @@ export default function FlipgetPage() {
         <div className="mt-6">
           <Notice>{DEMO_CREDIT_NOTICE}</Notice>
         </div>
+        {table?.stake_amount > 0 && (
+          <div className="mt-3 text-sm leading-6 text-zinc-500">
+            Stake reserved: {table.stake_amount} internal demo credits per participant.
+          </div>
+        )}
         <div className="mt-4">
           <ErrorNotice error={error} />
         </div>
@@ -265,6 +297,11 @@ export default function FlipgetPage() {
               <Coin result={table?.round?.result} status={table?.status} />
             </div>
             <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap sm:justify-center">
+              {!mySeat && table && (
+                <div className="w-full rounded border border-zinc-800 bg-black/30 p-3 text-center text-sm text-zinc-500">
+                  Spectators can view this table. Join a waiting table to choose a side, ready up, or flip.
+                </div>
+              )}
               {SIDES.map((side) => {
                 const disabled = busy
                   || !mySeat
@@ -286,7 +323,9 @@ export default function FlipgetPage() {
                 );
               })}
               <button className="btn-primary" disabled={busy || !mySeat?.side || mySeat.ready || ["flipping", "settled"].includes(table?.status)} onClick={() => run(() => api(`/tables/${table.table_id}/ready`, { method: "POST" }))}>Ready Up</button>
-              <button className="btn-secondary" disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
+              {mySeat && (
+                <button className="btn-secondary" disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
+              )}
             </div>
           </div>
           <div className="grid gap-4">
@@ -297,7 +336,12 @@ export default function FlipgetPage() {
                 Waiting for one more player.
               </div>
             )}
-            {table?.status === "waiting" && (
+            {waitingForReady && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 text-sm leading-6 text-zinc-500">
+                Waiting for both players to choose unique sides and ready up.
+              </div>
+            )}
+            {canLeavePreFlip && (
               <button className="btn-ghost" disabled={busy} onClick={() => run(async () => {
                 await api(`/tables/${table.table_id}/leave`, { method: "POST" });
                 navigate("/flipget");
@@ -312,7 +356,12 @@ export default function FlipgetPage() {
               {table.round?.result} wins / winner: {table.round?.winner_user_id}
             </div>
             <button className="btn-primary mt-5" disabled={busy} onClick={() => run(async () => {
-              const next = await api(`/tables/${table.table_id}/deal-again`, { method: "POST" });
+              let next;
+              try {
+                next = await api(`/tables/${table.table_id}/deal-again`, { method: "POST" });
+              } catch {
+                throw new Error(dealAgainErrorMessage());
+              }
               navigate(`/flipget/${next.table_id}`);
             })}>Deal Again</button>
           </div>

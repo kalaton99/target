@@ -1,9 +1,20 @@
 import copy
+import os
+from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from pymongo.errors import DuplicateKeyError
 
+os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
+os.environ.setdefault("DB_NAME", "axwins_test")
+os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("RNG_ENCRYPTION_KEY", "test-rng-key")
+
+from core.security import current_user_id
 from diceget.models import DICEGET_SEATS, SUPPORTED_TARGETS
+from diceget.router import build_diceget_router
 from diceget.service import DicegetError, DicegetService
 from diceget.wallet_bridge import (
     DicegetRefundNotAllowed,
@@ -214,6 +225,52 @@ def test_bust_when_score_exceeds_target():
     service.roll(table_id=table.id, user_id="u1")
     assert table.seats[0].status == "busted"
     assert table.current_turn_user_id == "u2"
+
+
+def test_roll_route_settles_when_final_bust_enters_showdown(monkeypatch):
+    service = make_service([6, 6])
+    table = fill_four(service, target=30)
+    table.status = "active"
+    table.turn_index = 3
+    table.current_turn_user_id = "u4"
+    for seat, score in zip(table.seats, [25, 20, 18, 25]):
+        seat.score = score
+        seat.status = "held"
+        seat.locked_score = score
+    table.seats[3].status = "active"
+    table.seats[3].locked_score = None
+
+    async def settle(table_id, ledger=None):
+        settled = service.get_table(table_id)
+        settled.status = "settled"
+        settled.current_turn_user_id = None
+        return settled
+
+    class FakeDb:
+        def __init__(self):
+            self.wallets = FakeCollection()
+            self.transactions = FakeCollection()
+            self.idempotency_keys = FakeCollection()
+            self.journals = FakeCollection()
+
+        def __getitem__(self, key):
+            if key == "journals":
+                return self.journals
+            if key == "audit_log":
+                return FakeCollection()
+            raise KeyError(key)
+
+    monkeypatch.setattr("diceget.router.core_db.db", FakeDb())
+    service.settle = AsyncMock(side_effect=settle)
+    app = FastAPI()
+    app.dependency_overrides[current_user_id] = lambda: "u4"
+    app.include_router(build_diceget_router(service))
+
+    response = TestClient(app).post(f"/diceget/tables/{table.id}/roll")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "settled"
+    service.settle.assert_awaited_once()
 
 
 def test_hold_locks_score_and_forfeit_excludes_player():

@@ -112,7 +112,10 @@ def build_diceget_router(service: DicegetService | None = None) -> APIRouter:
     @router.post("/tables/{table_id}/roll")
     async def roll(table_id: str, user_id: str = Depends(current_user_id)):
         try:
-            return svc.roll(table_id=table_id, user_id=user_id).to_dict()
+            table = svc.roll(table_id=table_id, user_id=user_id)
+            if table.status == "showdown":
+                table = await svc.settle(table.id, _ledger())
+            return table.to_dict()
         except DicegetError as exc:
             raise _err(exc)
 
