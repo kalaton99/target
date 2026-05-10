@@ -1,8 +1,7 @@
 # Tmarget Demo Market MVP
 
 Tmarget is a separate demo prediction market product inside Axwins. It is not a
-game module and does not use Target, Diceget, or Flipget game table/round/bot/RNG
-logic.
+game module and does not use Target, Diceget, or Flipget gameplay systems.
 
 This MVP is demo-only:
 - internal demo credits only

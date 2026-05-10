@@ -178,7 +178,7 @@ export default function WalletPage() {
           <>
             <div className="grid gap-4 md:grid-cols-3">
               <WalletCard title="Current Balance" value={summary.balance} caption={summary.currency_label} />
-              <WalletCard title="Locked Balance" value={summary.locked_balance ?? summary.locked} caption="Reserved by active tables" />
+              <WalletCard title="Locked Balance" value={summary.locked_balance ?? summary.locked} caption="Reserved by active Axwins products" />
               <WalletCard title="Available Balance" value={summary.available_balance} caption="Available internal demo credits" />
             </div>
 
