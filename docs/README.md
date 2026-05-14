@@ -57,6 +57,9 @@ need to be stated:
 - `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
   - Future Postgres test database strategy for adapter, migration, idempotency,
     and activation-gate testing. It does not add a test database dependency.
+- `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+  - Future Docker Compose planning for local/CI Postgres test database
+    infrastructure. It does not add Compose, Docker, env, or database files.
 
 ## Recommended Reading Order
 
@@ -70,6 +73,7 @@ need to be stated:
 8. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
 9. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
 10. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+11. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
 
 ## Current Release / Demo State
 
