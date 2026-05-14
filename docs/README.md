@@ -60,6 +60,9 @@ need to be stated:
 - `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
   - Future Docker Compose planning for local/CI Postgres test database
     infrastructure. It does not add Compose, Docker, env, or database files.
+- `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+  - Rules for a future `docker-compose.test.yml` draft, including naming,
+    env, migration, CI, activation, and forbidden-content boundaries.
 
 ## Recommended Reading Order
 
@@ -74,6 +77,7 @@ need to be stated:
 9. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
 10. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
 11. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+12. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 
