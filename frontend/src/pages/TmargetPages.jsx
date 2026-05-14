@@ -446,7 +446,7 @@ export function TmargetMarketDetailPlaceholder() {
             <div className="mt-4 rounded border border-yellow-700/30 bg-yellow-500/5 p-3 text-xs leading-5 text-yellow-100">
               Demo-credit trading is available only for signed-in users on open
               backend markets. No real funds, deposits, withdrawals, card
-              payments, crypto transfers, or live trading are enabled.
+              payments, crypto transfers, or live real-money trading are enabled.
             </div>
             <div className="mt-5 grid gap-3">
               <select

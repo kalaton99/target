@@ -268,7 +268,10 @@ Backend deployment considerations:
 - Demo state may reset after backend restart.
 - Tmarget durable storage contract exists.
 - Durable repository is not active.
-- Mongo/Postgres should not be introduced casually.
+- A test-only `docker-compose.test.yml` Postgres scaffold may exist for future
+  Tmarget adapter testing. It is not deployment infrastructure and does not
+  activate durable runtime storage.
+- Mongo/Postgres runtime storage should not be introduced casually.
 - Wallet/ledger persistence must be verified from current backend configuration
   before any remote demo.
 - Do not claim durable production storage until it has been implemented,

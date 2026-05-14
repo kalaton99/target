@@ -153,6 +153,9 @@ Backend routes mounted through `/api`:
 
 - Tmarget active runtime storage is in-memory unless code says otherwise.
 - Tmarget durable storage contract exists.
+- A test-only `docker-compose.test.yml` Postgres scaffold may exist for future
+  Tmarget adapter testing, but it is not runtime storage and does not activate
+  durable persistence.
 - Demo state may reset between process restarts when in-memory storage is used.
 - Wallet/ledger persistence should be verified from the actual current backend
   configuration before a demo.

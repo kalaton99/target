@@ -7,7 +7,7 @@ const SOURCE_LABELS = {
   diceget: "Diceget",
   flipget: "Flipget",
   tmarget: "Tmarget",
-  payment: "Payment / Demo Credit",
+  payment: "Demo Credit",
   admin: "Admin",
 };
 
