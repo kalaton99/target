@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 const SIDES = ["heads", "tails"];
 const DEMO_CREDIT_NOTICE =
-  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
+  "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
 function storedUser() {
   try {
@@ -162,7 +162,7 @@ export default function FlipgetPage() {
             <Link className="btn-ghost" to="/">Axwins</Link>
             <Link className="btn-ghost" to="/games">Games</Link>
             <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
-            <Link className="btn-ghost" to="/wallet">Wallet</Link>
+            <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
           </div>
           <h1 className="mt-6 font-display text-5xl tracking-widest">Flipget</h1>
           <p className="mt-4 text-zinc-400">2-player coin flip game inside Axwins.</p>
@@ -192,7 +192,7 @@ export default function FlipgetPage() {
               <Link className="btn-ghost" to="/">Axwins</Link>
               <Link className="btn-ghost" to="/games">Games</Link>
               <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
-              <Link className="btn-ghost" to="/wallet">Wallet</Link>
+              <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
             </div>
           </div>
           <div className="mt-6">
@@ -271,7 +271,7 @@ export default function FlipgetPage() {
             <Link className="btn-ghost" to="/">Axwins</Link>
             <Link className="btn-ghost" to="/games">Games</Link>
             <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
-            <Link className="btn-ghost" to="/wallet">Wallet</Link>
+            <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
             <Link className="btn-ghost" to="/flipget">Lobby</Link>
           </div>
         </div>

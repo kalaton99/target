@@ -53,7 +53,7 @@ const REASON_LABELS = {
 };
 
 const DEMO_CREDIT_NOTICE =
-  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
+  "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
 function storedUser() {
   try {

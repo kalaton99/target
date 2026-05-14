@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Logo } from "../components/game/Logo";
 
 const DISCLAIMER =
-  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
+  "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
 const SAMPLE_MARKETS = [
   {
@@ -529,7 +529,7 @@ export function TmargetPortfolioPage() {
           Tmarget positions use internal demo credits only. Resolved and open
           positions appear here after demo trades.
         </p>
-        <Link to="/wallet" className="btn-secondary mt-6 inline-flex">View Internal Wallet</Link>
+        <Link to="/wallet" className="btn-secondary mt-6 inline-flex">View Wallet / Ledger</Link>
         <div className="mt-6">
           {loading && <LoadingBox text="Loading positions..." />}
           <ErrorBox error={error} />
