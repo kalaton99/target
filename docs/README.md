@@ -29,6 +29,9 @@ need to be stated:
 - `AXWINS_RELEASE_CHECKLIST.md`
   - Release/demo scope, route inventory, demo flow, red flags, and next phase
     options.
+- `AXWINS_DEMO_WALKTHROUGH.md`
+  - Presenter script for safely walking through the Axwins demo, including
+    product boundaries, talking points, known limitations, and stop conditions.
 - `AXWINS_WALLET_LEDGER_MODEL.md`
   - Shared wallet and ledger model, source modules, reason constants,
     lock/unlock/settlement lifecycle, wallet UI behavior, and idempotency rules.
@@ -67,17 +70,18 @@ need to be stated:
 ## Recommended Reading Order
 
 1. `AXWINS_RELEASE_CHECKLIST.md`
-2. `AXWINS_WALLET_LEDGER_MODEL.md`
-3. `DICEGET_FLIPGET_PLAYTEST_QA.md`
-4. `AXWINS_DEPLOYMENT_PREP.md`
-5. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
-6. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
-7. `TMARGET_DURABLE_BACKEND_SELECTION.md`
-8. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
-9. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
-10. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
-11. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
-12. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+2. `AXWINS_DEMO_WALKTHROUGH.md`
+3. `AXWINS_WALLET_LEDGER_MODEL.md`
+4. `DICEGET_FLIPGET_PLAYTEST_QA.md`
+5. `AXWINS_DEPLOYMENT_PREP.md`
+6. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
+7. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+8. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+9. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+10. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+11. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+12. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+13. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 
