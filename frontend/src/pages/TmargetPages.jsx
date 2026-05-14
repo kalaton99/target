@@ -101,6 +101,13 @@ function statusLabel(value) {
   return String(value || "unknown").replaceAll("_", " ");
 }
 
+function tradeDisabledMessage({ user, market }) {
+  if (!user?.token) return "Sign in through the lobby to use demo-credit trading.";
+  if (!market?.id) return "Trading is unavailable for sample fallback markets.";
+  if (market.status !== "open") return `Trading is disabled while this market is ${statusLabel(market.status)}.`;
+  return "";
+}
+
 function TmargetShell({ children }) {
   return (
     <div className="min-h-screen bg-black text-zinc-100">
@@ -275,6 +282,10 @@ export function TmargetMarketsPage() {
         <div>
           <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Demo Markets</div>
           <h1 className="mt-2 font-display text-5xl tracking-widest">Markets</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+            Tmarget markets are demo prediction markets, not games. Prices and
+            positions use internal demo credits only.
+          </p>
         </div>
         <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
           <input
@@ -294,7 +305,12 @@ export function TmargetMarketsPage() {
       </div>
       {loading && <LoadingBox text="Loading markets..." />}
       <ErrorBox error={error} />
-      {!loading && filtered.length === 0 && <LoadingBox text="No demo markets found." />}
+      {!loading && filtered.length === 0 && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-zinc-400">
+          No demo markets found. Clear the filters or open the demo admin page
+          to create an internal-credit market.
+        </div>
+      )}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((market) => <MarketCard key={market.id || market.slug} market={market} fallback={fallback} />)}
       </div>
@@ -364,6 +380,7 @@ export function TmargetMarketDetailPlaceholder() {
   }
 
   const canTrade = Boolean(user?.token && market?.id && market.status === "open");
+  const disabledTradeMessage = tradeDisabledMessage({ user, market });
   const yesPosition = positions.find((pos) => pos.outcome === "yes");
   const noPosition = positions.find((pos) => pos.outcome === "no");
 
@@ -377,6 +394,14 @@ export function TmargetMarketDetailPlaceholder() {
           <section>
             <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">{market.category}</div>
             <h1 className="mt-2 font-display text-4xl tracking-widest sm:text-5xl">{market.title}</h1>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-widest">
+              <Link to="/tmarget/markets" className="rounded border border-zinc-800 px-3 py-2 text-zinc-400 hover:text-yellow-300">
+                Back to Markets
+              </Link>
+              <Link to="/wallet" className="rounded border border-zinc-800 px-3 py-2 text-zinc-400 hover:text-yellow-300">
+                Wallet / Ledger
+              </Link>
+            </div>
             <p className="mt-5 text-base leading-7 text-zinc-400">{market.description}</p>
             <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950 p-5">
               <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Resolution Criteria</div>
@@ -413,10 +438,15 @@ export function TmargetMarketDetailPlaceholder() {
               </div>
             </div>
             <div className="mt-4 rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-500">
-              Status: {statusLabel(market.status)}<br />
+              Status: <span className="text-zinc-300">{statusLabel(market.status)}</span><br />
               Volume: {formatCredits(market.volume)} credits<br />
               Your YES: {yesPosition?.shares || 0} shares<br />
               Your NO: {noPosition?.shares || 0} shares
+            </div>
+            <div className="mt-4 rounded border border-yellow-700/30 bg-yellow-500/5 p-3 text-xs leading-5 text-yellow-100">
+              Demo-credit trading is available only for signed-in users on open
+              backend markets. No real funds, deposits, withdrawals, card
+              payments, crypto transfers, or live trading are enabled.
             </div>
             <div className="mt-5 grid gap-3">
               <select
@@ -441,15 +471,20 @@ export function TmargetMarketDetailPlaceholder() {
                 onClick={() => trade("buy")}
                 className="rounded border border-emerald-700 px-4 py-3 text-sm uppercase tracking-widest text-emerald-200 disabled:border-zinc-700 disabled:text-zinc-500"
               >
-                {canTrade ? "Buy Demo Shares" : "Trading Not Enabled"}
+                {canTrade ? "Buy Demo Shares" : "Buy Disabled"}
               </button>
               <button
                 disabled={!canTrade}
                 onClick={() => trade("sell")}
                 className="rounded border border-rose-700 px-4 py-3 text-sm uppercase tracking-widest text-rose-200 disabled:border-zinc-700 disabled:text-zinc-500"
               >
-                {canTrade ? "Sell Demo Shares" : "Trading Not Enabled"}
+                {canTrade ? "Sell Demo Shares" : "Sell Disabled"}
               </button>
+              {!canTrade && (
+                <div className="rounded border border-zinc-800 bg-black/40 p-3 text-xs leading-5 text-zinc-500">
+                  {disabledTradeMessage}
+                </div>
+              )}
             </div>
           </aside>
         </div>
@@ -498,7 +533,21 @@ export function TmargetPortfolioPage() {
         <div className="mt-6">
           {loading && <LoadingBox text="Loading positions..." />}
           <ErrorBox error={error} />
-          {!loading && !error && positions.length === 0 && <LoadingBox text="No Tmarget positions yet." />}
+          {!loading && !error && positions.length === 0 && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-sm leading-6 text-zinc-400">
+              No Tmarget positions yet. Open demo markets to inspect available
+              internal-credit positions, or use Wallet / Ledger to review demo
+              credit activity.
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/tmarget/markets" className="rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:text-yellow-300">
+                  View Markets
+                </Link>
+                <Link to="/wallet" className="rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:text-yellow-300">
+                  Wallet / Ledger
+                </Link>
+              </div>
+            </div>
+          )}
           {positions.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-5">
               <table className="w-full min-w-[680px] text-left text-sm">
