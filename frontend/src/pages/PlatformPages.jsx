@@ -6,18 +6,21 @@ const gameProducts = [
   {
     name: "Target",
     status: "Available",
-    description: "Strategic table game inside Axwins",
+    category: "Game",
+    description: "Strategic table game inside Axwins. Target gameplay review stays in the separate Target flow.",
     href: "/games/target",
   },
   {
     name: "Diceget",
     status: "Available",
+    category: "Game",
     description: "4-player dice game inside Axwins",
     href: "/games/diceget",
   },
   {
     name: "Flipget",
     status: "Available",
+    category: "Game",
     description: "2-player coin flip game inside Axwins",
     href: "/games/flipget",
   },
@@ -27,28 +30,38 @@ const productModules = [
   {
     name: "Tmarget",
     status: "Demo MVP",
-    description: "Demo prediction market product, separate from games",
+    category: "Prediction Market",
+    description: "Demo prediction market product, separate from games and backed only by internal demo credits",
     href: "/tmarget",
   },
 ];
 
 const coreProducts = [
   {
-    name: "Wallet",
+    name: "Wallet / Ledger",
     status: "Core Service",
+    category: "Platform Core",
     description: "Internal demo-credit wallet shared across Axwins products",
     href: "/wallet",
   },
   {
     name: "Transaction History",
     status: "Core Service",
+    category: "Platform Core",
     description: "Read-only ledger history for internal demo credits",
     href: "/wallet",
   },
 ];
 
 const DEMO_CREDIT_NOTICE =
-  "Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.";
+  "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
+
+const walkthroughSteps = [
+  "Start with Axwins as the platform hub.",
+  "Show Games: Target, Diceget, and Flipget.",
+  "Show Tmarget separately as a demo prediction market product.",
+  "Close with Wallet / Ledger as read-only platform core.",
+];
 
 function PlatformShell({ children }) {
   return (
@@ -94,11 +107,14 @@ function ProductCard({ product }) {
     <Link
       to={product.href}
       data-testid={`product-card-${product.name.toLowerCase()}`}
-      className="group rounded-lg border border-zinc-800 bg-zinc-950/70 p-5 transition hover:border-yellow-600/70 hover:bg-zinc-900/70"
+      className="group flex min-h-[190px] flex-col rounded-lg border border-zinc-800 bg-zinc-950/80 p-5 transition hover:border-yellow-600/70 hover:bg-zinc-900/70"
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="font-display text-2xl tracking-widest text-zinc-100 sm:text-3xl">
-          {product.name}
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">{product.category}</div>
+          <div className="mt-2 font-display text-2xl tracking-widest text-zinc-100 sm:text-3xl">
+            {product.name}
+          </div>
         </div>
         <span
           className={`shrink-0 rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest ${
@@ -110,7 +126,7 @@ function ProductCard({ product }) {
           {product.status}
         </span>
       </div>
-      <p className="min-h-10 text-sm leading-relaxed text-zinc-400">{product.description}</p>
+      <p className="text-sm leading-relaxed text-zinc-400">{product.description}</p>
       <div className="mt-5 text-xs uppercase tracking-[0.3em] text-yellow-300">
         {available ? "Enter" : "Open"}
       </div>
@@ -118,74 +134,102 @@ function ProductCard({ product }) {
   );
 }
 
+function ProductGroup({ eyebrow, title, description, products, columns = "md:grid-cols-3" }) {
+  return (
+    <section className="rounded-lg border border-zinc-900 bg-zinc-950/40 p-4 sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">{eyebrow}</div>
+          <h2 className="mt-2 font-display text-3xl tracking-widest text-zinc-100 sm:text-4xl">{title}</h2>
+        </div>
+        <p className="max-w-xl text-sm leading-6 text-zinc-500">{description}</p>
+      </div>
+      <div className={`mt-5 grid gap-4 ${columns}`}>
+        {products.map((product) => <ProductCard key={product.name} product={product} />)}
+      </div>
+    </section>
+  );
+}
+
 export function PlatformHome() {
   return (
     <PlatformShell>
-      <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+      <section className="grid gap-8 py-4 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
         <div>
           <div className="mb-3 font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">
-            Platform hub
+            Internal demo platform
           </div>
-          <h1 className="font-display text-5xl tracking-widest text-zinc-100 sm:text-7xl">
+          <h1 className="font-display text-5xl tracking-widest text-zinc-100 sm:text-7xl lg:text-8xl">
             AXWINS
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">
-            Axwins brings Target, Diceget, and Flipget together as game modules,
-            with Tmarget separated as a demo prediction market product. Wallet,
-            ledger, transaction history, and internal demo credits are shared
-            Axwins platform core services.
+          <p className="mt-4 max-w-2xl text-lg leading-8 text-zinc-300">
+            A multi-product demo platform for games, a separate demo prediction
+            market product, and shared wallet / ledger core services.
+          </p>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-500">
+            Axwins is the platform. Target, Diceget, and Flipget are games.
+            Tmarget is not a game; it is a separate demo prediction market
+            product. Wallet, Ledger, Transaction History, and Internal Demo
+            Credits are platform core.
           </p>
           <p className="mt-5 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
             {DEMO_CREDIT_NOTICE}
           </p>
-          <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
             <Link className="btn-primary text-center" to="/games">
-              View Products
-            </Link>
-            <Link className="btn-secondary text-center" to="/games/target">
-              Play Target
+              Open Games
             </Link>
             <Link className="btn-secondary text-center" to="/tmarget">
               Open Tmarget
             </Link>
+            <Link className="btn-secondary text-center" to="/wallet">
+              Wallet / Ledger
+            </Link>
           </div>
         </div>
-        <div className="rounded-lg border border-yellow-700/30 bg-zinc-950/70 p-5">
+        <aside className="rounded-lg border border-yellow-700/30 bg-zinc-950/80 p-5">
           <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">
-            Product structure
+            Demo walkthrough
           </div>
-          <div className="mt-4 grid gap-3 text-sm text-zinc-300">
-            <div className="rounded border border-zinc-800 bg-black/40 p-3">
-              Games: Target, Diceget, and Flipget.
-            </div>
-            <div className="rounded border border-zinc-800 bg-black/40 p-3">
-              Prediction Markets: Tmarget, separate from games.
-            </div>
-            <div className="rounded border border-zinc-800 bg-black/40 p-3">
-              Platform Core: Wallet, ledger, transaction history, and internal demo credits.
-            </div>
+          <h2 className="mt-2 font-display text-3xl tracking-widest text-zinc-100">
+            Safe demo path
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-500">
+            Use this hub as the first screen for investor and internal-review
+            walkthroughs. It mirrors the demo script without claiming production
+            readiness.
+          </p>
+          <div className="mt-5 grid gap-3">
+            {walkthroughSteps.map((step, index) => (
+              <div key={step} className="flex gap-3 rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-300">
+                <span className="font-display text-lg text-yellow-300">{index + 1}</span>
+                <span>{step}</span>
+              </div>
+            ))}
           </div>
-        </div>
+        </aside>
       </section>
       <section className="mt-10 grid gap-8">
-        <div>
-          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Games</div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            {gameProducts.map((product) => <ProductCard key={product.name} product={product} />)}
-          </div>
-        </div>
-        <div>
-          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Prediction Markets</div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {productModules.map((product) => <ProductCard key={product.name} product={product} />)}
-          </div>
-        </div>
-        <div>
-          <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Platform Core</div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {coreProducts.map((product) => <ProductCard key={product.name} product={product} />)}
-          </div>
-        </div>
+        <ProductGroup
+          eyebrow="Games"
+          title="Target, Diceget, Flipget"
+          description="Game modules inside Axwins. Gameplay remains owned by each game surface."
+          products={gameProducts}
+        />
+        <ProductGroup
+          eyebrow="Prediction Markets"
+          title="Tmarget"
+          description="A separate demo prediction market product. It is not a game and does not enable real-money trading."
+          products={productModules}
+          columns="md:grid-cols-2"
+        />
+        <ProductGroup
+          eyebrow="Platform Core"
+          title="Wallet and Ledger"
+          description="Read-only wallet, ledger, transaction history, and internal demo-credit surfaces shared across Axwins."
+          products={coreProducts}
+          columns="md:grid-cols-2"
+        />
       </section>
     </PlatformShell>
   );
