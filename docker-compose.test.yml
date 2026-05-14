@@ -1,0 +1,27 @@
+# Axwins / Tmarget test-only Postgres container.
+# This is not production infrastructure.
+# This file does not activate Tmarget durable storage.
+# The Axwins app does not automatically consume this database.
+# Tmarget runtime remains InMemoryTmargetRepository unless future explicit
+# adapter activation is implemented.
+
+services:
+  tmarget-postgres-test:
+    image: postgres:16-alpine
+    container_name: axwins-tmarget-postgres-test
+    environment:
+      POSTGRES_DB: axwins_tmarget_test
+      POSTGRES_USER: axwins_tmarget_test
+      POSTGRES_PASSWORD: axwins_tmarget_test_password
+    ports:
+      - "55432:5432"
+    volumes:
+      - tmarget_postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axwins_tmarget_test -d axwins_tmarget_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tmarget_postgres_test_data:

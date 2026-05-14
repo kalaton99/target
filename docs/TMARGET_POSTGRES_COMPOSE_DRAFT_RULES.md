@@ -12,13 +12,19 @@ runtime, SQL, migration, or adapter behavior.
 - `InMemoryTmargetRepository` is active.
 - `PostgresTmargetRepository` is inactive/fail-closed.
 - `DurableTmargetRepository` is inactive.
-- No Docker Compose file exists.
-- No Postgres test container exists.
+- `docker-compose.test.yml` now exists as a passive, test-only Postgres
+  container definition.
+- No Postgres test container is running by default.
 - No database dependency exists.
 - No migrations exist.
 - No SQL exists.
 - No runtime activation exists.
 - Axwins uses internal demo credits only.
+
+Checkpoint note: `docker-compose.test.yml` is not wired into runtime. It does
+not include migrations, SQL, database dependencies, or adapter activation.
+`InMemoryTmargetRepository` remains active and `PostgresTmargetRepository`
+remains inactive/fail-closed.
 
 > Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.
 
