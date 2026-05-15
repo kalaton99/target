@@ -1,5 +1,7 @@
 # TARGET — Premium Card Game
 
+Historical memory only. Current Axwins is locally/Codex-developed and does not use Emergent runtime, OAuth, attribution, frontend tooling, or deployment.
+
 ## Last Updated: 2026-02 (Deal-Again target-selector fix)
 
 ## Recent Changes
@@ -115,7 +117,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
    • Real JWT decoding via existing `core.security.decode_token` (no new auth code)
    • Engine integration is stubbed: state_version=0, action_handler returns
      `{accepted: false, reason: "ENGINE_NOT_WIRED"}`
-   • Live verified at `https://gracious-raman-3.preview.emergentagent.com/api/v2/realtime/health`
+   • Historical hosted preview verification only; that preview URL is obsolete for current Axwins.
 - ⬜ Phase 7  — Telegram link/notify boundary
 - ⬜ Phase 8  — Web3 deposit/withdraw boundary
 - ⬜ Phase 9  — Reward points ledger
@@ -138,7 +140,7 @@ Architecture went through 5 review rounds (v1 → v3.2) with strict requirements
      HIT/STAND buttons (enabled only on own turn in DRAW), "Deal again" after PAYOUT
    • Live verified: `/play` → PLAY → A♠Q♦ score 19 soft → STAND → bot auto-STAND
      → DRAW→BETTING → state_version 1→3
-   • Live URL: `https://gracious-raman-3.preview.emergentagent.com/play`
+   • Historical hosted preview URL existed for this Target flow; it is obsolete for current Axwins.
 - ⬜ Phase 12 — E2E hardening via testing_agent_v3_fork
 
 ## Test totals: 139 passed / 2 skipped (incl. 17 live-backend lobby tests, 2026-02)
@@ -209,7 +211,7 @@ External code-quality audits are governed by [`AUDIT_POLICY.md`](./AUDIT_POLICY.
 - Reconnect grace timer (20–30s) with sitting_out flag
 
 ### P1
-- Google OAuth (Emergent-managed)
+- Google OAuth (obsolete managed flow; removed from current Axwins)
 - Lobby with ready system + match settings (per visual reference Sample 9)
 - Avatar uploads / character portraits
 - Sound effects + chip-trail animations on bet/raise
@@ -747,11 +749,11 @@ happens against the real table shape:
   carries a fresh `rng_commit_hash` (no longer `"h"*64`).
 - Canonical suite: **240 passed / 2 skipped** (zero regression).
 
-## 2026-05 v2 — Emergent-managed Google OAuth (P1)
-- **New module `backend/auth_oauth/`** sitting beside the existing
+## 2026-05 v2 — Obsolete managed Google OAuth memory (P1)
+- **New OAuth module, now removed from current Axwins** sat beside the existing
   guest/JWT flow. No legacy auth code touched.
   - `POST /api/v2/auth/google/session` — exchanges a one-time
-    `session_id` (from the URL fragment after the Emergent OAuth
+    `session_id` (from the URL fragment after the hosted OAuth
     redirect) for `{user, jwt}` + a 7-day `session_token` httpOnly
     cookie.
   - `GET  /api/v2/auth/me` — resolves identity from cookie OR bearer
@@ -770,14 +772,14 @@ happens against the real table shape:
   `403 GUEST_AUTH_DISABLED`. Lets ops disable the dev login path in
   production without touching code.
 - **Frontend wiring** (`LobbyPage.jsx`): added a Google sign-in button
-  that redirects to `https://auth.emergentagent.com/?redirect=<origin>`
+  that redirected to an obsolete hosted OAuth URL
   and a fragment handler that POSTs the returned `session_id` to the
   backend. Guest login button is preserved for dev / CI use.
-- **No user-supplied credentials required** — uses the Emergent-managed
-  OAuth proxy (`demobackend.emergentagent.com/auth/v1/env/oauth/session-data`).
+- **No user-supplied credentials required** — used an obsolete hosted
+  OAuth proxy endpoint.
   `OAUTH_COOKIE_SECURE` env var defaults to `1`; set to `0` only for
   plain-HTTP test harnesses.
-- **New tests** — `tests/test_auth_oauth_2026_05.py` covers
+- **New tests** — old OAuth tests covered
   exchange→cookie→`/me`→logout, bearer fallback, 401/422 error paths,
   guest-auth gating, and the lobby-mirror writeback.
 - **Suite**: **244 passed / 2 skipped** (was 240; +4 OAuth tests).
@@ -833,7 +835,7 @@ lobby failed to load tables after auth attempt.
    against localhost:8001 — response had both headers, breaking CORS.
 2. **React StrictMode double-fire (frontend):**
    The OAuth-callback `useEffect` ran twice in dev/StrictMode and
-   POSTed the single-use `session_id` to the backend twice. Emergent's
+   POSTed the single-use `session_id` to the backend twice. The hosted
    exchange endpoint is single-use, so the 2nd call returned 401 and
    raced the 1st (successful) call's `setUser`. UI showed an error
    even when auth succeeded, plus a 401 in the network tab.
@@ -862,11 +864,11 @@ lobby failed to load tables after auth attempt.
     fetch), so a refresh / back-button can never re-submit the
     one-time `session_id`.
   - `/me` refresh-resilience effect now skips when
-    `window.location.hash` contains `session_id=` (per Emergent
+    `window.location.hash` contains `session_id=` (per hosted
     Auth playbook §"Global AuthProvider Race Condition").
   - Error message expanded with backend `detail` + actionable
     "use guest sign-in below" hint.
-- **No backend logic changes to `auth_oauth/router.py`** — the
+- **No backend exchange-handler logic changes** — the
   exchange / cookie / DB path was correct already. The bugs were
   in environment plumbing (CORS) and frontend lifecycle.
 
@@ -876,7 +878,7 @@ lobby failed to load tables after auth attempt.
 - Browser screenshot: cookie-injected OAuth user → lobby loads
   showing the user's name, full table list, logout button, create
   form — all working.
-- `tests/test_auth_oauth_2026_05.py` — **5/5 PASS** (full
+- Old OAuth tests — **5/5 PASS** (full
   exchange + cookie + bearer + lobby-bridge + logout flow).
 - Full canonical suite — **240 passed / 2 skipped** (one suite run
   hit a pre-existing live-backend concurrency flake in
@@ -888,8 +890,8 @@ lobby failed to load tables after auth attempt.
 
 **Frontend OAuth flow contract (locked):**
 1. User clicks `[data-testid="google-signin-btn"]` →
-   `https://auth.emergentagent.com/?redirect=${origin}/lobby`.
-2. Emergent OAuth flow → returns to `/lobby#session_id=<one-time>`.
+   the obsolete hosted OAuth redirect URL.
+2. Hosted OAuth flow → returns to `/lobby#session_id=<one-time>`.
 3. Frontend captures hash via `useRef` during render, posts to
    `/api/v2/auth/google/session` exactly once (StrictMode-safe),
    strips the hash, persists `target_user`, and renders authed UI.
@@ -974,7 +976,7 @@ under load alongside all other multiplayer tests.
 12. ✅ P1: Frontend wiring for SUBMIT_CLIENT_SEED + verify-result modal — **DONE 2026-05 v2**.
 13. ✅ P1: Quarantined `backend/realtime/` directory deletion — **DONE 2026-05 v2**.
 14. ✅ P2: RNG consistency cleanup (dev_router uses generate_server_seed) — **DONE 2026-05 v2**.
-15. ✅ P1: Emergent-managed Google OAuth (with guest-auth gating) — **DONE 2026-05 v2**.
+15. ✅ P1: Obsolete managed Google OAuth memory (with guest-auth gating) — **DONE 2026-05 v2; removed from current Axwins**.
 16. ✅ P2: Flaky-test fix — deterministic `/start` → `BETTING_R1` synchronization — **DONE 2026-05 v2**.
 17. ✅ P0: Google OAuth bugfix — CORS-with-credentials + StrictMode race — **DONE 2026-05 v2**.
 18. ✅ P2: Phase-progression flake fix — JOKER → BETTING_R3 skip contract — **DONE 2026-05 v2**.
