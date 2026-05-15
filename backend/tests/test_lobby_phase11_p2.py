@@ -1,6 +1,6 @@
 """Phase 11 P2 — Lobby HTTP + integration tests (live backend).
 
-These tests hit the running supervisor-managed backend (REACT_APP_BACKEND_URL)
+These tests hit the configured backend (REACT_APP_BACKEND_URL)
 to avoid the motor/asyncio event-loop binding issues that occur when using
 FastAPI TestClient with module-scope mongo clients.
 
@@ -26,7 +26,7 @@ from websockets.sync.client import connect as ws_connect
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://gracious-raman-3.preview.emergentagent.com",
+    "http://127.0.0.1:8000",
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 WS_BASE = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")

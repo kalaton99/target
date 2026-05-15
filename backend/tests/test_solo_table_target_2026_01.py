@@ -15,7 +15,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://gracious-raman-3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 SPAWN = f"{BASE_URL}/api/v2/dev/spawn_solo_table"
 TEARDOWN = f"{BASE_URL}/api/v2/dev/teardown_solo_table"
 

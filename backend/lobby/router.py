@@ -14,6 +14,7 @@ Routes (all under /api/v2/lobby):
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -203,16 +204,14 @@ def build_lobby_router(bridge: EngineBridge) -> APIRouter:
 
     @router.post("/auth")
     async def auth(body: AuthRequest):
-        # 2026-05 v2 — guest auth gated by ALLOW_GUEST_AUTH (default ON).
-        # In production with Google OAuth enabled, ops can flip this to
-        # 0/false to disable username-only login while preserving the
-        # full lobby/WS pipeline for OAuth users.
-        from auth_oauth import is_guest_auth_enabled
-        if not is_guest_auth_enabled():
+        # Guest auth is default-on for the local/internal demo. Operators can
+        # explicitly disable username-only login with ALLOW_GUEST_AUTH=0.
+        guest_auth_enabled = os.environ.get("ALLOW_GUEST_AUTH", "1").strip().lower()
+        if guest_auth_enabled in {"0", "false", "no", "off"}:
             raise HTTPException(
                 status_code=403,
                 detail={"code": "GUEST_AUTH_DISABLED",
-                        "message": "Guest login is disabled in production. Use Google sign-in."},
+                        "message": "Guest login is disabled on this server."},
             )
         try:
             user = await service.upsert_guest_user(core_db.db, body.username)

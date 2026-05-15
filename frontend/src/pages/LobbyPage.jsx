@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Phase 11 P2 — Lobby. Real users register with a username, see a list of
@@ -10,8 +10,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 //   - written here on /api/v2/lobby/auth success
 //   - read by PlayPage in lobby mode
 //   - cleared by PlayPage if /me returns 401 (token expired)
-
-const TARGETS = [30, 50, 75, 100];
 
 const REDIRECT_MESSAGES = {
   session_expired: "Your session expired. Please sign in again.",
@@ -41,126 +39,6 @@ export default function LobbyPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const redirectMsg = REDIRECT_MESSAGES[searchParams.get("msg")] || "";
-  // 2026-05 v2 — Emergent Google OAuth callback. After Google sign-in
-  // the user is redirected to `/lobby#session_id=...`. We exchange the
-  // session_id with the backend, persist `target_user` (jwt + name) so
-  // the rest of this page works unchanged, and strip the fragment.
-  //
-  // StrictMode-safe: the playbook explicitly calls out that
-  // useEffect double-fires under React.StrictMode, which causes the
-  // single-use Emergent session_id to be POSTed twice — the second
-  // call comes back 401 OAUTH_EXCHANGE_FAILED and races the first
-  // (successful) call's setState. We use a `useRef` guard set
-  // synchronously at the start of the effect so the second
-  // invocation is a no-op, and we read the hash ONCE here (not in
-  // render) so the guard's reset between effect-runs doesn't matter.
-  const oauthProcessed = useRef(false);
-  const initialHash = useRef(typeof window !== "undefined" ? window.location.hash : "");
-  const [oauthBusy, setOauthBusy] = useState(
-    initialHash.current.startsWith("#session_id="),
-  );
-  const [oauthErr, setOauthErr] = useState("");
-  useEffect(() => {
-    if (oauthProcessed.current) return;
-    const hash = initialHash.current || "";
-    if (!hash.startsWith("#session_id=")) return;
-    const sessionId = hash.slice("#session_id=".length);
-    if (!sessionId) return;
-    oauthProcessed.current = true;
-    setOauthBusy(true);
-    setOauthErr("");
-    // Strip the session_id from the URL immediately so a refresh /
-    // back-button never re-submits it (and so a curious user can't
-    // copy it from the address bar).
-    try {
-      window.history.replaceState({}, document.title,
-        window.location.pathname + window.location.search);
-    } catch (_) { /* noop */ }
-    (async () => {
-      try {
-        const r = await fetch("/api/v2/auth/google/session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ session_id: sessionId }),
-        });
-        if (!r.ok) {
-          let detail = "";
-          try { detail = (await r.json())?.detail || ""; } catch (_) {}
-          // 2026-05 v3 demo polish: show a friendly message; keep the
-          // technical detail only if helpful for debugging in dev.
-          const friendly =
-            "Google sign-in didn't complete. Please try again, or use guest sign-in below.";
-          setOauthErr(
-            detail && r.status >= 500
-              ? `${friendly} (server error: ${detail})`
-              : friendly,
-          );
-          return;
-        }
-        const data = await r.json();
-        // Persist as `target_user` so the rest of LobbyPage + PlayPage
-        // work without touching their bearer-JWT plumbing.
-        const stored = {
-          user_id: data.user.user_id,
-          username: data.user.name,
-          token: data.jwt,
-          email: data.user.email,
-          picture: data.user.picture,
-          auth_provider: "google",
-        };
-        ls.set(stored);
-        setUser(stored);
-      } catch (e) {
-        setOauthErr(
-          "Google sign-in didn't complete. Please try again, or use guest sign-in below.",
-        );
-      } finally {
-        setOauthBusy(false);
-      }
-    })();
-    // We deliberately don't add `ls` as a dep — `LS()` returns a fresh
-    // closure each render and the effect must run exactly once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Refresh-resilience: if `target_user` isn't in localStorage but the
-  // server still has a valid cookie session, /me will tell us who we
-  // are and we can mint a new bearer in-memory by re-exchanging? No —
-  // /me alone doesn't issue a JWT. Instead, on cold load with no
-  // localStorage we just call /me to render the username; if the user
-  // tries an action that needs a bearer, we'll redirect them to log in.
-  //
-  // CRITICAL (per Emergent OAuth playbook): skip this check entirely
-  // when we're handling an OAuth callback (`#session_id=...` in the
-  // URL). Otherwise the /me call races the session exchange — /me
-  // returns 401 before the cookie is set, and we can clobber state.
-  useEffect(() => {
-    if (user) return;
-    if (initialHash.current.startsWith("#session_id=")) return;
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/v2/auth/me", { credentials: "include" });
-        if (!alive || !r.ok) return;
-        const me = await r.json();
-        // We have a session cookie but no JWT — flag the user so the
-        // header shows their name. They'll need to re-sign-in to mint
-        // a JWT for table actions (rare; covers the case where
-        // localStorage was cleared but the cookie survived).
-        setUser({
-          user_id: me.user_id,
-          username: me.name,
-          email: me.email,
-          picture: me.picture,
-          auth_provider: me.auth_provider,
-          token: null,
-        });
-      } catch (_) {}
-    })();
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // create-form state
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(30);
@@ -250,11 +128,6 @@ export default function LobbyPage() {
   };
 
   const doLogout = async () => {
-    // 2026-05 v2 — also call backend so the cookie session is invalidated
-    // and a refresh after logout doesn't re-auth from a stale cookie.
-    try {
-      await fetch("/api/v2/auth/logout", { method: "POST", credentials: "include" });
-    } catch (_) { /* best effort */ }
     ls.clear();
     setUser(null);
   };
@@ -349,24 +222,6 @@ export default function LobbyPage() {
               {redirectMsg}
             </div>
           )}
-          {/* 2026-05 v2 — Emergent-managed Google OAuth.
-              Redirect URL is `${window.location.origin}/lobby` so the
-              user lands back here with `#session_id=...` and the
-              top-level effect handles the exchange. */}
-          <button
-            data-testid="google-signin-btn"
-            disabled={oauthBusy}
-            onClick={() => {
-              const redirect = `${window.location.origin}/lobby`;
-              window.location.href =
-                `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
-            }}
-            className="w-full mb-3 px-7 py-3 rounded-md border border-emerald-600/60 text-emerald-300 hover:bg-emerald-500/10 tracking-[0.3em] uppercase disabled:opacity-30"
-          >
-            {oauthBusy ? "Signing you in…" : "Continue with Google"}
-          </button>
-          {oauthErr && <div data-testid="oauth-err" className="text-rose-400 mb-3 text-xs text-center">{oauthErr}</div>}
-          <div className="text-zinc-700 text-[10px] tracking-[0.3em] uppercase text-center my-4">— or —</div>
           <p className="text-zinc-600 text-xs mb-2 text-center">
             Quick play — no email needed.
           </p>
@@ -448,13 +303,6 @@ export default function LobbyPage() {
                 onChange={(e) => setTarget(Number(e.target.value))}
                 className="bg-zinc-900 border border-zinc-700 rounded p-2"
               >
-                {/*
-                  Hardcoded options (instead of TARGETS.map(...)) to avoid the
-                  Emergent dev-tool wrapping the dynamic `{t}` expression in a
-                  <span style={{display:"contents"}} />, which is invalid HTML
-                  inside <option> and produces a hydration warning. Static
-                  children = no expression to wrap.
-                */}
                 <option value={30}>30 — fast (4 seats)</option>
                 <option value={50}>50 — fast (4 seats)</option>
                 <option value={75}>75 — long (5 seats)</option>

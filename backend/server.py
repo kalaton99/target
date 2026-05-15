@@ -49,10 +49,6 @@ async def health():
 api_router.include_router(auth_router)
 api_router.include_router(wallet_router)
 api_router.include_router(tables_router)
-# 2026-05 v2 — Emergent-managed Google OAuth (additive). Guest JWT path
-# under `/api/v2/lobby/auth` is preserved for dev/staging.
-from auth_oauth import router as oauth_router  # noqa: E402
-api_router.include_router(oauth_router)
 # 2026-05 stabilization: legacy /api/ws/table/{id} WS path has been
 # removed. The only realtime surface is `/api/v2/ws/table/{id}` via
 # realtime_v2 below. The legacy `backend/realtime/` directory was
@@ -108,14 +104,13 @@ app.state.v2_pubsub = _v2_pubsub  # type: ignore[attr-defined]
 
 app.include_router(api_router)
 
-# CORS — when the frontend sends `credentials: 'include'` (used by the
-# Emergent Google OAuth cookie session), browsers REJECT a wildcard
-# `Access-Control-Allow-Origin: *` paired with
-# `Access-Control-Allow-Credentials: true`. Starlette's CORSMiddleware
-# does NOT auto-echo the request origin when `allow_origins=["*"]`; it
-# only does so when `allow_origin_regex` is used. So we use the regex
-# form here. `CORS_ORIGINS` env var is honoured for explicit lockdowns
-# in production (comma-separated origins).
+# CORS — browsers reject wildcard `Access-Control-Allow-Origin: *`
+# paired with `Access-Control-Allow-Credentials: true`. Starlette's
+# CORSMiddleware does NOT auto-echo the request origin when
+# `allow_origins=["*"]`; it only does so when `allow_origin_regex` is
+# used. So we use the regex form here. `CORS_ORIGINS` env var is
+# honoured for explicit lockdowns in production (comma-separated
+# origins).
 _cors_env = (os.environ.get("CORS_ORIGINS") or "*").strip()
 if _cors_env in ("", "*"):
     # Permissive but credential-compatible: echo any origin.
