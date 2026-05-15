@@ -67,6 +67,18 @@ Environment names visible in the current backend code:
 - `ENGINE_VERSION`
 - `SIGNUP_BONUS`
 - `RNG_ENCRYPTION_KEY`
+- `TARGET_ALLOW_BOTS`
+- `TARGET_BOT_COUNT_MAX`
+- `ALLOW_GUEST_AUTH`
+- `TMARGET_DEMO_ADMIN_ENABLED`
+
+Frontend build-time environment visible in current frontend code:
+
+- `REACT_APP_BACKEND_URL`
+
+Most current demo pages use relative `/api` calls. The legacy frontend API
+helper still uses `REACT_APP_BACKEND_URL`; for a single-origin internal demo,
+configure it deliberately for the public demo origin if that helper is used.
 
 Do not invent secret values. Inspect existing project env examples or the
 current local configuration when preparing an environment.

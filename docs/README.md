@@ -44,6 +44,10 @@ need to be stated:
 - `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
   - Hosting options, recommended staged deployment path, frontend/backend
     deployment considerations, rollback plan, and deployment red flags.
+- `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
+  - Minimal single-origin internal demo deployment shape, including static SPA
+    fallback, `/api` and WebSocket proxy notes, env checklist, smoke flow, and
+    rollback boundaries.
 - `TMARGET_DURABLE_REPOSITORY_PLAN.md`
   - Future durable repository plan for Tmarget, grounded in the current
     repository contract and contract tests. It does not implement durable
@@ -75,13 +79,14 @@ need to be stated:
 4. `DICEGET_FLIPGET_PLAYTEST_QA.md`
 5. `AXWINS_DEPLOYMENT_PREP.md`
 6. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
-7. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
-8. `TMARGET_DURABLE_BACKEND_SELECTION.md`
-9. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
-10. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
-11. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
-12. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
-13. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+7. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
+8. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+9. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+10. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+11. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+12. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+13. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+14. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 

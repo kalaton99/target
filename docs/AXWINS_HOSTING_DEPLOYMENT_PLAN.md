@@ -228,10 +228,13 @@ Frontend route handling must support SPA routes:
 - `/tmarget/admin/markets`
 - `/wallet`
 
-The inspected frontend code uses relative API paths such as `/api/tmarget` and
-`/api/platform/wallet/me`. A deployment must either serve backend routes under
-the same origin or proxy `/api` to the backend. Do not invent frontend API env
-variables unless they are added intentionally in a future source pass.
+Most inspected frontend demo pages use relative API paths such as
+`/api/tmarget` and `/api/platform/wallet/me`. The legacy frontend API helper
+still uses `REACT_APP_BACKEND_URL`. A deployment must either serve backend
+routes under the same origin or proxy `/api` to the backend. For a single-origin
+internal demo, configure `REACT_APP_BACKEND_URL` deliberately for the public
+demo origin if the legacy helper is used. Do not commit `.env` files or secret
+values.
 
 After deployment, verify every frontend route directly in the browser, including
 deep links such as `/diceget/:tableId`, `/flipget/:tableId`, and
@@ -290,8 +293,10 @@ Before remote deployment:
 - Verify error logging is visible.
 - Verify no production payment keys exist or are required.
 
-Environment names are documented in `AXWINS_DEPLOYMENT_PREP.md`; do not invent
-secret values in docs or source.
+Environment names are documented in `AXWINS_DEPLOYMENT_PREP.md`. The exact
+single-origin internal demo shape is documented in
+`AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`. Do not invent secret values in docs or
+source.
 
 ## 11. Pre-Deployment Verification Checklist
 
