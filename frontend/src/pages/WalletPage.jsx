@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "../components/game/Logo";
+import { apiFetch } from "../lib/api";
 
 const SOURCE_LABELS = {
   target: "Target",
@@ -69,7 +70,7 @@ function authHeaders() {
 }
 
 async function getJson(path) {
-  const response = await fetch(path, { headers: authHeaders() });
+  const response = await apiFetch(path, { headers: authHeaders() });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(data?.detail?.code || data?.detail || `HTTP_${response.status}`);

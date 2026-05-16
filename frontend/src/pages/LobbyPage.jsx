@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 // Phase 11 P2 — Lobby. Real users register with a username, see a list of
 // open tables, create a table, join one, and start the hand. After START,
@@ -58,7 +59,7 @@ export default function LobbyPage() {
     table_seats_by_target: { 30: 4, 50: 4, 75: 5, 100: 5 },
   });
   useEffect(() => {
-    fetch("/api/v2/lobby/config")
+    apiFetch("/api/v2/lobby/config")
       .then((r) => r.json())
       .then((d) => setConfig(d))
       .catch(() => {});
@@ -87,7 +88,7 @@ export default function LobbyPage() {
     setLoading(true);
     setErr("");
     try {
-      const r = await fetch("/api/v2/lobby/tables");
+      const r = await apiFetch("/api/v2/lobby/tables");
       const data = await r.json();
       setTables(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -110,7 +111,7 @@ export default function LobbyPage() {
       return;
     }
     try {
-      const r = await fetch("/api/v2/lobby/auth", {
+      const r = await apiFetch("/api/v2/lobby/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
@@ -143,7 +144,7 @@ export default function LobbyPage() {
       if (config.allow_bots && Number(botCount) > 0) {
         body.bot_count = Math.max(0, Math.min(Number(botCount), perTargetBotMax));
       }
-      const r = await fetch("/api/v2/lobby/tables", {
+      const r = await apiFetch("/api/v2/lobby/tables", {
         method: "POST",
         headers: { ...headers(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -162,7 +163,7 @@ export default function LobbyPage() {
   const doJoin = async (tid) => {
     setErr("");
     try {
-      const r = await fetch(`/api/v2/lobby/tables/${tid}/join`, {
+      const r = await apiFetch(`/api/v2/lobby/tables/${tid}/join`, {
         method: "POST",
         headers: headers(),
       });
@@ -180,7 +181,7 @@ export default function LobbyPage() {
   const doStart = async (tid) => {
     setErr("");
     try {
-      const r = await fetch(`/api/v2/lobby/tables/${tid}/start`, {
+      const r = await apiFetch(`/api/v2/lobby/tables/${tid}/start`, {
         method: "POST",
         headers: headers(),
       });

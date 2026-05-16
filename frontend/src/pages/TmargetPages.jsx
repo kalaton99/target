@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Logo } from "../components/game/Logo";
+import { apiFetch } from "../lib/api";
 
 const DISCLAIMER =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
@@ -74,7 +75,7 @@ function authHeaders(extra = {}) {
 }
 
 async function apiJson(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -249,7 +250,7 @@ export function TmargetMarketsPage() {
       try {
         const data = await apiJson("/api/tmarget/markets");
         if (!alive) return;
-        setMarkets(data.markets || []);
+        setMarkets(data?.markets || []);
         setFallback(false);
       } catch (err) {
         if (!alive) return;
@@ -337,12 +338,12 @@ export function TmargetMarketDetailPlaceholder() {
       const data = await apiJson(`/api/tmarget/markets/${slug}`);
       setMarket(data);
       const tradesData = await apiJson(`/api/tmarget/markets/${data.id}/trades`);
-      setTrades(tradesData.trades || []);
+      setTrades(tradesData?.trades || []);
       if (user?.token) {
         const posData = await apiJson(`/api/tmarget/markets/${data.id}/positions`, {
           headers: authHeaders(),
         });
-        setPositions(posData.positions || []);
+        setPositions(posData?.positions || []);
       } else {
         setPositions([]);
       }
@@ -507,7 +508,7 @@ export function TmargetPortfolioPage() {
       try {
         const data = await apiJson("/api/tmarget/me/positions", { headers: authHeaders() });
         if (!alive) return;
-        setPositions(data.positions || []);
+        setPositions(data?.positions || []);
       } catch (err) {
         if (alive) setError(user?.token ? err.message : "Sign in through the lobby to view Tmarget positions.");
       } finally {
@@ -598,7 +599,7 @@ export function TmargetAdminMarketsPage() {
   async function load() {
     try {
       const data = await apiJson("/api/tmarget/markets");
-      setMarkets(data.markets || []);
+      setMarkets(data?.markets || []);
     } catch (err) {
       setError(err.message);
     }

@@ -5,6 +5,7 @@ import {
   randomClientSeed,
   verifyCommit,
 } from "../lib/fairness";
+import { apiFetch, wsApiUrl } from "../lib/api";
 import { Avatar } from "../components/Avatar";
 
 // Phase 11 P2 — supports two modes:
@@ -243,7 +244,7 @@ function PlayPage() {
       // blocked by stale-table cleanup.
       if (previousTableId) {
         try {
-          await fetch("/api/v2/dev/teardown_solo_table", {
+          await apiFetch("/api/v2/dev/teardown_solo_table", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ table_id: previousTableId }),
@@ -263,7 +264,7 @@ function PlayPage() {
       }
 
       const body = targetScore != null ? { target_score: targetScore } : {};
-      const r = await fetch("/api/v2/dev/spawn_solo_table", {
+      const r = await apiFetch("/api/v2/dev/spawn_solo_table", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -324,7 +325,7 @@ function PlayPage() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/v2/lobby/me", {
+        const r = await apiFetch("/api/v2/lobby/me", {
           headers: { Authorization: `Bearer ${user.token}` },
         });
         if (cancelled) return;
@@ -365,7 +366,7 @@ function PlayPage() {
 
     const poll = async () => {
       try {
-        const r = await fetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}`);
+        const r = await apiFetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}`);
         if (!r.ok) {
           setStatusLine("Table not found");
           return;
@@ -409,7 +410,7 @@ function PlayPage() {
     setStarting(true);
     setStatusLine("Starting hand…");
     try {
-      const r = await fetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}/start`, {
+      const r = await apiFetch(`/api/v2/lobby/tables/${encodeURIComponent(lobbyTableId)}/start`, {
         method: "POST",
         headers: { Authorization: `Bearer ${lobbyUser.token}` },
       });
@@ -429,10 +430,9 @@ function PlayPage() {
   // open WebSocket once we have a session
   useEffect(() => {
     if (!session) return;
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${scheme}://${window.location.host}/api/v2/ws/table/${encodeURIComponent(
+    const url = wsApiUrl(`/api/v2/ws/table/${encodeURIComponent(
       session.table_id,
-    )}?token=${encodeURIComponent(session.token)}`;
+    )}?token=${encodeURIComponent(session.token)}`);
 
     setWsState("connecting");
     const ws = new WebSocket(url);
@@ -1807,7 +1807,7 @@ function PlayPage() {
                     // that table's lifecycle).
                     if (!lobbyMode && session?.table_id) {
                       try {
-                        await fetch("/api/v2/dev/teardown_solo_table", {
+                        await apiFetch("/api/v2/dev/teardown_solo_table", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ table_id: session.table_id }),

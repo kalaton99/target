@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 const SIDES = ["heads", "tails"];
 const DEMO_CREDIT_NOTICE =
@@ -22,7 +23,7 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`/api/flipget${path}`, {
+  const response = await apiFetch(`/api/flipget${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
   });

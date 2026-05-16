@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 const TARGETS = [30, 50, 75, 100];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
@@ -23,7 +24,7 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(`/api/diceget${path}`, {
+  const response = await apiFetch(`/api/diceget${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
   });
