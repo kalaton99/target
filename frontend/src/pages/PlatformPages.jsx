@@ -8,7 +8,7 @@ const gameProducts = [
     status: "Available",
     category: "Game",
     description: "Strategic table game inside Axwins. Target gameplay review stays in the separate Target flow.",
-    href: "/target",
+    href: "/games/target",
   },
   {
     name: "Diceget",
