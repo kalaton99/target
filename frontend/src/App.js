@@ -45,6 +45,7 @@ function App() {
         <Routes>
           <Route path="/" element={<PlatformHome />} />
           <Route path="/games" element={<GamesPage />} />
+          <Route path="/target" element={<Navigate to="/lobby" replace />} />
           <Route path="/games/target" element={<Navigate to="/lobby" replace />} />
           <Route path="/games/diceget" element={<Navigate to="/diceget" replace />} />
           <Route path="/diceget" element={<DicegetPage />} />

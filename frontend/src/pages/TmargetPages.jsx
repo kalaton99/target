@@ -336,6 +336,9 @@ export function TmargetMarketDetailPlaceholder() {
     setError("");
     try {
       const data = await apiJson(`/api/tmarget/markets/${slug}`);
+      if (!data?.id) {
+        throw new Error("MARKET_NOT_FOUND");
+      }
       setMarket(data);
       const tradesData = await apiJson(`/api/tmarget/markets/${data.id}/trades`);
       setTrades(tradesData?.trades || []);
