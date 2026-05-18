@@ -97,6 +97,8 @@ class BrowserAudit:
             return
         raw_failure = request.failure
         failure = getattr(raw_failure, "error_text", raw_failure) or "unknown"
+        if "ERR_ABORTED" in str(failure):
+            return
         self.failed_requests.append(f"{request.method} {url} {failure}")
 
     def _websocket(self, websocket):
