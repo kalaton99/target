@@ -159,6 +159,25 @@ def test_target_lobby_table_and_websocket_loop_stays_target_only():
             page.get_by_test_id("actions-bar").wait_for(timeout=15_000)
             page.get_by_test_id("target-pill").wait_for(timeout=15_000)
             page.get_by_test_id("my-hand").wait_for(timeout=15_000)
+            page.wait_for_function(
+                """
+                () => {
+                  const check = document.querySelector('[data-testid="check-btn"]');
+                  return check && !check.disabled;
+                }
+                """,
+                timeout=15_000,
+            )
+            page.get_by_test_id("check-btn").click(timeout=10_000)
+            page.wait_for_function(
+                """
+                () => {
+                  const status = document.querySelector('[data-testid="status-line"]');
+                  return status && status.textContent.includes('ACK CHECK');
+                }
+                """,
+                timeout=10_000,
+            )
 
             assert any("/api/v2/lobby" in url for url in audit.requests)
             assert not any("/api/diceget" in url for url in audit.requests)
