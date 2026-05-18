@@ -242,7 +242,7 @@ function PlayPage() {
           allowBots,
           message: allowBots
             ? "Quick bot table is available on this local demo server."
-            : "Quick bot table is disabled on this server. Use the lobby flow instead.",
+            : "Quick bot table is disabled on this server. Use the Target lobby/table flow instead.",
         });
       } catch (e) {
         if (cancelled) return;
@@ -862,6 +862,17 @@ function PlayPage() {
 
   const handFinished =
     view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
+  const targetActionHint = useMemo(() => {
+    if (wsState !== "open") return "Connecting to the Target table before actions unlock.";
+    if (handFinished) return "Hand complete. Deal again or return to the Target lobby.";
+    if (myTurn) return "Your draw turn: HIT draws another card, STAND locks your score.";
+    if (myBettingTurn && Number(view.currentCallOwed || 0) > 0) {
+      return `Your betting turn: CALL ${view.currentCallOwed} or FOLD.`;
+    }
+    if (myBettingTurn) return "Your betting turn: CHECK to pass, BET to raise, or FOLD.";
+    const activePlayer = view.players.find((p) => p.seat === view.currentTurnSeat);
+    return `Waiting for ${activePlayer?.username || "the active Target seat"} to act.`;
+  }, [handFinished, myBettingTurn, myTurn, view.currentCallOwed, view.currentTurnSeat, view.players, wsState]);
 
   // 2026-05 v2 PART 1 — showdown clarity helpers. Compute once so
   // every player row can derive its labels from the same snapshot.
@@ -1391,6 +1402,13 @@ function PlayPage() {
             scroll above. On ≥sm the sticky classes neutralize and the
             original inline layout is preserved (desktop untouched). */}
         <div
+          data-testid="target-action-hint"
+          role="status"
+          className="mb-4 rounded-md border border-zinc-800 bg-zinc-950/80 px-4 py-2 text-sm leading-6 text-zinc-400"
+        >
+          {targetActionHint}
+        </div>
+        <div
           data-testid="actions-bar"
           className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap
                      fixed left-0 right-0 bottom-0 z-30 px-4 py-3 bg-black/95 border-t border-zinc-800
@@ -1400,6 +1418,7 @@ function PlayPage() {
             data-testid="hit-btn"
             onClick={() => send("HIT")}
             disabled={!myTurn}
+            title={targetActionHint}
             className="px-4 sm:px-7 py-3 rounded-md border border-yellow-600/50 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             HIT
@@ -1408,6 +1427,7 @@ function PlayPage() {
             data-testid="stand-btn"
             onClick={() => send("STAND")}
             disabled={!myTurn}
+            title={targetActionHint}
             className="px-4 sm:px-7 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             STAND
@@ -1446,6 +1466,7 @@ function PlayPage() {
             data-testid="check-btn"
             onClick={() => send("CHECK")}
             disabled={!myBettingTurn || view.currentCallOwed > 0}
+            title={targetActionHint}
             className="px-3 sm:px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             CHECK
@@ -1454,6 +1475,7 @@ function PlayPage() {
             data-testid="call-btn"
             onClick={() => send("CALL")}
             disabled={!myBettingTurn || view.currentCallOwed === 0}
+            title={targetActionHint}
             className="px-3 sm:px-5 py-3 rounded-md border border-zinc-600 text-zinc-200 hover:bg-zinc-200/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             CALL {view.currentCallOwed > 0 ? `(${view.currentCallOwed})` : ""}
@@ -1462,6 +1484,7 @@ function PlayPage() {
             data-testid="fold-btn"
             onClick={() => send("FOLD")}
             disabled={!myBettingTurn}
+            title={targetActionHint}
             className="px-3 sm:px-5 py-3 rounded-md border border-rose-700/60 text-rose-300 hover:bg-rose-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >
             FOLD

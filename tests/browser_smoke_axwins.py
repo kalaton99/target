@@ -167,12 +167,16 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             page.get_by_role("button", name="Create Diceget Table").click(timeout=10_000)
             page.wait_for_url("**/diceget/*", timeout=10_000)
             assert "/diceget/" in page.url
+            diceget_body = page.locator("body").inner_text(timeout=5_000)
+            assert "Start unlocks when all 4 seats are filled" in diceget_body
             for _ in range(3):
                 add_bot = page.get_by_role("button", name="Add Bot Seat")
                 add_bot.click(timeout=10_000)
                 page.wait_for_timeout(250)
             page.get_by_role("button", name="Start Diceget").click(timeout=10_000)
             page.wait_for_timeout(500)
+            diceget_body = page.locator("body").inner_text(timeout=5_000)
+            assert "Your turn: roll to add to your score" in diceget_body
             roll = page.get_by_role("button", name="Roll")
             assert roll.is_enabled()
             roll.click(timeout=10_000)
@@ -198,7 +202,7 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             flip = page.get_by_role("button", name="Flip Coin")
             assert not flip.is_enabled()
             flipget_body = page.locator("body").inner_text(timeout=5_000)
-            assert "Flip unlocks after two players choose unique sides" in flipget_body
+            assert "Flip requires two demo participants with unique sides" in flipget_body
             assert "/api/v2/ws/table" not in flipget_body
             user2 = _api("POST", "/api/v2/lobby/auth", {"username": f"v{random.randint(1000, 9999)}"})
             _api("POST", f"/api/flipget/tables/{flipget_table_id}/join", {}, token=user2["token"])

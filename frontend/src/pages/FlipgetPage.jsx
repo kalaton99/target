@@ -125,6 +125,16 @@ export default function FlipgetPage() {
       && table.seats?.length === 2
       && table.seats.some((seat) => !seat.ready || !seat.side),
   );
+  const actionHint = useMemo(() => {
+    if (!table) return "Loading Flipget table state.";
+    if (!mySeat) return "Spectators can watch Flipget. Join a waiting table to choose a side and ready up.";
+    if (table.status === "settled") return "Flipget settled. Use Deal Again to start another internal demo-credit flip.";
+    if (canFlip) return "Both demo participants are ready. Flip Coin is available.";
+    if ((table.seats?.length || 0) < 2) return "Flip requires two demo participants with unique sides.";
+    if (!mySeat.side) return "Choose heads or tails, then ready up.";
+    if (!mySeat.ready) return "Ready up after choosing your side.";
+    return "Flip requires two demo participants with unique sides and both ready.";
+  }, [canFlip, mySeat, table]);
 
   const refresh = useCallback(async () => {
     if (tableId) {
@@ -325,12 +335,14 @@ export default function FlipgetPage() {
               })}
               <button className="btn-primary" disabled={busy || !mySeat?.side || mySeat.ready || ["flipping", "settled"].includes(table?.status)} onClick={() => run(() => api(`/tables/${table.table_id}/ready`, { method: "POST" }))}>Ready Up</button>
               {mySeat && (
-                <button className="btn-secondary" disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
+                <button className="btn-secondary" title={actionHint} disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
               )}
               {mySeat && !canFlip && table?.status !== "settled" && (
-                <div className="w-full rounded border border-zinc-800 bg-black/30 p-3 text-center text-sm leading-6 text-zinc-500">
-                  Flip unlocks after two players choose unique sides and both
-                  ready up. This local demo does not route Flipget through
+                <div
+                  data-testid="flipget-action-hint"
+                  className="w-full rounded border border-zinc-800 bg-black/30 p-3 text-center text-sm leading-6 text-zinc-500"
+                >
+                  {actionHint} This local demo does not route Flipget through
                   Target table WebSockets.
                 </div>
               )}
@@ -341,7 +353,7 @@ export default function FlipgetPage() {
             <Seat seat={table?.seats?.[1]} fallbackIndex={1} />
             {table?.status === "waiting" && table.seats?.length < 2 && (
               <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/40 p-4 text-sm text-zinc-500">
-                Waiting for one more player.
+                Waiting for one more demo participant. Flip requires two demo participants with unique sides.
               </div>
             )}
             {waitingForReady && (

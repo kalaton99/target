@@ -119,6 +119,19 @@ export default function DicegetPage() {
       && table.current_turn_user_id === mySeat.user_id
       && !["held", "busted", "forfeited"].includes(mySeat.status),
   );
+  const actionHint = useMemo(() => {
+    if (!table) return "Loading Diceget table state.";
+    if (!mySeat) return "You are viewing this Diceget table as a spectator.";
+    if (table.status === "waiting") {
+      const needed = Math.max(0, 4 - (table.seats?.length || 0));
+      return needed > 0
+        ? `Start unlocks when all 4 seats are filled. Add ${needed} more demo participant${needed === 1 ? "" : "s"} or bot seat${needed === 1 ? "" : "s"}.`
+        : "All 4 seats are filled. Start Diceget to unlock roll actions.";
+    }
+    if (table.status !== "active") return "Dice actions are available only while the table is active.";
+    if (myTurn) return "Your turn: roll to add to your score, hold to bank it, or forfeit the table.";
+    return `Waiting for ${currentSeat?.username || currentSeat?.user_id || "the active seat"} to act.`;
+  }, [currentSeat, mySeat, myTurn, table]);
 
   const refresh = useCallback(async () => {
     if (tableId) {
@@ -339,6 +352,12 @@ export default function DicegetPage() {
             })}>Leave Table</button>
           </div>
         )}
+        <div
+          data-testid="diceget-action-hint"
+          className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-sm leading-6 text-zinc-400"
+        >
+          {actionHint}
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
@@ -348,9 +367,9 @@ export default function DicegetPage() {
               <Dice value={latestRoll?.dice_2} />
             </div>
             <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
-              <button className="btn-primary" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
-              <button className="btn-secondary" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
-              <button className="btn-ghost" disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
+              <button className="btn-primary" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
+              <button className="btn-secondary" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
+              <button className="btn-ghost" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
             </div>
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
@@ -358,7 +377,7 @@ export default function DicegetPage() {
             <div className="max-h-72 space-y-2 overflow-auto">
               {(table?.rolls || []).length === 0 && (
                 <div className="rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-500">
-                  No rolls yet.
+                  No rolls yet. Roll unlocks once Diceget is active and it is your turn.
                 </div>
               )}
               {(table?.rolls || []).slice().reverse().map((roll, index) => (

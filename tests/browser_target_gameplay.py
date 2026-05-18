@@ -159,6 +159,7 @@ def test_target_lobby_table_and_websocket_loop_stays_target_only():
             page.get_by_test_id("actions-bar").wait_for(timeout=15_000)
             page.get_by_test_id("target-pill").wait_for(timeout=15_000)
             page.get_by_test_id("my-hand").wait_for(timeout=15_000)
+            page.get_by_test_id("target-action-hint").wait_for(timeout=15_000)
             page.wait_for_function(
                 """
                 () => {
@@ -168,6 +169,8 @@ def test_target_lobby_table_and_websocket_loop_stays_target_only():
                 """,
                 timeout=15_000,
             )
+            hint = page.get_by_test_id("target-action-hint").inner_text(timeout=5_000)
+            assert "Your betting turn" in hint
             page.get_by_test_id("check-btn").click(timeout=10_000)
             page.wait_for_function(
                 """
