@@ -216,6 +216,21 @@ def test_roll_generates_two_dice_and_increases_score():
     assert table.seats[0].score == 7
 
 
+def test_repeat_roll_then_hold_blocks_stale_player_action():
+    service = make_service([1, 2, 3, 4])
+    table = fill_four(service)
+    service.start_table(table_id=table.id, user_id="u1")
+    service.roll(table_id=table.id, user_id="u1")
+    service.roll(table_id=table.id, user_id="u1")
+    service.hold(table_id=table.id, user_id="u1")
+    assert table.seats[0].score == 10
+    assert table.seats[0].locked_score == 10
+    assert table.current_turn_user_id == "u2"
+    with pytest.raises(DicegetError) as err:
+        service.roll(table_id=table.id, user_id="u1")
+    assert err.value.code == "NOT_YOUR_TURN"
+
+
 def test_bust_when_score_exceeds_target():
     service = make_service([6, 6, 6, 6, 6, 6])
     table = fill_four(service, target=30)
