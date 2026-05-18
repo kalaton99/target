@@ -165,6 +165,11 @@ function PlayPage() {
   const lobbyMode = !!lobbyTableId;
   const [session, setSession] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [soloPlayConfig, setSoloPlayConfig] = useState({
+    checked: false,
+    allowBots: false,
+    message: "Checking local demo mode...",
+  });
   const [wsState, setWsState] = useState("idle"); // idle | connecting | open | closed | error
   const [view, setView] = useState({
     sv: 0,
@@ -222,6 +227,37 @@ function PlayPage() {
     setLog((cur) => [...cur.slice(-29), s]);
   }, []);
 
+  useEffect(() => {
+    if (lobbyMode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch("/api/v2/lobby/config");
+        if (!r.ok) throw new Error(`config failed ${r.status}`);
+        const data = await r.json();
+        if (cancelled) return;
+        const allowBots = data?.allow_bots === true;
+        setSoloPlayConfig({
+          checked: true,
+          allowBots,
+          message: allowBots
+            ? "Quick bot table is available on this local demo server."
+            : "Quick bot table is disabled on this server. Use the lobby flow instead.",
+        });
+      } catch (e) {
+        if (cancelled) return;
+        setSoloPlayConfig({
+          checked: true,
+          allowBots: false,
+          message: "Backend config is unavailable. Use the lobby flow once the backend is healthy.",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lobbyMode]);
+
   // ----- spawn + connect -----
   // 2026-05 v3 — `targetScore` is optional; defaults to legacy
   // behavior (solo target 30). The "Deal Again" flow passes an
@@ -229,6 +265,10 @@ function PlayPage() {
   // modal. `previousTableId` (when provided) is torn down server-
   // side first so the abandoned engine doesn't leak.
   const startPlay = useCallback(async (targetScore = null, previousTableId = null) => {
+    if (!lobbyMode && !session && soloPlayConfig.checked && !soloPlayConfig.allowBots) {
+      setStatusLine(soloPlayConfig.message);
+      return;
+    }
     // Defensive: a previous regression wired this fn directly to an
     // onClick which passed the React SyntheticEvent as `targetScore`,
     // causing JSON.stringify to throw on the circular fiber graph.
@@ -292,7 +332,7 @@ function PlayPage() {
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [lobbyMode, session, soloPlayConfig]);
 
   // ----- lobby mode: poll table status + auto-connect when RUNNING -----
   const [lobbyTable, setLobbyTable] = useState(null);
@@ -983,13 +1023,16 @@ function PlayPage() {
           <div className="text-4xl sm:text-5xl font-bold tracking-widest text-zinc-100 mb-2">
             <span className="text-yellow-400">▲</span> reach the target
           </div>
-          <p className="text-zinc-500 text-sm mb-10">
-            Server-authoritative card game. Click <span className="text-yellow-400">PLAY</span> for a quick game vs a bot, or visit the <a className="text-yellow-400 underline" href="/lobby">lobby</a> to play with friends.
+          <p className="text-zinc-500 text-sm mb-4">
+            Server-authoritative card game. Use the <a className="text-yellow-400 underline" href="/lobby">lobby</a> for the local demo flow. Quick bot tables are available only when the backend enables dev bots.
+          </p>
+          <p className="text-zinc-500 text-xs mb-10" data-testid="solo-play-config">
+            {soloPlayConfig.message}
           </p>
           <button
             data-testid="play-btn"
             onClick={() => startPlay()}
-            disabled={connecting}
+            disabled={connecting || !soloPlayConfig.checked || !soloPlayConfig.allowBots}
             className="px-12 py-4 rounded-md border border-yellow-600/60 bg-yellow-500/10 text-yellow-300 tracking-[0.4em] uppercase hover:bg-yellow-500/20 disabled:opacity-40 transition mr-3"
           >
             {connecting ? "…" : "PLAY"}
