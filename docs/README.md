@@ -34,7 +34,7 @@ need to be stated:
     product boundaries, talking points, known limitations, and stop conditions.
 - `AXWINS_LOCAL_DEV_STARTUP.md`
   - Windows PowerShell local startup guide for MongoDB, backend, frontend,
-    health checks, and common local troubleshooting.
+    helper scripts, health checks, and common local troubleshooting.
 - `AXWINS_WALLET_LEDGER_MODEL.md`
   - Shared wallet and ledger model, source modules, reason constants,
     lock/unlock/settlement lifecycle, wallet UI behavior, and idempotency rules.

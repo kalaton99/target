@@ -35,6 +35,37 @@ Only start it if the service is installed but stopped:
 Start-Service MongoDB
 ```
 
+## Helper Scripts
+
+The repository includes local-only PowerShell helpers under `scripts/`.
+Backend and frontend still need separate terminals because both commands keep a
+foreground development server running.
+
+From PowerShell:
+
+```powershell
+cd "C:\Users\crims\OneDrive\Belgeler\New project\target"
+.\scripts\start-backend-local.ps1
+```
+
+In a second PowerShell window:
+
+```powershell
+cd "C:\Users\crims\OneDrive\Belgeler\New project\target"
+.\scripts\start-frontend-local.ps1
+```
+
+In a third PowerShell window, or after the backend is expected to be running:
+
+```powershell
+cd "C:\Users\crims\OneDrive\Belgeler\New project\target"
+.\scripts\check-local-health.ps1
+```
+
+The helper scripts set only process-local environment variables. They do not
+write `.env` files, start or stop MongoDB, change application behavior, or alter
+runtime configuration outside the current PowerShell process.
+
 ## 2. Start Backend
 
 Open a PowerShell window from the repository root:
