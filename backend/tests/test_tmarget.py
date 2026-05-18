@@ -269,6 +269,22 @@ async def test_buy_yes_and_no_debit_balance_and_create_positions(ledger):
     assert wallet["balance"] < 1000
 
 
+async def test_yes_and_no_buys_update_market_payload_positions_and_trades(ledger):
+    ledger_service, _, _ = ledger
+    service, market = open_market()
+    start = service.market_payload(market)
+    await service.buy(market_id=market.id, user_id="u1", outcome="yes", shares=1, ledger=ledger_service)
+    await service.buy(market_id=market.id, user_id="u1", outcome="no", shares=1, ledger=ledger_service)
+    payload = service.market_payload(market)
+    positions = service.market_positions(market.id, user_id="u1")
+    outcomes = {position["outcome"]: position["shares"] for position in positions}
+    trades = service.market_trades(market.id)
+    assert payload["volume"] > start["volume"]
+    assert outcomes == {"yes": 1, "no": 1}
+    assert [trade["outcome"] for trade in trades] == ["yes", "no"]
+    assert all(trade["status"] == "filled" for trade in trades)
+
+
 async def test_insufficient_balance_rejected(ledger):
     ledger_service, wallets, _ = ledger
     service, market = open_market()
