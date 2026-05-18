@@ -144,8 +144,18 @@ def _assert_no_product_namespace(requests: list[str], forbidden: list[str]) -> N
     assert leaked == []
 
 
+def _start_playwright_or_skip():
+    try:
+        manager = sync_playwright()
+        playwright = manager.__enter__()
+        return manager, playwright
+    except PermissionError as exc:  # pragma: no cover - local OS sandbox guard
+        pytest.skip(f"Playwright driver could not start in this environment: {exc}")
+
+
 def test_product_routes_and_demo_loops_do_not_cross_wire():
-    with sync_playwright() as playwright:
+    manager, playwright = _start_playwright_or_skip()
+    try:
         browser = playwright.chromium.launch(headless=True, executable_path=_chrome_path())
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         page = context.new_page()
@@ -271,6 +281,8 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             audit.assert_clean()
         finally:
             browser.close()
+    finally:
+        manager.__exit__(None, None, None)
 
 
 def test_main_routes_use_expected_product_api_namespaces():
@@ -291,7 +303,8 @@ def test_main_routes_use_expected_product_api_namespaces():
         "/tmarget/markets": ["/api/v2/lobby/tables", "/api/v2/ws/table", "/api/diceget", "/api/flipget", "/api/platform"],
         "/wallet": ["/api/v2/lobby", "/api/v2/ws/table", "/api/diceget", "/api/flipget", "/api/tmarget"],
     }
-    with sync_playwright() as playwright:
+    manager, playwright = _start_playwright_or_skip()
+    try:
         browser = playwright.chromium.launch(headless=True, executable_path=_chrome_path())
         context = browser.new_context(viewport={"width": 1280, "height": 900})
         page = context.new_page()
@@ -310,3 +323,5 @@ def test_main_routes_use_expected_product_api_namespaces():
             audit.assert_clean()
         finally:
             browser.close()
+    finally:
+        manager.__exit__(None, None, None)
