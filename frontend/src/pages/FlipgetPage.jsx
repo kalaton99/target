@@ -56,12 +56,12 @@ function Coin({ result, status }) {
   );
 }
 
-function Seat({ seat }) {
+function Seat({ seat, fallbackIndex = 0 }) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
       <div className="flex items-center justify-between gap-3">
         <div className="font-display text-2xl tracking-widest">{seat?.username || seat?.user_id || "Open"}</div>
-        <div className="text-xs uppercase tracking-widest text-zinc-500">Seat {(seat?.seat_index ?? 0) + 1}</div>
+        <div className="text-xs uppercase tracking-widest text-zinc-500">Seat {(seat?.seat_index ?? fallbackIndex) + 1}</div>
       </div>
       <div className="mt-4 text-sm uppercase tracking-widest text-zinc-400">
         Side: {seat?.side || "-"}
@@ -327,11 +327,18 @@ export default function FlipgetPage() {
               {mySeat && (
                 <button className="btn-secondary" disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
               )}
+              {mySeat && !canFlip && table?.status !== "settled" && (
+                <div className="w-full rounded border border-zinc-800 bg-black/30 p-3 text-center text-sm leading-6 text-zinc-500">
+                  Flip unlocks after two players choose unique sides and both
+                  ready up. This local demo does not route Flipget through
+                  Target table WebSockets.
+                </div>
+              )}
             </div>
           </div>
           <div className="grid gap-4">
-            <Seat seat={table?.seats?.[0]} />
-            <Seat seat={table?.seats?.[1]} />
+            <Seat seat={table?.seats?.[0]} fallbackIndex={0} />
+            <Seat seat={table?.seats?.[1]} fallbackIndex={1} />
             {table?.status === "waiting" && table.seats?.length < 2 && (
               <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/40 p-4 text-sm text-zinc-500">
                 Waiting for one more player.
