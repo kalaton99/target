@@ -35,6 +35,15 @@ need to be stated:
 - `AXWINS_LOCAL_DEV_STARTUP.md`
   - Windows PowerShell local startup guide for MongoDB, backend, frontend,
     helper scripts, health checks, and common local troubleshooting.
+- `AXWINS_PRODUCT_LOOP_DEBUG_AUDIT.md`
+  - Local product-loop audit covering route/API isolation, browser smoke
+    coverage, fixed Flipget blocked-state copy, and deferred loop decisions.
+- `EXTERNAL_TARGET_REFERENCE_AUDIT.md`
+  - Read-only audit of the separate external Target reference repository and
+    recommendations for future reviewed Target-only integration.
+- `WINSGET_FUTURE_PLATFORM_ROADMAP.md`
+  - Future platform naming and wallet/payment/Telegram roadmap. It documents
+    Winsget as the future platform name without implementing a runtime rebrand.
 - `AXWINS_WALLET_LEDGER_MODEL.md`
   - Shared wallet and ledger model, source modules, reason constants,
     lock/unlock/settlement lifecycle, wallet UI behavior, and idempotency rules.
@@ -79,18 +88,21 @@ need to be stated:
 1. `AXWINS_RELEASE_CHECKLIST.md`
 2. `AXWINS_DEMO_WALKTHROUGH.md`
 3. `AXWINS_LOCAL_DEV_STARTUP.md`
-4. `AXWINS_WALLET_LEDGER_MODEL.md`
-5. `DICEGET_FLIPGET_PLAYTEST_QA.md`
-6. `AXWINS_DEPLOYMENT_PREP.md`
-7. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
-8. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
-9. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
-10. `TMARGET_DURABLE_BACKEND_SELECTION.md`
-11. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
-12. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
-13. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
-14. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
-15. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+4. `AXWINS_PRODUCT_LOOP_DEBUG_AUDIT.md`
+5. `EXTERNAL_TARGET_REFERENCE_AUDIT.md`
+6. `WINSGET_FUTURE_PLATFORM_ROADMAP.md`
+7. `AXWINS_WALLET_LEDGER_MODEL.md`
+8. `DICEGET_FLIPGET_PLAYTEST_QA.md`
+9. `AXWINS_DEPLOYMENT_PREP.md`
+10. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
+11. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
+12. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+13. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+14. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+15. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+16. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+17. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+18. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 
