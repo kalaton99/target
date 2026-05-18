@@ -16,9 +16,10 @@ export function wsApiUrl(path) {
   const wsPath = path.startsWith("/") ? path : `/${path}`;
   if (BACKEND_URL) {
     const url = new URL(BACKEND_URL);
+    const [pathname, query = ""] = wsPath.split("?", 2);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.pathname = wsPath;
-    url.search = "";
+    url.pathname = pathname;
+    url.search = query ? `?${query}` : "";
     url.hash = "";
     return url.toString();
   }
