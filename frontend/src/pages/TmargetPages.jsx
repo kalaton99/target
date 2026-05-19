@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Logo } from "../components/game/Logo";
 import { apiFetch } from "../lib/api";
 
 const DISCLAIMER =
@@ -127,7 +126,9 @@ function TmargetShell({ children }) {
       <header className="border-b border-zinc-800 bg-zinc-950/80">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-6">
           <Link to="/tmarget" className="flex items-center gap-3">
-            <Logo size={40} />
+            <div className="flex h-10 w-10 items-center justify-center rounded border border-yellow-700/60 bg-black font-display text-lg tracking-widest text-yellow-200">
+              AX
+            </div>
             <div>
               <div className="font-luxe text-xs uppercase tracking-[0.4em] text-yellow-300">
                 Tmarget
@@ -395,6 +396,22 @@ export function TmargetMarketDetailPlaceholder() {
     }
   }
 
+  async function openDraftMarket() {
+    if (!market?.id) return;
+    setNotice("");
+    setError("");
+    try {
+      await apiJson(`/api/tmarget/admin/markets/${market.id}/open`, {
+        method: "POST",
+        headers: authHeaders({ "X-Axwins-Demo-Admin": "true" }),
+      });
+      setNotice("Market opened for demo-credit YES/NO buying.");
+      await load();
+    } catch (err) {
+      setError(friendlyTmargetError(err.message));
+    }
+  }
+
   const canTrade = Boolean(user?.token && market?.id && market.status === "open");
   const disabledTradeMessage = tradeDisabledMessage({ user, market });
   const yesPosition = positions.find((pos) => pos.outcome === "yes");
@@ -499,6 +516,19 @@ export function TmargetMarketDetailPlaceholder() {
               {!canTrade && (
                 <div className="rounded border border-zinc-800 bg-black/40 p-3 text-xs leading-5 text-zinc-500">
                   {disabledTradeMessage}
+                  {market?.id && market.status === "draft" && (
+                    <div className="mt-3 grid gap-2">
+                      <button
+                        className="rounded border border-yellow-700 px-3 py-2 text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10"
+                        onClick={openDraftMarket}
+                      >
+                        Open Market Now
+                      </button>
+                      <Link to="/tmarget/admin/markets" className="text-yellow-300 hover:text-yellow-200">
+                        Or manage lifecycle in Admin Markets.
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -610,6 +640,7 @@ export function TmargetAdminMarketsPage() {
   const [resolution, setResolution] = useState({ outcome: "yes", resolver_notes: "" });
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [createdMarket, setCreatedMarket] = useState(null);
 
   async function load() {
     try {
@@ -628,12 +659,12 @@ export function TmargetAdminMarketsPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function createMarket(event) {
-    event.preventDefault();
+  async function submitMarket(openAfterCreate = false) {
     setError("");
     setNotice("");
+    setCreatedMarket(null);
     try {
-      await apiJson("/api/tmarget/admin/markets", {
+      let created = await apiJson("/api/tmarget/admin/markets", {
         method: "POST",
         headers: authHeaders({ "X-Axwins-Demo-Admin": "true" }),
         body: JSON.stringify({
@@ -641,12 +672,24 @@ export function TmargetAdminMarketsPage() {
           initial_liquidity: Number(form.initial_liquidity),
         }),
       });
-      setNotice("Demo market created.");
+      if (openAfterCreate) {
+        created = await apiJson(`/api/tmarget/admin/markets/${created.id}/open`, {
+          method: "POST",
+          headers: authHeaders({ "X-Axwins-Demo-Admin": "true" }),
+        });
+      }
+      setCreatedMarket(created);
+      setNotice(openAfterCreate ? "Demo market created and opened for YES/NO buying." : "Demo market created as draft. Open it before buying.");
       setForm((prev) => ({ ...prev, title: "", description: "", resolution_criteria: "", source_url: "" }));
       await load();
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function createMarket(event) {
+    event.preventDefault();
+    await submitMarket(false);
   }
 
   async function action(marketId, name) {
@@ -660,6 +703,7 @@ export function TmargetAdminMarketsPage() {
         body,
       });
       setNotice(`Market ${name} complete.`);
+      setCreatedMarket(null);
       await load();
     } catch (err) {
       setError(err.message);
@@ -721,11 +765,37 @@ export function TmargetAdminMarketsPage() {
             <button className="rounded border border-yellow-700 px-4 py-3 text-sm uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10">
               Create Demo Market
             </button>
+            <button
+              type="button"
+              onClick={() => submitMarket(true)}
+              className="rounded border border-emerald-700 px-4 py-3 text-sm uppercase tracking-widest text-emerald-200 hover:bg-emerald-500/10"
+            >
+              Create and Open Demo Market
+            </button>
           </form>
         </section>
         <section>
           <ErrorBox error={error} />
           {notice && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/30 p-4 text-emerald-200">{notice}</div>}
+          {createdMarket && (
+            <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
+              <div className="font-display text-2xl tracking-widest">{createdMarket.title}</div>
+              <div className="mt-2">Status: {statusLabel(createdMarket.status)}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {createdMarket.status === "draft" && (
+                  <button
+                    className="rounded border border-yellow-700 px-3 py-2 text-xs uppercase tracking-widest text-yellow-200"
+                    onClick={() => action(createdMarket.id, "open")}
+                  >
+                    Open Market Now
+                  </button>
+                )}
+                <Link className="rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-200 hover:text-yellow-300" to={`/tmarget/markets/${createdMarket.slug}`}>
+                  View Market
+                </Link>
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>

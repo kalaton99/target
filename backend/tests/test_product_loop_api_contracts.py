@@ -213,10 +213,11 @@ def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypat
     assert blocked.status_code == 400
     assert blocked.json()["detail"]["code"] == "REQUIRES_EXACTLY_2_SEATS"
 
-    current["user_id"] = "u2"
-    assert client.post(f"/api/flipget/tables/{table_id}/join").status_code == 200
-    assert client.post(f"/api/flipget/tables/{table_id}/choose-side", json={"side": "tails"}).status_code == 200
-    assert client.post(f"/api/flipget/tables/{table_id}/ready").status_code == 200
+    demo = client.post(f"/api/flipget/tables/{table_id}/add-demo-opponent", json={"username": "Demo Opponent"})
+    assert demo.status_code == 200
+    assert demo.json()["status"] == "ready"
+    assert {seat["side"] for seat in demo.json()["seats"]} == {"heads", "tails"}
+    assert all(seat["ready"] for seat in demo.json()["seats"])
 
     flipped = client.post(f"/api/flipget/tables/{table_id}/flip")
     assert flipped.status_code == 200

@@ -132,12 +132,20 @@ export default function FlipgetPage() {
       && table.seats?.length === 2
       && table.seats.some((seat) => !seat.ready || !seat.side),
   );
+  const canAddDemoOpponent = Boolean(
+    mySeat
+      && mySeat.side
+      && table?.status === "waiting"
+      && (table.seats?.length || 0) < 2,
+  );
   const actionHint = useMemo(() => {
     if (!table) return "Loading Flipget table state.";
     if (!mySeat) return "Spectators can watch Flipget. Join a waiting table to choose a side and ready up.";
     if (table.status === "settled") return "Flipget settled. Use Deal Again to start another internal demo-credit flip.";
     if (canFlip) return "Both demo participants are ready. Flip Coin is available.";
-    if ((table.seats?.length || 0) < 2) return "Flip requires two demo participants with unique sides.";
+    if ((table.seats?.length || 0) < 2) return mySeat?.side
+      ? "Flip requires two demo participants with unique sides. Add a demo opponent to complete the local flow."
+      : "Flip requires two demo participants with unique sides.";
     if (!mySeat.side) return "Choose heads or tails, then ready up.";
     if (!mySeat.ready) return "Ready up after choosing your side.";
     return "Flip requires two demo participants with unique sides and both ready.";
@@ -343,6 +351,19 @@ export default function FlipgetPage() {
               <button className="btn-primary" disabled={busy || !mySeat?.side || mySeat.ready || ["flipping", "settled"].includes(table?.status)} onClick={() => run(() => api(`/tables/${table.table_id}/ready`, { method: "POST" }))}>Ready Up</button>
               {mySeat && (
                 <button className="btn-secondary" title={actionHint} disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
+              )}
+              {mySeat && table?.status === "waiting" && (table.seats?.length || 0) < 2 && (
+                <button
+                  className="btn-secondary"
+                  title={canAddDemoOpponent ? "Adds a local demo participant on the opposite side and readies that seat." : actionHint}
+                  disabled={busy || !canAddDemoOpponent}
+                  onClick={() => run(() => api(`/tables/${table.table_id}/add-demo-opponent`, {
+                    method: "POST",
+                    body: JSON.stringify({ username: "Demo Opponent" }),
+                  }))}
+                >
+                  Add Demo Opponent
+                </button>
               )}
               {mySeat && !canFlip && table?.status !== "settled" && (
                 <div

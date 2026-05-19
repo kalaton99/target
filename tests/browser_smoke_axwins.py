@@ -194,14 +194,13 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             assert "/diceget/" in page.url
             diceget_body = page.locator("body").inner_text(timeout=5_000)
             assert "Start unlocks when all 4 seats are filled" in diceget_body
-            for _ in range(3):
-                add_bot = page.get_by_role("button", name="Add Bot Seat")
-                add_bot.click(timeout=10_000)
-                page.wait_for_timeout(250)
+            page.get_by_role("button", name="Auto-Fill Demo Seats").click(timeout=10_000)
+            page.wait_for_timeout(500)
             page.get_by_role("button", name="Start Diceget").click(timeout=10_000)
             page.wait_for_timeout(500)
             diceget_body = page.locator("body").inner_text(timeout=5_000)
             assert "Your turn: roll to add to your score" in diceget_body
+            assert "Score Goal" in diceget_body
             roll = page.get_by_role("button", name="Roll")
             assert roll.is_enabled()
             roll.click(timeout=10_000)
@@ -227,18 +226,11 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             flip = page.get_by_role("button", name="Flip Coin")
             assert not flip.is_enabled()
             flipget_body = page.locator("body").inner_text(timeout=5_000)
+            assert "Add Demo Opponent" in flipget_body
             assert "Flip requires two demo participants with unique sides" in flipget_body
             assert "/api/v2/ws/table" not in flipget_body
-            user2 = _api("POST", "/api/v2/lobby/auth", {"username": f"v{random.randint(1000, 9999)}"})
-            _api("POST", f"/api/flipget/tables/{flipget_table_id}/join", {}, token=user2["token"])
-            _api(
-                "POST",
-                f"/api/flipget/tables/{flipget_table_id}/choose-side",
-                {"side": "tails"},
-                token=user2["token"],
-            )
-            _api("POST", f"/api/flipget/tables/{flipget_table_id}/ready", {}, token=user2["token"])
-            page.reload(wait_until="domcontentloaded")
+            page.get_by_role("button", name="Add Demo Opponent").click(timeout=10_000)
+            page.wait_for_timeout(500)
             page.get_by_role("button", name="Flip Coin").click(timeout=10_000)
             page.wait_for_timeout(500)
             flipget_body = page.locator("body").inner_text(timeout=5_000)
@@ -249,32 +241,18 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
                 ["/api/v2/lobby/tables", "/api/v2/ws/table", "/api/diceget", "/api/tmarget", "/api/platform"],
             )
 
-            # Tmarget: create/open a demo market through API and buy YES through
-            # the browser UI using internal demo credits, then buy NO.
+            # Tmarget: create/open a demo market through the admin UI and buy
+            # YES through the browser UI using internal demo credits, then buy NO.
             tmarget_checkpoint = len(audit.requests)
-            market = _api(
-                "POST",
-                "/api/tmarget/admin/markets",
-                {
-                    "title": f"Browser smoke market {random.randint(1000, 9999)}",
-                    "description": "Internal demo-credit browser smoke market.",
-                    "category": "Audit",
-                    "close_time": "2030-01-01T00:00:00Z",
-                    "resolution_criteria": "Audit-only criterion.",
-                    "source_url": "",
-                    "initial_liquidity": 100,
-                },
-                token=user["token"],
-                headers={"X-Axwins-Demo-Admin": "true"},
-            )
-            _api(
-                "POST",
-                f"/api/tmarget/admin/markets/{market['id']}/open",
-                {},
-                token=user["token"],
-                headers={"X-Axwins-Demo-Admin": "true"},
-            )
-            page.goto(f"{FRONTEND}/tmarget/markets/{market['slug']}", wait_until="domcontentloaded")
+            title = f"Browser smoke market {random.randint(1000, 9999)}"
+            page.goto(f"{FRONTEND}/tmarget/admin/markets", wait_until="domcontentloaded")
+            page.get_by_label("Title").fill(title)
+            page.get_by_label("Description").fill("Internal demo-credit browser smoke market.")
+            page.get_by_label("Category").fill("Audit")
+            page.get_by_label("Resolution criteria").fill("Audit-only criterion.")
+            page.get_by_role("button", name="Create and Open Demo Market").click(timeout=10_000)
+            page.get_by_role("link", name="View Market").click(timeout=10_000)
+            page.wait_for_url("**/tmarget/markets/*", timeout=10_000)
             page.get_by_role("button", name="Buy Demo Shares").click(timeout=10_000)
             page.wait_for_timeout(500)
             tmarget_body = page.locator("body").inner_text(timeout=5_000)

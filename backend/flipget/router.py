@@ -26,6 +26,10 @@ class SideRequest(BaseModel):
     side: str
 
 
+class DemoOpponentRequest(BaseModel):
+    username: str = "Demo Opponent"
+
+
 def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
     router = APIRouter(prefix="/flipget", tags=["flipget"])
     svc = service or FlipgetService()
@@ -104,6 +108,43 @@ def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
     async def ready(table_id: str, user_id: str = Depends(current_user_id)):
         try:
             return svc.ready(table_id=table_id, user_id=user_id).to_dict()
+        except FlipgetError as exc:
+            raise _err(exc)
+
+    @router.post("/tables/{table_id}/add-demo-opponent")
+    async def add_demo_opponent(
+        table_id: str,
+        body: DemoOpponentRequest | None = None,
+        user_id: str = Depends(current_user_id),
+    ):
+        try:
+            table = svc.get_table(table_id)
+            caller = next((seat for seat in table.seats if seat.user_id == user_id), None)
+            if caller is None:
+                raise FlipgetError("PLAYER_NOT_SEATED")
+            if caller.side not in {"heads", "tails"}:
+                raise FlipgetError("SIDE_REQUIRED")
+            opponent_side = "tails" if caller.side == "heads" else "heads"
+            opponent_id = f"fg_demo_opponent_{table_id[-8:]}"
+            table = svc.join_table(
+                table_id=table_id,
+                user_id=opponent_id,
+                username=(body.username if body else "Demo Opponent"),
+            )
+            try:
+                await _ledger().open_wallet(opponent_id, opening_balance=SIGNUP_BONUS)
+                await lock_flipget_stake(
+                    _ledger(),
+                    table_id=table.id,
+                    user_id=opponent_id,
+                    stake=table.stake_amount,
+                )
+            except FlipgetWalletError as exc:
+                svc.leave_table(table_id=table_id, user_id=opponent_id)
+                raise _wallet_err(exc)
+            table = svc.choose_side(table_id=table_id, user_id=opponent_id, side=opponent_side)
+            table = svc.ready(table_id=table_id, user_id=opponent_id)
+            return table.to_dict()
         except FlipgetError as exc:
             raise _err(exc)
 

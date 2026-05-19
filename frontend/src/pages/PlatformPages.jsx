@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Logo } from "../components/game/Logo";
 
 const gameProducts = [
   {
@@ -69,7 +68,9 @@ function PlatformShell({ children }) {
       <header className="border-b border-zinc-800 bg-zinc-950/80">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <Logo size={40} />
+            <div className="flex h-10 w-10 items-center justify-center rounded border border-yellow-700/60 bg-black font-display text-lg tracking-widest text-yellow-200">
+              AX
+            </div>
             <div>
               <div className="font-luxe text-xs uppercase tracking-[0.4em] text-yellow-300">
                 Axwins
