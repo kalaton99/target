@@ -84,9 +84,21 @@ async function apiJson(path, options = {}) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem("target_user");
+      throw new Error("SESSION_EXPIRED");
+    }
     throw new Error(data?.detail?.code || data?.detail || `HTTP_${response.status}`);
   }
   return data;
+}
+
+function friendlyTmargetError(message) {
+  const raw = String(message || "");
+  if (raw.includes("SESSION_EXPIRED") || raw.includes("INVALID_TOKEN") || raw.includes("MISSING_TOKEN")) {
+    return "Session expired. Sign in through the Axwins lobby again to continue Tmarget demo-credit actions.";
+  }
+  return raw;
 }
 
 function formatPrice(value) {
@@ -379,7 +391,7 @@ export function TmargetMarketDetailPlaceholder() {
       setNotice(`${side === "buy" ? "Bought" : "Sold"} ${shares} ${outcome.toUpperCase()} demo shares.`);
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyTmargetError(err.message));
     }
   }
 

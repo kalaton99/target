@@ -84,6 +84,22 @@ export default function LobbyPage() {
     [user],
   );
 
+  useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+    apiFetch("/api/v2/lobby/me", { headers: headers() })
+      .then((r) => {
+        if (cancelled || r.ok) return;
+        localStorage.removeItem("target_user");
+        setUser(null);
+        setErr("Session expired. Please sign in again for the local demo.");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [headers, user?.token]);
+
   const refreshTables = useCallback(async () => {
     setLoading(true);
     setErr("");

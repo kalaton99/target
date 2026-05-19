@@ -139,6 +139,21 @@ def _stored_user(page) -> dict:
     return json.loads(raw)
 
 
+def _seed_stale_user(page) -> None:
+    page.evaluate(
+        """
+        window.localStorage.setItem(
+            'target_user',
+            JSON.stringify({
+                user_id: 'stale-user',
+                username: 'stale-user',
+                token: 'stale.invalid.token'
+            })
+        )
+        """
+    )
+
+
 def _assert_no_product_namespace(requests: list[str], forbidden: list[str]) -> None:
     leaked = [url for url in requests if any(namespace in url for namespace in forbidden)]
     assert leaked == []
@@ -278,6 +293,27 @@ def test_product_routes_and_demo_loops_do_not_cross_wire():
             )
 
             assert all("/api/v2/ws/table" not in url for url in audit.websockets)
+            audit.assert_clean()
+        finally:
+            browser.close()
+    finally:
+        manager.__exit__(None, None, None)
+
+
+def test_stale_local_demo_session_clears_before_product_flow():
+    manager, playwright = _start_playwright_or_skip()
+    try:
+        browser = playwright.chromium.launch(headless=True, executable_path=_chrome_path())
+        context = browser.new_context(viewport={"width": 1280, "height": 900})
+        page = context.new_page()
+        audit = BrowserAudit(page)
+        try:
+            page.goto(f"{FRONTEND}/", wait_until="domcontentloaded")
+            _seed_stale_user(page)
+            page.goto(f"{FRONTEND}/lobby", wait_until="domcontentloaded")
+            page.get_by_text("Session expired. Please sign in again for the local demo.").wait_for(timeout=10_000)
+            assert page.get_by_test_id("login-btn").is_visible()
+            assert page.evaluate("window.localStorage.getItem('target_user')") is None
             audit.assert_clean()
         finally:
             browser.close()

@@ -30,6 +30,10 @@ async function api(path, options = {}) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem("target_user");
+      throw new Error("SESSION_EXPIRED");
+    }
     const detail = data?.detail;
     throw new Error(detail?.code || detail || `HTTP_${response.status}`);
   }
@@ -40,6 +44,9 @@ function friendlyErrorMessage(message) {
   const raw = String(message || "");
   if (raw.includes("DicegetInsufficientFunds") || raw.toLowerCase().includes("insufficient")) {
     return "Not enough available internal demo credits to reserve this stake. Check Wallet / Transaction History and try again.";
+  }
+  if (raw.includes("SESSION_EXPIRED") || raw.includes("INVALID_TOKEN") || raw.includes("MISSING_TOKEN")) {
+    return "Session expired. Sign in through the Axwins lobby again to continue Diceget.";
   }
   return raw.split("_").join(" ");
 }
