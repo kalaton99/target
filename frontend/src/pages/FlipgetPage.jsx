@@ -23,10 +23,15 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
-  const response = await apiFetch(`/api/flipget${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  let response;
+  try {
+    response = await apiFetch(`/api/flipget${path}`, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  } catch {
+    throw new Error("BACKEND_OFFLINE");
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) {
@@ -41,6 +46,9 @@ async function api(path, options = {}) {
 
 function friendlyErrorMessage(message) {
   const raw = String(message || "");
+  if (raw.includes("BACKEND_OFFLINE") || raw.toLowerCase().includes("failed to fetch")) {
+    return "Backend is offline. Start the local backend with .\\scripts\\start-backend-local.ps1 and retry Flipget.";
+  }
   if (raw.includes("FlipgetInsufficientFunds") || raw.toLowerCase().includes("insufficient")) {
     return "Not enough available internal demo credits to reserve this stake. Check Wallet / Transaction History and try again.";
   }
@@ -106,6 +114,7 @@ export default function FlipgetPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const user = storedUser();
+  const backendOffline = error.startsWith("Backend is offline.");
 
   const mySeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === user?.user_id),
@@ -160,7 +169,7 @@ export default function FlipgetPage() {
   }, [tableId]);
 
   useEffect(() => {
-    refresh().catch((err) => setError(err.message));
+    refresh().catch((err) => setError(friendlyErrorMessage(err.message)));
     const timer = setInterval(() => refresh().catch(() => {}), 2500);
     return () => clearInterval(timer);
   }, [refresh]);
@@ -240,7 +249,7 @@ export default function FlipgetPage() {
             </label>
             <button
               className="btn-primary text-center"
-              disabled={busy}
+              disabled={busy || backendOffline}
               onClick={() => run(async () => {
                 const created = await api("/tables", {
                   method: "POST",
@@ -268,7 +277,7 @@ export default function FlipgetPage() {
                   <div className="text-sm text-zinc-500">{item.seats.length}/2 seats / {item.status}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                  <button className="btn-secondary" disabled={busy || item.status !== "waiting"} onClick={() => run(async () => {
+                  <button className="btn-secondary" disabled={busy || backendOffline || item.status !== "waiting"} onClick={() => run(async () => {
                     await api(`/tables/${item.table_id}/join`, { method: "POST" });
                     navigate(`/flipget/${item.table_id}`);
                   })}>Join Table</button>
@@ -330,6 +339,7 @@ export default function FlipgetPage() {
               )}
               {SIDES.map((side) => {
                 const disabled = busy
+                  || backendOffline
                   || !mySeat
                   || mySeat.ready
                   || ["flipping", "settled"].includes(table?.status)
@@ -348,15 +358,15 @@ export default function FlipgetPage() {
                   </button>
                 );
               })}
-              <button className="btn-primary" disabled={busy || !mySeat?.side || mySeat.ready || ["flipping", "settled"].includes(table?.status)} onClick={() => run(() => api(`/tables/${table.table_id}/ready`, { method: "POST" }))}>Ready Up</button>
+              <button className="btn-primary" disabled={busy || backendOffline || !mySeat?.side || mySeat.ready || ["flipping", "settled"].includes(table?.status)} onClick={() => run(() => api(`/tables/${table.table_id}/ready`, { method: "POST" }))}>Ready Up</button>
               {mySeat && (
-                <button className="btn-secondary" title={actionHint} disabled={busy || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
+                <button className="btn-secondary" title={actionHint} disabled={busy || backendOffline || !canFlip} onClick={() => run(() => api(`/tables/${table.table_id}/flip`, { method: "POST" }))}>Flip Coin</button>
               )}
               {mySeat && table?.status === "waiting" && (table.seats?.length || 0) < 2 && (
                 <button
                   className="btn-secondary"
                   title={canAddDemoOpponent ? "Adds a local demo participant on the opposite side and readies that seat." : actionHint}
-                  disabled={busy || !canAddDemoOpponent}
+                  disabled={busy || backendOffline || !canAddDemoOpponent}
                   onClick={() => run(() => api(`/tables/${table.table_id}/add-demo-opponent`, {
                     method: "POST",
                     body: JSON.stringify({ username: "Demo Opponent" }),

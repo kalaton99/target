@@ -5,40 +5,6 @@ import { apiFetch } from "../lib/api";
 const DISCLAIMER =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
-const SAMPLE_MARKETS = [
-  {
-    slug: "sample-weather-istanbul",
-    title: "Will Istanbul record measurable rain next Friday?",
-    category: "Weather",
-    yes_price: 0.54,
-    no_price: 0.46,
-    status: "sample fallback",
-    close_time: "Future close time placeholder",
-    description: "Sample fallback data shown only when the backend is unavailable.",
-    rule: {
-      resolution_criteria:
-        "Resolution criteria placeholder. Backend demo markets replace this sample data when available.",
-      source_url: "",
-    },
-    volume: 0,
-  },
-  {
-    slug: "sample-product-launch",
-    title: "Will a demo product launch before quarter end?",
-    category: "Technology",
-    yes_price: 0.38,
-    no_price: 0.62,
-    status: "sample fallback",
-    close_time: "Future close time placeholder",
-    description: "Sample technology market. Trading and settlement are disabled for fallback data.",
-    rule: {
-      resolution_criteria: "Resolution criteria placeholder.",
-      source_url: "",
-    },
-    volume: 0,
-  },
-];
-
 const ADMIN_FIELD_HELP = {
   title: "Short public question for the demo market list.",
   description: "Plain-language context shown on the market detail page.",
@@ -74,13 +40,18 @@ function authHeaders(extra = {}) {
 }
 
 async function apiJson(path, options = {}) {
-  const response = await apiFetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  let response;
+  try {
+    response = await apiFetch(path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error("BACKEND_OFFLINE");
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) {
@@ -94,6 +65,9 @@ async function apiJson(path, options = {}) {
 
 function friendlyTmargetError(message) {
   const raw = String(message || "");
+  if (raw.includes("BACKEND_OFFLINE") || raw.toLowerCase().includes("failed to fetch")) {
+    return "Backend is offline. Demo markets and trading actions are unavailable. Start the local backend with .\\scripts\\start-backend-local.ps1 and retry Tmarget.";
+  }
   if (raw.includes("SESSION_EXPIRED") || raw.includes("INVALID_TOKEN") || raw.includes("MISSING_TOKEN")) {
     return "Session expired. Sign in through the Axwins lobby again to continue Tmarget demo-credit actions.";
   }
@@ -115,7 +89,8 @@ function statusLabel(value) {
 
 function tradeDisabledMessage({ user, market }) {
   if (!user?.token) return "Sign in through the lobby to use demo-credit trading.";
-  if (!market?.id) return "Trading is unavailable for sample fallback markets.";
+  if (!market?.id) return "Trading is unavailable until a backend market is loaded.";
+  if (market.status === "draft") return "Open this demo market before buying YES/NO.";
   if (market.status !== "open") return `Trading is disabled while this market is ${statusLabel(market.status)}.`;
   return "";
 }
@@ -171,7 +146,7 @@ function TmargetShell({ children }) {
   );
 }
 
-function MarketCard({ market, fallback = false }) {
+function MarketCard({ market }) {
   return (
     <Link
       to={`/tmarget/markets/${market.slug || market.id}`}
@@ -183,7 +158,7 @@ function MarketCard({ market, fallback = false }) {
           <h2 className="mt-2 font-display text-2xl tracking-widest text-zinc-100">{market.title}</h2>
         </div>
         <span className="rounded-full border border-zinc-700 px-3 py-1 text-[10px] uppercase tracking-widest text-zinc-500">
-          {fallback ? "sample" : statusLabel(market.status)}
+          {statusLabel(market.status)}
         </span>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3">
@@ -251,7 +226,6 @@ export function TmargetMarketsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [markets, setMarkets] = useState([]);
-  const [fallback, setFallback] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -264,12 +238,10 @@ export function TmargetMarketsPage() {
         const data = await apiJson("/api/tmarget/markets");
         if (!alive) return;
         setMarkets(data?.markets || []);
-        setFallback(false);
       } catch (err) {
         if (!alive) return;
-        setMarkets(SAMPLE_MARKETS);
-        setFallback(true);
-        setError(`Backend unavailable; showing labelled sample fallback data. ${err.message}`);
+        setMarkets([]);
+        setError(friendlyTmargetError(err.message));
       } finally {
         if (alive) setLoading(false);
       }
@@ -326,7 +298,7 @@ export function TmargetMarketsPage() {
         </div>
       )}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((market) => <MarketCard key={market.id || market.slug} market={market} fallback={fallback} />)}
+        {filtered.map((market) => <MarketCard key={market.id || market.slug} market={market} />)}
       </div>
     </TmargetShell>
   );
@@ -364,11 +336,10 @@ export function TmargetMarketDetailPlaceholder() {
         setPositions([]);
       }
     } catch (err) {
-      const sample = SAMPLE_MARKETS.find((item) => item.slug === slug) || SAMPLE_MARKETS[0];
-      setMarket(sample);
+      setMarket(null);
       setTrades([]);
       setPositions([]);
-      setError(`Backend unavailable or market missing; showing labelled sample fallback data. ${err.message}`);
+      setError(friendlyTmargetError(err.message));
     } finally {
       setLoading(false);
     }
@@ -422,6 +393,11 @@ export function TmargetMarketDetailPlaceholder() {
       {loading && <LoadingBox text="Loading market..." />}
       <ErrorBox error={error} />
       {notice && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/30 p-4 text-emerald-200">{notice}</div>}
+      {!loading && !market && !error && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-zinc-400">
+          Market unavailable. Return to Markets or create an open demo market from Admin Markets.
+        </div>
+      )}
       {market && (
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section>
@@ -555,7 +531,7 @@ export function TmargetPortfolioPage() {
         if (!alive) return;
         setPositions(data?.positions || []);
       } catch (err) {
-        if (alive) setError(user?.token ? err.message : "Sign in through the lobby to view Tmarget positions.");
+        if (alive) setError(user?.token ? friendlyTmargetError(err.message) : "Sign in through the lobby to view Tmarget positions.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -647,7 +623,7 @@ export function TmargetAdminMarketsPage() {
       const data = await apiJson("/api/tmarget/markets");
       setMarkets(data?.markets || []);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyTmargetError(err.message));
     }
   }
 
@@ -683,7 +659,7 @@ export function TmargetAdminMarketsPage() {
       setForm((prev) => ({ ...prev, title: "", description: "", resolution_criteria: "", source_url: "" }));
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyTmargetError(err.message));
     }
   }
 
@@ -706,7 +682,7 @@ export function TmargetAdminMarketsPage() {
       setCreatedMarket(null);
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyTmargetError(err.message));
     }
   }
 

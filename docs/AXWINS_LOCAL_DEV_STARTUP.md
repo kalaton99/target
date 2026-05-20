@@ -60,11 +60,19 @@ In a third PowerShell window, or after the backend is expected to be running:
 ```powershell
 cd "C:\Users\crims\OneDrive\Belgeler\New project\target"
 .\scripts\check-local-health.ps1
+.\scripts\check-product-loops-local.ps1
 ```
 
 The helper scripts set only process-local environment variables. They do not
 write `.env` files, start or stop MongoDB, change application behavior, or alter
 runtime configuration outside the current PowerShell process.
+
+`check-local-health.ps1` proves the backend is reachable and that the
+product-specific endpoint families are mounted. `check-product-loops-local.ps1`
+goes further: it requires the backend at `http://127.0.0.1:8000` and runs live
+API loops for Target, Diceget, Flipget, Tmarget, and Wallet / Ledger. Do not
+treat frontend screenshots or sample fallback data as product-loop proof if
+either script fails.
 
 ## 2. Start Backend
 
@@ -119,6 +127,14 @@ http://localhost:3000
 
 After both servers are running:
 
+- Run:
+
+```powershell
+cd "C:\Users\crims\OneDrive\Belgeler\New project\target"
+.\scripts\check-local-health.ps1
+.\scripts\check-product-loops-local.ps1
+```
+
 - Open `http://localhost:3000`.
 - Confirm the Axwins hub loads.
 - Open `/games`.
@@ -127,6 +143,20 @@ After both servers are running:
   `http://127.0.0.1:8000/api/v2/lobby/auth`.
 - Open `/diceget`, `/flipget`, `/tmarget`, and `/wallet`.
 - Confirm pages render without a blank screen or React crash.
+- Product-owned `ERR_CONNECTION_REFUSED`, `Failed to fetch`, failed WebSocket,
+  or unhandled promise errors mean the local stack is not verified. Start or
+  restart the backend before judging the product loop.
+
+Recommended manual routes after the checks pass:
+
+```text
+http://localhost:3000/diceget
+http://localhost:3000/flipget
+http://localhost:3000/tmarget/admin/markets
+http://localhost:3000/tmarget/markets
+http://localhost:3000/lobby
+http://localhost:3000/wallet
+```
 
 ## 5. Build Command
 
@@ -155,6 +185,9 @@ If `/api/health` fails:
 - Confirm the backend is listening on `127.0.0.1:8000`.
 - Confirm `MONGO_URL` and `DB_NAME` were set in the same PowerShell session
   that launched Uvicorn.
+- Run `.\scripts\check-local-health.ps1`. If it reports
+  `Backend is not reachable at http://127.0.0.1:8000`, start the backend with
+  `.\scripts\start-backend-local.ps1` before opening product pages.
 
 ### Frontend API Calls
 
@@ -169,6 +202,9 @@ $env:REACT_APP_BACKEND_URL="http://127.0.0.1:8000"
 - Restart `npm start` after changing the env var.
 - Use the browser Network tab to confirm API calls go to
   `127.0.0.1:8000`, not `localhost:3000`.
+- If pages show backend-offline messages, do not rely on sample or stale data.
+  Restart the backend, reload the frontend page, and rerun
+  `.\scripts\check-product-loops-local.ps1`.
 
 ### Lobby Auth
 

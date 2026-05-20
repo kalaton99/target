@@ -24,10 +24,15 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
-  const response = await apiFetch(`/api/diceget${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  let response;
+  try {
+    response = await apiFetch(`/api/diceget${path}`, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  } catch {
+    throw new Error("BACKEND_OFFLINE");
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) {
@@ -42,6 +47,9 @@ async function api(path, options = {}) {
 
 function friendlyErrorMessage(message) {
   const raw = String(message || "");
+  if (raw.includes("BACKEND_OFFLINE") || raw.toLowerCase().includes("failed to fetch")) {
+    return "Backend is offline. Start the local backend with .\\scripts\\start-backend-local.ps1 and retry Diceget.";
+  }
   if (raw.includes("DicegetInsufficientFunds") || raw.toLowerCase().includes("insufficient")) {
     return "Not enough available internal demo credits to reserve this stake. Check Wallet / Transaction History and try again.";
   }
@@ -110,6 +118,7 @@ export default function DicegetPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const user = storedUser();
+  const backendOffline = error.startsWith("Backend is offline.");
 
   const latestRoll = table?.rolls?.[table.rolls.length - 1];
   const currentSeat = useMemo(
@@ -149,7 +158,7 @@ export default function DicegetPage() {
   }, [tableId]);
 
   useEffect(() => {
-    refresh().catch((err) => setError(err.message));
+    refresh().catch((err) => setError(friendlyErrorMessage(err.message)));
     const timer = setInterval(() => refresh().catch(() => {}), 2500);
     return () => clearInterval(timer);
   }, [refresh]);
@@ -258,7 +267,7 @@ export default function DicegetPage() {
             </label>
             <button
               className="btn-primary text-center"
-              disabled={busy}
+              disabled={busy || backendOffline}
               onClick={() => run(async () => {
                 const created = await api("/tables", {
                   method: "POST",
@@ -287,7 +296,7 @@ export default function DicegetPage() {
                   <div className="text-sm text-zinc-500">{item.seats.length}/4 seats / {item.status}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                  <button className="btn-secondary" disabled={busy || item.status !== "waiting"} onClick={() => run(async () => {
+                  <button className="btn-secondary" disabled={busy || backendOffline || item.status !== "waiting"} onClick={() => run(async () => {
                     await api(`/tables/${item.table_id}/join`, { method: "POST" });
                     navigate(`/diceget/${item.table_id}`);
                   })}>Join Table</button>
@@ -362,12 +371,12 @@ export default function DicegetPage() {
             >
               {BOT_PROFILES.map((profile) => <option key={profile}>{profile}</option>)}
             </select>
-            <button className="btn-secondary" disabled={busy || table.seats.length >= 4} onClick={() => run(() => api(`/tables/${table.table_id}/add-bot`, {
+            <button className="btn-secondary" disabled={busy || backendOffline || table.seats.length >= 4} onClick={() => run(() => api(`/tables/${table.table_id}/add-bot`, {
               method: "POST",
               body: JSON.stringify({ profile: botProfile }),
             }))}>Add Bot Seat</button>
-            <button className="btn-secondary" disabled={busy || table.seats.length >= 4} onClick={autoFillDemoSeats}>Auto-Fill Demo Seats</button>
-            <button className="btn-primary" disabled={busy || table.seats.length !== 4} onClick={() => run(() => api(`/tables/${table.table_id}/start`, { method: "POST" }))}>Start Diceget</button>
+            <button className="btn-secondary" disabled={busy || backendOffline || table.seats.length >= 4} onClick={autoFillDemoSeats}>Auto-Fill Demo Seats</button>
+            <button className="btn-primary" disabled={busy || backendOffline || table.seats.length !== 4} onClick={() => run(() => api(`/tables/${table.table_id}/start`, { method: "POST" }))}>Start Diceget</button>
             <button className="btn-ghost" disabled={busy} onClick={() => run(async () => {
               await api(`/tables/${table.table_id}/leave`, { method: "POST" });
               navigate("/diceget");
@@ -389,9 +398,9 @@ export default function DicegetPage() {
               <Dice value={latestRoll?.dice_2} />
             </div>
             <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
-              <button className="btn-primary" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
-              <button className="btn-secondary" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
-              <button className="btn-ghost" title={actionHint} disabled={!myTurn || busy} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
+              <button className="btn-primary" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
+              <button className="btn-secondary" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
+              <button className="btn-ghost" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
             </div>
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">

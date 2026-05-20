@@ -69,12 +69,25 @@ function authHeaders() {
 }
 
 async function getJson(path) {
-  const response = await apiFetch(path, { headers: authHeaders() });
+  let response;
+  try {
+    response = await apiFetch(path, { headers: authHeaders() });
+  } catch {
+    throw new Error("BACKEND_OFFLINE");
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(data?.detail?.code || data?.detail || `HTTP_${response.status}`);
   }
   return data;
+}
+
+function friendlyWalletError(message) {
+  const raw = String(message || "");
+  if (raw.includes("BACKEND_OFFLINE") || raw.toLowerCase().includes("failed to fetch")) {
+    return "Backend is offline. Start the local backend with .\\scripts\\start-backend-local.ps1 and retry Wallet / Ledger.";
+  }
+  return raw;
 }
 
 function money(value) {
@@ -161,7 +174,7 @@ export default function WalletPage() {
         setSummary(wallet);
         setEntries(ledger.entries || []);
       } catch (err) {
-        if (alive) setError(err.message);
+        if (alive) setError(friendlyWalletError(err.message));
       } finally {
         if (alive) setLoading(false);
       }
