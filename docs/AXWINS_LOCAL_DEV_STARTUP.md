@@ -220,6 +220,24 @@ http://127.0.0.1:8000/api/v2/lobby/auth
 - If it goes to `http://localhost:3000/api/v2/lobby/auth`, restart the
   frontend with `REACT_APP_BACKEND_URL` set.
 
+### Browser Console Noise
+
+If Chrome DevTools repeatedly shows:
+
+```text
+Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+```
+
+or extension messages such as `polkadot.js disconnected`, verify the same route
+in a clean browser profile or a browser with extensions disabled before treating
+the message as an Axwins product error. These messages are commonly emitted by
+extension content scripts, not by the Axwins frontend.
+
+Treat the issue as product-owned only when the console entry points to
+`localhost:3000`, `frontend/src`, or an Axwins bundle, or when the Network tab
+shows app-owned failures such as `ERR_CONNECTION_REFUSED`, `Failed to fetch`, or
+failed WebSocket requests to Axwins API paths.
+
 ### Target Quick Play
 
 The `/play` quick bot flow depends on local dev bots. For this local guide,
