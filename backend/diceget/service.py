@@ -11,7 +11,7 @@ from .bots import should_bot_hold
 from .models import (
     DICEGET_SEATS,
     MAX_BOTS,
-    SUPPORTED_TARGETS,
+    SUPPORTED_SCORE_GOALS,
     BotProfile,
     DicegetRoll,
     DicegetSeat,
@@ -54,11 +54,12 @@ class DicegetService:
         *,
         creator_user_id: str,
         username: str = "",
-        target_score: int,
+        target_score: int | None = None,
+        score_goal: int | None = None,
         stake: int = 100,
         max_players: int = DICEGET_SEATS,
     ) -> DicegetTable:
-        self._validate_target(target_score)
+        target_score = self._normalize_score_goal(target_score=target_score, score_goal=score_goal)
         if max_players != DICEGET_SEATS:
             raise DicegetError("INVALID_TABLE_SIZE", "Diceget tables must have exactly 4 seats")
         if stake < 0 or stake > 1_000_000:
@@ -247,9 +248,11 @@ class DicegetService:
             raise DicegetError("INVALID_RNG_ROLL")
         return value
 
-    def _validate_target(self, target_score: int) -> None:
-        if target_score not in SUPPORTED_TARGETS:
+    def _normalize_score_goal(self, *, target_score: int | None, score_goal: int | None) -> int:
+        value = score_goal if score_goal is not None else target_score
+        if value not in SUPPORTED_SCORE_GOALS:
             raise DicegetError("INVALID_TARGET_SCORE")
+        return int(value)
 
     def _require_actionable_turn(self, table: DicegetTable, user_id: str) -> DicegetSeat:
         if table.status != "active":

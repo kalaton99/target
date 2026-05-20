@@ -120,7 +120,7 @@ function Test-DicegetLoop {
     $user = New-DemoUser -Prefix "dice"
     Invoke-Api -Method "GET" -Path "/api/diceget/tables" | Out-Null
     $created = Invoke-Api -Method "POST" -Path "/api/diceget/tables" -Headers $user.Headers -Body @{
-        target_score = 30
+        score_goal = 50
         stake = 0
         max_players = 4
     }

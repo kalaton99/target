@@ -168,7 +168,8 @@ def _client(monkeypatch):
 def test_diceget_api_loop_roll_hold_and_forfeit_stays_diceget(monkeypatch):
     client, current = _client(monkeypatch)
 
-    created = client.post("/api/diceget/tables", json={"target_score": 30, "stake": 100}).json()
+    created = client.post("/api/diceget/tables", json={"score_goal": 50, "stake": 100}).json()
+    assert created["score_goal"] == 50
     table_id = created["table_id"]
     for _ in range(3):
         response = client.post(f"/api/diceget/tables/{table_id}/add-bot", json={"profile": "safe"})
@@ -186,7 +187,7 @@ def test_diceget_api_loop_roll_hold_and_forfeit_stays_diceget(monkeypatch):
     assert held.status_code == 200
     assert held.json()["seats"][0]["status"] == "held"
 
-    second = client.post("/api/diceget/tables", json={"target_score": 30, "stake": 100}).json()
+    second = client.post("/api/diceget/tables", json={"score_goal": 50, "stake": 100}).json()
     second_id = second["table_id"]
     for _ in range(3):
         client.post(f"/api/diceget/tables/{second_id}/add-bot", json={"profile": "safe"})

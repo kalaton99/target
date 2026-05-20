@@ -1,5 +1,6 @@
 import copy
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -13,7 +14,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("RNG_ENCRYPTION_KEY", "test-rng-key")
 
 from core.security import current_user_id
-from diceget.models import DICEGET_SEATS, SUPPORTED_TARGETS
+from diceget.models import DICEGET_SEATS, SUPPORTED_SCORE_GOALS
 from diceget.router import build_diceget_router
 from diceget.service import DicegetError, DicegetService
 from diceget.wallet_bridge import (
@@ -133,34 +134,50 @@ def make_service(rolls=None):
     return DicegetService(dice_rng=rng)
 
 
-def fill_four(service, target=30):
-    table = service.create_table(creator_user_id="u1", username="u1", target_score=target)
+def fill_four(service, score_goal=50):
+    table = service.create_table(creator_user_id="u1", username="u1", score_goal=score_goal)
     for user_id in ("u2", "u3", "u4"):
         service.join_table(table_id=table.id, user_id=user_id, username=user_id)
     return table
 
 
-def test_supported_targets_are_30_50_75_100():
-    assert SUPPORTED_TARGETS == {30, 50, 75, 100}
+def test_supported_score_goals_are_50_75_100_150():
+    assert SUPPORTED_SCORE_GOALS == {50, 75, 100, 150}
     service = make_service()
-    for target in (30, 50, 75, 100):
-        assert service.create_table(creator_user_id=f"u{target}", target_score=target).target_score == target
+    for goal in (50, 75, 100, 150):
+        table = service.create_table(creator_user_id=f"u{goal}", score_goal=goal)
+        assert table.target_score == goal
+        assert table.to_dict()["score_goal"] == goal
 
 
-def test_reject_target_250():
+def test_reject_score_goal_250():
     with pytest.raises(DicegetError, match="INVALID_TARGET_SCORE"):
-        make_service().create_table(creator_user_id="u1", target_score=250)
+        make_service().create_table(creator_user_id="u1", score_goal=250)
+
+
+def test_legacy_target_score_request_alias_is_still_accepted_temporarily():
+    table = make_service().create_table(creator_user_id="u1", target_score=50)
+    assert table.to_dict()["score_goal"] == 50
+
+
+def test_diceget_runtime_ui_uses_score_goal_not_target_tier_copy():
+    source = (Path(__file__).resolve().parents[2] / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
+
+    assert "Score Goal" in source
+    assert "TARGETS" not in source
+    assert "TARGET " not in source
+    assert "Target " not in source
 
 
 def test_every_table_has_exactly_four_seats_and_rejects_other_sizes():
     service = make_service()
-    table = service.create_table(creator_user_id="u1", target_score=30)
+    table = service.create_table(creator_user_id="u1", score_goal=50)
     assert table.max_players == DICEGET_SEATS == 4
     with pytest.raises(DicegetError) as err:
-        service.create_table(creator_user_id="u2", target_score=30, max_players=5)
+        service.create_table(creator_user_id="u2", score_goal=50, max_players=5)
     assert err.value.code == "INVALID_TABLE_SIZE"
     with pytest.raises(DicegetError) as err:
-        service.create_table(creator_user_id="u3", target_score=30, max_players=8)
+        service.create_table(creator_user_id="u3", score_goal=50, max_players=8)
     assert err.value.code == "INVALID_TABLE_SIZE"
 
 
@@ -177,7 +194,7 @@ async def test_create_table_locks_creator_stake_once(ledger):
 async def test_join_locks_joiner_stake_once_and_duplicate_join_does_not_double_lock(ledger):
     ledger_service, wallets, transactions = ledger
     game = make_service()
-    table = game.create_table(creator_user_id="u1", target_score=30)
+    table = game.create_table(creator_user_id="u1", score_goal=50)
     game.join_table(table_id=table.id, user_id="u2")
     game.join_table(table_id=table.id, user_id="u2")
     await lock_diceget_stake(ledger_service, table_id=table.id, user_id="u2", stake=100)
@@ -191,7 +208,7 @@ async def test_join_locks_joiner_stake_once_and_duplicate_join_does_not_double_l
 
 def test_max_three_bots_and_start_requires_four_occupied_seats():
     service = make_service()
-    table = service.create_table(creator_user_id="u1", target_score=30)
+    table = service.create_table(creator_user_id="u1", score_goal=50)
     with pytest.raises(DicegetError, match="REQUIRES_EXACTLY_4_SEATS"):
         service.start_table(table_id=table.id, user_id="u1")
     service.add_bot(table_id=table.id, profile="safe")
@@ -231,10 +248,12 @@ def test_repeat_roll_then_hold_blocks_stale_player_action():
     assert err.value.code == "NOT_YOUR_TURN"
 
 
-def test_bust_when_score_exceeds_target():
-    service = make_service([6, 6, 6, 6, 6, 6])
-    table = fill_four(service, target=30)
+def test_bust_when_score_exceeds_goal():
+    service = make_service([6, 6, 6, 6, 6, 6, 6, 6, 6, 6])
+    table = fill_four(service, score_goal=50)
     service.start_table(table_id=table.id, user_id="u1")
+    service.roll(table_id=table.id, user_id="u1")
+    service.roll(table_id=table.id, user_id="u1")
     service.roll(table_id=table.id, user_id="u1")
     service.roll(table_id=table.id, user_id="u1")
     service.roll(table_id=table.id, user_id="u1")
@@ -244,11 +263,11 @@ def test_bust_when_score_exceeds_target():
 
 def test_roll_route_settles_when_final_bust_enters_showdown(monkeypatch):
     service = make_service([6, 6])
-    table = fill_four(service, target=30)
+    table = fill_four(service, score_goal=50)
     table.status = "active"
     table.turn_index = 3
     table.current_turn_user_id = "u4"
-    for seat, score in zip(table.seats, [25, 20, 18, 25]):
+    for seat, score in zip(table.seats, [25, 20, 18, 45]):
         seat.score = score
         seat.status = "held"
         seat.locked_score = score

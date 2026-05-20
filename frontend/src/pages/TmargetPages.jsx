@@ -23,6 +23,33 @@ const ADMIN_ACTIONS = [
   ["resolve", "Resolve", "Set the selected outcome and run demo settlement."],
 ];
 
+const STATUS_COPY = {
+  draft: {
+    label: "Draft",
+    helper: "Admin-only draft. Open this demo market before buying or selling YES/NO.",
+  },
+  open: {
+    label: "Open",
+    helper: "Demo-credit YES/NO buying and selling is enabled.",
+  },
+  paused: {
+    label: "Paused",
+    helper: "Demo-credit buying and selling is temporarily paused.",
+  },
+  closed: {
+    label: "Closed",
+    helper: "Buying and selling are closed while this market waits for demo resolution.",
+  },
+  resolved: {
+    label: "Resolved",
+    helper: "This market has been resolved and demo settlement is complete.",
+  },
+  cancelled: {
+    label: "Cancelled",
+    helper: "This market was cancelled and eligible demo-credit refunds are handled by admin controls.",
+  },
+};
+
 function storedUser() {
   try {
     return JSON.parse(localStorage.getItem("target_user") || "null");
@@ -84,14 +111,18 @@ function formatCredits(value) {
 }
 
 function statusLabel(value) {
-  return String(value || "unknown").replaceAll("_", " ");
+  return STATUS_COPY[value]?.label || String(value || "unknown").replaceAll("_", " ");
+}
+
+function statusHelper(value) {
+  return STATUS_COPY[value]?.helper || "Lifecycle state is controlled from Admin Markets.";
 }
 
 function tradeDisabledMessage({ user, market }) {
   if (!user?.token) return "Sign in through the lobby to use demo-credit trading.";
   if (!market?.id) return "Trading is unavailable until a backend market is loaded.";
   if (market.status === "draft") return "Open this demo market before buying YES/NO.";
-  if (market.status !== "open") return `Trading is disabled while this market is ${statusLabel(market.status)}.`;
+  if (market.status !== "open") return statusHelper(market.status);
   return "";
 }
 
@@ -161,6 +192,7 @@ function MarketCard({ market }) {
           {statusLabel(market.status)}
         </span>
       </div>
+      <div className="mt-3 text-xs leading-5 text-zinc-500">{statusHelper(market.status)}</div>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <div className="rounded border border-emerald-800/60 bg-emerald-500/5 p-3">
           <div className="text-xs uppercase tracking-widest text-emerald-400">YES</div>
@@ -448,6 +480,7 @@ export function TmargetMarketDetailPlaceholder() {
             </div>
             <div className="mt-4 rounded border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-500">
               Status: <span className="text-zinc-300">{statusLabel(market.status)}</span><br />
+              <span>{statusHelper(market.status)}</span><br />
               Volume: {formatCredits(market.volume)} credits<br />
               Your YES: {yesPosition?.shares || 0} shares<br />
               Your NO: {noPosition?.shares || 0} shares
@@ -757,6 +790,7 @@ export function TmargetAdminMarketsPage() {
             <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-4 text-sm leading-6 text-yellow-100">
               <div className="font-display text-2xl tracking-widest">{createdMarket.title}</div>
               <div className="mt-2">Status: {statusLabel(createdMarket.status)}</div>
+              <div className="mt-1 text-xs text-yellow-100/80">{statusHelper(createdMarket.status)}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {createdMarket.status === "draft" && (
                   <button
@@ -812,7 +846,7 @@ export function TmargetAdminMarketsPage() {
             <div className="mt-5 grid gap-3">
               {markets.length === 0 && (
                 <div className="rounded border border-dashed border-zinc-800 bg-black/30 p-4 text-sm leading-6 text-zinc-500">
-                  No demo markets created yet. Use the form to create an internal-credit sample market.
+                  No demo markets created yet. Use the form to create an internal-credit demo market.
                 </div>
               )}
               {markets.map((market) => (
@@ -823,6 +857,7 @@ export function TmargetAdminMarketsPage() {
                       <Link to={`/tmarget/markets/${market.slug}`} className="mt-1 block font-display text-2xl tracking-widest text-zinc-100 hover:text-yellow-300">
                         {market.title}
                       </Link>
+                      <div className="mt-2 text-xs leading-5 text-zinc-500">{statusHelper(market.status)}</div>
                     </div>
                     <div className="text-right text-xs uppercase tracking-widest text-zinc-500">
                       YES {formatPrice(market.yes_price)} / NO {formatPrice(market.no_price)}

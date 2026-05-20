@@ -250,9 +250,9 @@ export default function WalletPage() {
         {!loading && !error && summary && (
           <>
             <div className="grid gap-4 md:grid-cols-3">
-              <WalletCard title="Current Balance" value={summary.balance} caption={summary.currency_label} />
-              <WalletCard title="Locked Balance" value={summary.locked_balance ?? summary.locked} caption="Reserved by active Axwins products" />
-              <WalletCard title="Available Balance" value={summary.available_balance} caption="Available internal demo credits" />
+              <WalletCard title="Spendable Demo Credits" value={summary.available_balance} caption="Available for internal demo actions" />
+              <WalletCard title="Reserved Demo Credits" value={summary.locked_balance ?? summary.locked} caption="Locked by active Axwins products" />
+              <WalletCard title="Wallet Total" value={(summary.available_balance ?? summary.balance ?? 0) + (summary.locked_balance ?? summary.locked ?? 0)} caption="Spendable plus reserved demo credits" />
             </div>
 
             <div className="mt-8 rounded-lg border border-zinc-800 bg-zinc-950 p-5">

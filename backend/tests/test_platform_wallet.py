@@ -9,6 +9,8 @@ def test_wallet_summary_exposes_balance_locked_and_available_demo_credit_copy():
     assert summary["locked"] == 250
     assert summary["locked_balance"] == 250
     assert summary["available_balance"] == 1000
+    assert summary["available_balance"] == summary["balance"]
+    assert summary["available_balance"] + summary["locked_balance"] == 1250
     assert summary["currency_type"] == "internal_demo_credit"
     assert "Live deposits" in summary["sandbox_notice"]
 

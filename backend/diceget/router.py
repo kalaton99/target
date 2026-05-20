@@ -18,7 +18,8 @@ from .wallet_bridge import (
 
 
 class CreateDicegetTableRequest(BaseModel):
-    target_score: int
+    score_goal: int | None = None
+    target_score: int | None = None
     stake: int = Field(default=100, ge=0, le=1_000_000)
     max_players: int = DICEGET_SEATS
 
@@ -47,6 +48,7 @@ def build_diceget_router(service: DicegetService | None = None) -> APIRouter:
             table = svc.create_table(
                 creator_user_id=user_id,
                 username=user_id,
+                score_goal=body.score_goal,
                 target_score=body.target_score,
                 stake=body.stake,
                 max_players=body.max_players,

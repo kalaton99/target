@@ -10,5 +10,5 @@ PROFILE_HOLD_RATIO: dict[BotProfile, float] = {
 }
 
 
-def should_bot_hold(score: int, target_score: int, profile: BotProfile = "normal") -> bool:
-    return score >= int(target_score * PROFILE_HOLD_RATIO.get(profile, 0.78))
+def should_bot_hold(score: int, score_goal: int, profile: BotProfile = "normal") -> bool:
+    return score >= int(score_goal * PROFILE_HOLD_RATIO.get(profile, 0.78))

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 
-const TARGETS = [30, 50, 75, 100];
+const SCORE_GOALS = [50, 75, 100, 150];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
@@ -112,7 +112,7 @@ export default function DicegetPage() {
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
   const [table, setTable] = useState(null);
-  const [selectedTarget, setSelectedTarget] = useState(30);
+  const [selectedScoreGoal, setSelectedScoreGoal] = useState(50);
   const [stake, setStake] = useState(100);
   const [botProfile, setBotProfile] = useState("normal");
   const [busy, setBusy] = useState(false);
@@ -121,6 +121,7 @@ export default function DicegetPage() {
   const backendOffline = error.startsWith("Backend is offline.");
 
   const latestRoll = table?.rolls?.[table.rolls.length - 1];
+  const scoreGoalOf = (item) => item?.score_goal ?? item?.target_score;
   const currentSeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === table.current_turn_user_id),
     [table],
@@ -238,14 +239,14 @@ export default function DicegetPage() {
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
-            {TARGETS.map((target) => (
+            {SCORE_GOALS.map((goal) => (
               <button
-                key={target}
+                key={goal}
                 type="button"
-                onClick={() => setSelectedTarget(target)}
-                className={`rounded-lg border p-5 text-left ${selectedTarget === target ? "border-yellow-500 bg-yellow-500/10" : "border-zinc-800 bg-zinc-950"}`}
+                onClick={() => setSelectedScoreGoal(goal)}
+                className={`rounded-lg border p-5 text-left ${selectedScoreGoal === goal ? "border-yellow-500 bg-yellow-500/10" : "border-zinc-800 bg-zinc-950"}`}
               >
-                <div className="font-display text-3xl tracking-widest">Score Goal {target}</div>
+                <div className="font-display text-3xl tracking-widest">Score Goal {goal}</div>
                 <div className="mt-2 text-sm text-zinc-500">4 players</div>
               </button>
             ))}
@@ -271,7 +272,7 @@ export default function DicegetPage() {
               onClick={() => run(async () => {
                 const created = await api("/tables", {
                   method: "POST",
-                  body: JSON.stringify({ target_score: selectedTarget, stake, max_players: 4 }),
+                  body: JSON.stringify({ score_goal: selectedScoreGoal, stake, max_players: 4 }),
                 });
                 navigate(`/diceget/${created.table_id}`);
               })}
@@ -292,7 +293,7 @@ export default function DicegetPage() {
             {tables.map((item) => (
               <div key={item.table_id} className="flex flex-col items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
                 <div>
-                  <div className="font-display text-2xl tracking-widest">Score Goal {item.target_score}</div>
+                  <div className="font-display text-2xl tracking-widest">Score Goal {scoreGoalOf(item)}</div>
                   <div className="text-sm text-zinc-500">{item.seats.length}/4 seats / {item.status}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -317,7 +318,7 @@ export default function DicegetPage() {
           <div>
             <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Diceget Table</div>
             <h1 className="mt-2 font-display text-5xl tracking-widest">
-              Score Goal {table?.target_score || "-"}
+              Score Goal {scoreGoalOf(table) || "-"}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
               4-player dice game inside Axwins. Actions unlock only for the current player on their turn.

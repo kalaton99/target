@@ -4,7 +4,10 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Optional
 
 
-SUPPORTED_TARGETS = {30, 50, 75, 100}
+SUPPORTED_SCORE_GOALS = {50, 75, 100, 150}
+# Compatibility alias for older callers while Diceget migrates its public
+# vocabulary from target score to score goal.
+SUPPORTED_TARGETS = SUPPORTED_SCORE_GOALS
 DICEGET_SEATS = 4
 MAX_BOTS = 3
 
@@ -66,4 +69,5 @@ class DicegetTable:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["table_id"] = self.id
+        data["score_goal"] = self.target_score
         return data
