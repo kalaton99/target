@@ -71,6 +71,7 @@ export default function LobbyPage() {
     config.bot_count_max_by_target?.[Number(target)]
     ?? config.bot_count_max
     ?? 0;
+  const seatsForTarget = config.table_seats_by_target?.[Number(target)] ?? null;
   // If the user switches target downward (e.g. 100 → 30) while bots
   // were set to 4, clamp the input so we don't submit an invalid value.
   useEffect(() => {
@@ -352,7 +353,7 @@ export default function LobbyPage() {
             </div>
             {config.allow_bots && (
               <div className="flex flex-col">
-                <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">CPU bots (dev)</label>
+                <label className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1">Demo bots</label>
                 <input
                   data-testid="bot-count-input"
                   type="number"
@@ -364,6 +365,16 @@ export default function LobbyPage() {
                   placeholder={`0–${perTargetBotMax}`}
                   title={`Dev: 0–${perTargetBotMax} CPU bots (seats − 1)`}
                 />
+                <button
+                  type="button"
+                  data-testid="auto-fill-target-bots-btn"
+                  onClick={() => setBotCount(String(perTargetBotMax))}
+                  disabled={perTargetBotMax <= 0}
+                  className="mt-2 rounded border border-yellow-700/60 px-2 py-1 text-[10px] uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/10 disabled:border-zinc-800 disabled:text-zinc-600"
+                  title="Fill the remaining local demo seats with Target CPU bots when the table starts."
+                >
+                  Auto-fill demo bots
+                </button>
               </div>
             )}
           </div>
@@ -371,6 +382,11 @@ export default function LobbyPage() {
             {Number(target) <= 50
               ? `Target ${target}: fast 4-seat table. Starts when 2+ players are seated.`
               : `Target ${target}: longer 5-seat table. Starts when 3+ players are seated.`}
+            {config.allow_bots && perTargetBotMax > 0 && (
+              <>
+                {" "}For a one-human local demo, use Auto-fill demo bots to request {perTargetBotMax} bot seat{perTargetBotMax === 1 ? "" : "s"} for this {seatsForTarget || "Target"}-seat table before creating it.
+              </>
+            )}
           </p>
           <button
             data-testid="create-table-btn"
