@@ -232,6 +232,13 @@ export default function LobbyPage() {
           <p className="text-zinc-600 text-xs mb-8 text-center">
             Sign in to start a hand. Free to play, no download.
           </p>
+          <button
+            data-testid="target-lobby-back-btn"
+            onClick={() => navigate("/games")}
+            className="mb-4 w-full px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 text-xs uppercase tracking-widest"
+          >
+            Back to Games
+          </button>
           {redirectMsg && (
             <div
               data-testid="redirect-msg"
@@ -281,6 +288,13 @@ export default function LobbyPage() {
             <div className="text-zinc-100 text-lg" data-testid="lobby-username">{user.username}</div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              data-testid="target-lobby-back-btn"
+              onClick={() => navigate("/games")}
+              className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 text-xs uppercase tracking-widest"
+            >
+              Back to Games
+            </button>
             <button
               data-testid="how-to-play-btn"
               onClick={() => setHowToPlayOpen(true)}

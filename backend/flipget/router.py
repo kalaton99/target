@@ -44,6 +44,31 @@ def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
     def _wallet_err(exc: FlipgetWalletError) -> HTTPException:
         return HTTPException(status_code=402, detail={"code": exc.__class__.__name__, "message": str(exc)})
 
+    def _is_demo_opponent(user_id: str) -> bool:
+        return user_id.startswith("fg_demo_opponent_")
+
+    def _opposite_side(side: str) -> str:
+        return "tails" if side == "heads" else "heads"
+
+    def _ready_existing_demo_opponent_for_round(table_id: str, caller_user_id: str):
+        table = svc.get_table(table_id)
+        caller = next((seat for seat in table.seats if seat.user_id == caller_user_id), None)
+        demo = next((seat for seat in table.seats if _is_demo_opponent(seat.user_id)), None)
+        if (
+            caller is None
+            or demo is None
+            or _is_demo_opponent(caller.user_id)
+            or caller.side not in {"heads", "tails"}
+            or table.status in {"flipping", "settled"}
+        ):
+            return table
+        if demo.side is None:
+            table = svc.choose_side(table_id=table_id, user_id=demo.user_id, side=_opposite_side(caller.side))
+            demo = next((seat for seat in table.seats if _is_demo_opponent(seat.user_id)), None)
+        if demo is not None and not demo.ready:
+            table = svc.ready(table_id=table_id, user_id=demo.user_id)
+        return table
+
     @router.post("/tables", status_code=status.HTTP_201_CREATED)
     async def create_table(body: CreateFlipgetTableRequest, user_id: str = Depends(current_user_id)):
         try:
@@ -102,7 +127,8 @@ def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
     @router.post("/tables/{table_id}/choose-side")
     async def choose_side(table_id: str, body: SideRequest, user_id: str = Depends(current_user_id)):
         try:
-            return svc.choose_side(table_id=table_id, user_id=user_id, side=body.side).to_dict()
+            svc.choose_side(table_id=table_id, user_id=user_id, side=body.side)
+            return _ready_existing_demo_opponent_for_round(table_id, user_id).to_dict()
         except FlipgetError as exc:
             raise _err(exc)
 

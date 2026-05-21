@@ -9,3 +9,5 @@ def test_target_lobby_exposes_local_demo_bot_fill_control():
     assert "For a one-human local demo" in source
     assert "fills the remaining" in source
     assert "setBotCount(String(perTargetBotMax))" in source
+    assert "target-lobby-back-btn" in source
+    assert "Back to Games" in source

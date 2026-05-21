@@ -206,8 +206,8 @@ def test_diceget_api_loop_roll_hold_and_forfeit_stays_diceget(monkeypatch):
 def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypatch):
     client, current = _client(monkeypatch)
 
-    created = client.post("/api/flipget/tables", json={"stake_amount": 100, "mode": "single_flip"}).json()
-    assert created["mode"] == "single_flip"
+    created = client.post("/api/flipget/tables", json={"stake_amount": 100, "mode": "best_of_3"}).json()
+    assert created["mode"] == "best_of_3"
     table_id = created["table_id"]
     client.post(f"/api/flipget/tables/{table_id}/choose-side", json={"side": "heads"})
     client.post(f"/api/flipget/tables/{table_id}/ready")
@@ -224,6 +224,22 @@ def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypat
     second_demo = client.post(f"/api/flipget/tables/{table_id}/add-demo-opponent", json={"username": "Extra Demo Opponent"})
     assert second_demo.status_code == 400
     assert second_demo.json()["detail"]["code"] == "TABLE_FULL"
+
+    flipped = client.post(f"/api/flipget/tables/{table_id}/flip")
+    assert flipped.status_code == 200
+    payload = flipped.json()
+    assert payload["status"] == "waiting"
+    assert payload["current_round_number"] == 2
+    assert {seat["side"] for seat in payload["seats"]} == {None}
+    assert not any(seat["ready"] for seat in payload["seats"])
+
+    reseated = client.post(f"/api/flipget/tables/{table_id}/choose-side", json={"side": "heads"})
+    assert reseated.status_code == 200
+    assert {seat["side"] for seat in reseated.json()["seats"]} == {"heads", "tails"}
+    assert any(seat["ready"] for seat in reseated.json()["seats"] if seat["user_id"].startswith("fg_demo_opponent_"))
+    ready = client.post(f"/api/flipget/tables/{table_id}/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
 
     flipped = client.post(f"/api/flipget/tables/{table_id}/flip")
     assert flipped.status_code == 200

@@ -164,7 +164,10 @@ class FlipgetService:
         )
         table.round = next_round
         table.rounds.append(next_round)
-        table.status = "ready"
+        for seat in table.seats:
+            seat.side = None
+            seat.ready = False
+        table.status = "waiting"
         return table
 
     async def settle(self, table_id: str, ledger: Optional[LedgerService] = None) -> FlipgetTable:

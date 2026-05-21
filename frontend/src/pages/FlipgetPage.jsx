@@ -137,15 +137,25 @@ export default function FlipgetPage() {
       && table?.seats?.length === 2
       && table.seats.every((seat) => seat.ready && seat.side),
   );
+  const completedRounds = useMemo(
+    () => (table?.rounds || []).filter((round) => SIDES.includes(round.result)),
+    [table],
+  );
+  const lastCompletedRound = completedRounds[completedRounds.length - 1] || null;
+  const playerRoundWins = completedRounds.filter((round) => round.winner_user_id === user?.user_id).length;
+  const opponentRoundWins = completedRounds.length - playerRoundWins;
+  const matchHasStarted = completedRounds.length > 0;
   const canLeavePreFlip = Boolean(
     mySeat
       && table
-      && !["flipping", "settled"].includes(table.status),
+      && !["flipping", "settled"].includes(table.status)
+      && !matchHasStarted,
   );
   const activeExitRisk = Boolean(
     table
       && mySeat
-      && !["waiting", "settled", "cancelled"].includes(table.status),
+      && !["settled", "cancelled"].includes(table.status)
+      && (table.status !== "waiting" || matchHasStarted),
   );
   const waitingForReady = Boolean(
     table
@@ -167,10 +177,14 @@ export default function FlipgetPage() {
     if ((table.seats?.length || 0) < 2) return mySeat?.side
       ? "Flip requires two demo participants with unique sides. Add a demo opponent to complete the local flow."
       : "Flip requires two demo participants with unique sides.";
-    if (!mySeat.side) return "Choose heads or tails, then ready up.";
-    if (!mySeat.ready) return "Ready up after choosing your side.";
+    if (!mySeat.side) return matchHasStarted
+      ? "Choose heads or tails for this round, then ready up."
+      : "Choose heads or tails, then ready up.";
+    if (!mySeat.ready) return matchHasStarted
+      ? "Ready up after choosing your side for this round."
+      : "Ready up after choosing your side.";
     return "Flip requires two demo participants with unique sides and both ready.";
-  }, [canFlip, mySeat, table]);
+  }, [canFlip, matchHasStarted, mySeat, table]);
 
   const refresh = useCallback(async () => {
     if (tableId) {
@@ -356,7 +370,10 @@ export default function FlipgetPage() {
         {table && (
           <div className="mt-3 text-sm leading-6 text-zinc-500">
             Mode: {table.mode_label || "Single Flip"} / Round {table.current_round_number || 1} / {table.max_rounds || 1}<br />
-            Heads {table.score?.heads || 0} - Tails {table.score?.tails || 0}
+            Heads {table.score?.heads || 0} - Tails {table.score?.tails || 0}<br />
+            Player round wins: {playerRoundWins} / Opponent round wins: {opponentRoundWins}<br />
+            Current round result: {lastCompletedRound ? `${lastCompletedRound.result} won round ${lastCompletedRound.round_number}` : "No completed round yet"}<br />
+            Match status: {table.status === "settled" ? "settled" : "active"}
           </div>
         )}
         <div className="mt-4">

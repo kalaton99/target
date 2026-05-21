@@ -137,6 +137,15 @@ def two_player_ready(service, result_side="heads", mode="single_flip"):
     return table
 
 
+def ready_round(service, table, *, user_side="heads"):
+    opponent_side = "tails" if user_side == "heads" else "heads"
+    service.choose_side(table_id=table.id, user_id="u1", side=user_side)
+    service.choose_side(table_id=table.id, user_id="u2", side=opponent_side)
+    service.ready(table_id=table.id, user_id="u1")
+    service.ready(table_id=table.id, user_id="u2")
+    return table
+
+
 def test_create_table_has_exactly_two_seats_and_rejects_other_sizes():
     service = make_service()
     table = service.create_table(creator_user_id="u1", max_players=2)
@@ -158,7 +167,10 @@ def test_flipget_runtime_ui_exposes_modes_and_exit_guard_copy():
     assert "Best of 3" in source
     assert "Best of 5" in source
     assert "Mode:" in source
-    assert "Heads {table.score?.heads || 0} - Tails {table.score?.tails || 0}" in source
+    assert "Player round wins:" in source
+    assert "Opponent round wins:" in source
+    assert "Current round result:" in source
+    assert "Choose heads or tails for this round" in source
     assert "Leave Active Flipget?" in source
     assert "Leaving may cause the current stake or participation to be lost." in source
 
@@ -271,10 +283,16 @@ async def test_best_of_3_resolves_when_one_side_reaches_two_wins():
     table = two_player_ready(service, mode="best_of_3")
 
     first = await service.flip(table_id=table.id, user_id="u1")
-    assert first.status == "ready"
+    assert first.status == "waiting"
     assert first.score == {"heads": 1, "tails": 0}
     assert first.to_dict()["current_round_number"] == 2
+    assert all(seat.side is None and not seat.ready for seat in first.seats)
 
+    with pytest.raises(FlipgetError) as err:
+        await service.flip(table_id=table.id, user_id="u1")
+    assert err.value.code == "SIDE_REQUIRED"
+
+    ready_round(service, table, user_side="heads")
     second = await service.flip(table_id=table.id, user_id="u1")
     assert second.status == "settled"
     assert second.score == {"heads": 2, "tails": 0}
@@ -286,9 +304,11 @@ async def test_best_of_5_resolves_when_one_side_reaches_three_wins():
     service = make_service_sequence(["heads", "tails", "heads", "heads"])
     table = two_player_ready(service, mode="best_of_5")
 
-    for _ in range(3):
+    for index in range(3):
         progressed = await service.flip(table_id=table.id, user_id="u1")
-        assert progressed.status == "ready"
+        assert progressed.status == "waiting"
+        assert all(seat.side is None and not seat.ready for seat in progressed.seats)
+        ready_round(service, table, user_side="heads" if index != 0 else "tails")
 
     final = await service.flip(table_id=table.id, user_id="u1")
     assert final.status == "settled"

@@ -162,7 +162,10 @@ function Test-FlipgetLoop {
         if ($flipped.status -eq "settled") {
             break
         }
-        Assert-True -Condition ($flipped.status -eq "ready") -Message "Flipget Best of 3 did not stay ready for the next flip."
+        Assert-True -Condition ($flipped.status -eq "waiting") -Message "Flipget Best of 3 did not wait for a fresh side choice before the next round."
+        Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/choose-side" -Headers $user.Headers -Body @{ side = "heads" } | Out-Null
+        $ready = Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/ready" -Headers $user.Headers
+        Assert-True -Condition ($ready.status -eq "ready") -Message "Flipget Best of 3 did not ready after the next-round side choice."
     }
     Assert-True -Condition ($flipped.status -eq "settled") -Message "Flipget Best of 3 table did not settle."
     Assert-True -Condition (($flipped.score.heads -ge 2) -or ($flipped.score.tails -ge 2)) -Message "Flipget Best of 3 did not reach the first-to-2 threshold."
