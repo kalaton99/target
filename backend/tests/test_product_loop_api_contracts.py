@@ -220,6 +220,10 @@ def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypat
     assert {seat["side"] for seat in demo.json()["seats"]} == {"heads", "tails"}
     assert all(seat["ready"] for seat in demo.json()["seats"])
 
+    second_demo = client.post(f"/api/flipget/tables/{table_id}/add-demo-opponent", json={"username": "Extra Demo Opponent"})
+    assert second_demo.status_code == 400
+    assert second_demo.json()["detail"]["code"] == "TABLE_FULL"
+
     flipped = client.post(f"/api/flipget/tables/{table_id}/flip")
     assert flipped.status_code == 200
     payload = flipped.json()

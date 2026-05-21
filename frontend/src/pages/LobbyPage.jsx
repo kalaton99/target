@@ -384,7 +384,7 @@ export default function LobbyPage() {
               : `Target ${target}: longer 5-seat table. Starts when 3+ players are seated.`}
             {config.allow_bots && perTargetBotMax > 0 && (
               <>
-                {" "}For a one-human local demo, use Auto-fill demo bots to request {perTargetBotMax} bot seat{perTargetBotMax === 1 ? "" : "s"} for this {seatsForTarget || "Target"}-seat table before creating it.
+                {" "}For a one-human local demo, Auto-fill demo bots fills the remaining {perTargetBotMax} seat{perTargetBotMax === 1 ? "" : "s"} for this {seatsForTarget || "Target"}-seat Target table before creating it.
               </>
             )}
           </p>

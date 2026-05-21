@@ -142,6 +142,20 @@ class TestLobbyConfig:
             for k in (30, 50, 75, 100):
                 assert _n(k) == 0
 
+    def test_local_demo_config_exposes_full_table_bot_fill_when_enabled(self):
+        cfg = _lobby_config()
+        if not cfg["allow_bots"]:
+            pytest.skip("bots disabled on this server")
+        per = cfg["bot_count_max_by_target"]
+
+        def _n(k):
+            return int(per.get(str(k), per.get(k, -1)))
+
+        assert _n(30) == 3
+        assert _n(50) == 3
+        assert _n(75) == 4
+        assert _n(100) == 4
+
 
 # ============================================================
 # Tables CRUD
@@ -287,8 +301,20 @@ class TestBotsGated:
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
         cap = _effective_bot_cap(cfg, 30)
+        assert cap == 3
         u = _auth(_name("t30b3"))
         r = _create_table(u["token"], target_score=30, bot_count=cap)
+        assert r.status_code == 201, r.text
+        assert r.json().get("bot_count") == cap
+
+    def test_target50_allows_full_local_demo_bot_fill(self):
+        cfg = _lobby_config()
+        if not cfg["allow_bots"]:
+            pytest.skip("bots disabled on this server")
+        cap = _effective_bot_cap(cfg, 50)
+        assert cap == 3
+        u = _auth(_name("t50b3"))
+        r = _create_table(u["token"], target_score=50, bot_count=cap)
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == cap
 
@@ -307,6 +333,7 @@ class TestBotsGated:
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
         cap = _effective_bot_cap(cfg, 75)
+        assert cap == 4
         u = _auth(_name("t75b4"))
         r = _create_table(u["token"], target_score=75, bot_count=cap)
         assert r.status_code == 201, r.text
@@ -317,6 +344,7 @@ class TestBotsGated:
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
         cap = _effective_bot_cap(cfg, 100)
+        assert cap == 4
         u = _auth(_name("t100b4"))
         r = _create_table(u["token"], target_score=100, bot_count=cap)
         assert r.status_code == 201, r.text

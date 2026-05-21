@@ -124,6 +124,8 @@ def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
                 raise FlipgetError("PLAYER_NOT_SEATED")
             if caller.side not in {"heads", "tails"}:
                 raise FlipgetError("SIDE_REQUIRED")
+            if len(table.seats) >= FLIPGET_SEATS:
+                raise FlipgetError("TABLE_FULL", "Flipget already has two participants")
             opponent_side = "tails" if caller.side == "heads" else "heads"
             opponent_id = f"fg_demo_opponent_{table_id[-8:]}"
             table = svc.join_table(

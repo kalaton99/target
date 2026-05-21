@@ -147,9 +147,10 @@ def test_target_lobby_table_and_websocket_loop_stays_target_only():
                 page.get_by_test_id("login-btn").click()
                 page.get_by_test_id("logout-btn").wait_for(timeout=10_000)
 
+            page.get_by_test_id("target-select").select_option("100")
             page.get_by_test_id("auto-fill-target-bots-btn").click()
             bot_count = page.get_by_test_id("bot-count-input").input_value()
-            assert int(bot_count) >= 1
+            assert int(bot_count) == 4
             page.get_by_test_id("create-table-btn").click()
             page.wait_for_timeout(500)
             start_buttons = page.locator("[data-testid^='start-btn-']")

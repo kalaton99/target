@@ -85,12 +85,15 @@ function Test-TargetLoop {
     $user = New-DemoUser -Prefix "target"
     $config = Invoke-Api -Method "GET" -Path "/api/v2/lobby/config"
     Assert-True -Condition ([bool]$config.allow_bots) -Message "Target local bots are disabled; set TARGET_ALLOW_BOTS=1."
+    $target = 100
+    $botCap = [int]$config.bot_count_max_by_target.PSObject.Properties["$target"].Value
+    Assert-True -Condition ($botCap -eq 4) -Message "Target $target local demo bot cap should be 4 for a one-human 5-seat table; got $botCap. Restart backend with TARGET_BOT_COUNT_MAX=4."
 
     $created = Invoke-Api -Method "POST" -Path "/api/v2/lobby/tables" -Headers $user.Headers -Body @{
         name = "Target Local $runId"
-        target_score = 30
+        target_score = $target
         stake = 0
-        bot_count = 1
+        bot_count = $botCap
     }
     $tableId = $created.table_id
     Invoke-Api -Method "POST" -Path "/api/v2/lobby/tables/$tableId/start" -Headers $user.Headers | Out-Null
@@ -102,7 +105,7 @@ function Test-TargetLoop {
         Assert-True -Condition ($ws.State -eq [System.Net.WebSockets.WebSocketState]::Open) -Message "Target WebSocket did not open."
         $firstMessage = Receive-WebSocketText -Socket $ws
         Assert-True -Condition (($firstMessage -match '"type"\s*:\s*"(WELCOME|STATE_UPDATE|PRIVATE_STATE)"')) -Message "Target WebSocket did not receive an expected live state signal."
-        Write-Check "PASS" "Target WebSocket connected and received live state at /api/v2/ws/table/$tableId"
+        Write-Check "PASS" "Target WebSocket connected and received live state at /api/v2/ws/table/$tableId with $botCap local demo bots"
     } finally {
         if ($ws.State -eq [System.Net.WebSockets.WebSocketState]::Open -or $ws.State -eq [System.Net.WebSockets.WebSocketState]::CloseReceived) {
             try {

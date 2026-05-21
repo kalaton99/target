@@ -7,4 +7,5 @@ def test_target_lobby_exposes_local_demo_bot_fill_control():
     assert "auto-fill-target-bots-btn" in source
     assert "Auto-fill demo bots" in source
     assert "For a one-human local demo" in source
+    assert "fills the remaining" in source
     assert "setBotCount(String(perTargetBotMax))" in source

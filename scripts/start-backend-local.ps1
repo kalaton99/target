@@ -38,7 +38,7 @@ $env:RNG_ENCRYPTION_KEY = "dev-local-rng-secret-change-later"
 $env:CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 $env:ALLOW_GUEST_AUTH = "1"
 $env:TARGET_ALLOW_BOTS = "1"
-$env:TARGET_BOT_COUNT_MAX = "2"
+$env:TARGET_BOT_COUNT_MAX = "4"
 $env:TMARGET_DEMO_ADMIN_ENABLED = "1"
 
 Write-Host "[INFO] Starting FastAPI backend at http://127.0.0.1:8000"

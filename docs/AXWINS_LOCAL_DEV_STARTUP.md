@@ -89,7 +89,7 @@ $env:RNG_ENCRYPTION_KEY="dev-local-rng-secret-change-later"
 $env:CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 $env:ALLOW_GUEST_AUTH="1"
 $env:TARGET_ALLOW_BOTS="1"
-$env:TARGET_BOT_COUNT_MAX="2"
+$env:TARGET_BOT_COUNT_MAX="4"
 $env:TMARGET_DEMO_ADMIN_ENABLED="1"
 
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8000 --reload
@@ -241,7 +241,7 @@ failed WebSocket requests to Axwins API paths.
 ### Target Quick Play
 
 The `/play` quick bot flow depends on local dev bots. For this local guide,
-`TARGET_ALLOW_BOTS=1` and `TARGET_BOT_COUNT_MAX=2` enable that demo path.
+`TARGET_ALLOW_BOTS=1` and `TARGET_BOT_COUNT_MAX=4` enable that demo path. Target 30/50 tables can auto-fill 3 demo bot seats, while Target 75/100 tables can auto-fill 4 demo bot seats.
 Do not use bot settings to imply production gameplay or real-money behavior.
 
 ## Non-Goals
