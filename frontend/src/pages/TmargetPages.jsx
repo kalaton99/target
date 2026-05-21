@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 
 const DISCLAIMER =
@@ -338,6 +338,7 @@ export function TmargetMarketsPage() {
 
 export function TmargetMarketDetailPlaceholder() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [market, setMarket] = useState(null);
   const [trades, setTrades] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -346,6 +347,7 @@ export function TmargetMarketDetailPlaceholder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const user = storedUser();
 
   async function load() {
@@ -419,6 +421,14 @@ export function TmargetMarketDetailPlaceholder() {
   const disabledTradeMessage = tradeDisabledMessage({ user, market });
   const yesPosition = positions.find((pos) => pos.outcome === "yes");
   const noPosition = positions.find((pos) => pos.outcome === "no");
+  const hasActiveDemoExposure = positions.some((pos) => Number(pos.shares || 0) > 0);
+  const requestMarketExit = () => {
+    if (hasActiveDemoExposure) {
+      setExitConfirmOpen(true);
+      return;
+    }
+    navigate("/tmarget/markets");
+  };
 
   return (
     <TmargetShell>
@@ -436,9 +446,9 @@ export function TmargetMarketDetailPlaceholder() {
             <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">{market.category}</div>
             <h1 className="mt-2 font-display text-4xl tracking-widest sm:text-5xl">{market.title}</h1>
             <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-widest">
-              <Link to="/tmarget/markets" className="rounded border border-zinc-800 px-3 py-2 text-zinc-400 hover:text-yellow-300">
+              <button type="button" onClick={requestMarketExit} className="rounded border border-zinc-800 px-3 py-2 text-zinc-400 hover:text-yellow-300">
                 Back to Markets
-              </Link>
+              </button>
               <Link to="/wallet" className="rounded border border-zinc-800 px-3 py-2 text-zinc-400 hover:text-yellow-300">
                 Wallet / Ledger
               </Link>
@@ -542,6 +552,20 @@ export function TmargetMarketDetailPlaceholder() {
               )}
             </div>
           </aside>
+        </div>
+      )}
+      {exitConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="w-full max-w-md rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+            <div className="font-display text-2xl tracking-widest text-yellow-100">Leave Market Detail?</div>
+            <p className="mt-4 text-sm leading-6 text-zinc-300">
+              Leaving may cause the current demo-credit participation view to be lost. Your Tmarget positions remain on the backend.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button className="rounded border border-zinc-700 px-4 py-2 text-sm uppercase tracking-widest text-zinc-300" type="button" onClick={() => setExitConfirmOpen(false)}>Stay</button>
+              <button className="rounded border border-yellow-600 bg-yellow-500/10 px-4 py-2 text-sm uppercase tracking-widest text-yellow-100" type="button" onClick={() => navigate("/tmarget/markets")}>Leave Market</button>
+            </div>
+          </div>
         </div>
       )}
     </TmargetShell>

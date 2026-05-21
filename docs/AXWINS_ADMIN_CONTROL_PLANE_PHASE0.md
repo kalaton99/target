@@ -53,6 +53,8 @@ Future admin actions may include:
 - Tournament setup for game modules.
 - Live match viewing by direct table or market link.
 - Bot configuration visibility only to admins.
+- Future hidden-admin capability review, with explicit user-facing boundaries
+  before any operational power is enabled.
 - Target local/demo bot capacity controls.
 - Flipget demo opponent controls.
 - Tmarget market lifecycle controls:
@@ -63,6 +65,8 @@ Future admin actions may include:
   - resolved
   - cancelled
 - Wallet and Ledger read-only audit views.
+- Future prize or lottery pool planning from platform revenue, documented as a
+  separate roadmap concept only.
 
 Admin actions must be explicit, role-gated, and auditable. No hidden product
 state changes should be possible.
@@ -100,6 +104,11 @@ prediction markets, not game controls. Admin tools may expose draft/open/paused/
 closed/resolved/cancelled state, direct market links, and demo-credit trade
 activity. They must not imply oracle readiness, dispute readiness, order-book
 support, production settlement, or real-money trading.
+
+Any future intervention, settlement, override, or cancellation power for
+Tmarget must be visible in the admin audit trail, role-gated, reason-required,
+and separately reviewed before runtime implementation. Phase 0 does not add
+these powers.
 
 ### Wallet / Ledger
 

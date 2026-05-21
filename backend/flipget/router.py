@@ -20,6 +20,7 @@ from .wallet_bridge import (
 class CreateFlipgetTableRequest(BaseModel):
     stake_amount: int = Field(default=100, ge=0, le=1_000_000)
     max_players: int = FLIPGET_SEATS
+    mode: str = Field(default="single_flip")
 
 
 class SideRequest(BaseModel):
@@ -52,6 +53,7 @@ def build_flipget_router(service: FlipgetService | None = None) -> APIRouter:
                 username=user_id,
                 stake_amount=body.stake_amount,
                 max_players=body.max_players,
+                mode=body.mode,
             )
             try:
                 await lock_flipget_stake(

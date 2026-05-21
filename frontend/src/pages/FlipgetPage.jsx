@@ -3,6 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 
 const SIDES = ["heads", "tails"];
+const FLIPGET_MODES = [
+  { key: "single_flip", label: "Single Flip", helper: "One flip resolves the table." },
+  { key: "best_of_3", label: "Best of 3", helper: "First side to 2 wins resolves the table." },
+  { key: "best_of_5", label: "Best of 5", helper: "First side to 3 wins resolves the table." },
+];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
@@ -111,8 +116,10 @@ export default function FlipgetPage() {
   const [tables, setTables] = useState([]);
   const [table, setTable] = useState(null);
   const [stake, setStake] = useState(100);
+  const [mode, setMode] = useState("single_flip");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
 
@@ -135,6 +142,11 @@ export default function FlipgetPage() {
       && table
       && !["flipping", "settled"].includes(table.status),
   );
+  const activeExitRisk = Boolean(
+    table
+      && mySeat
+      && !["waiting", "settled", "cancelled"].includes(table.status),
+  );
   const waitingForReady = Boolean(
     table
       && table.status === "waiting"
@@ -151,7 +163,7 @@ export default function FlipgetPage() {
     if (!table) return "Loading Flipget table state.";
     if (!mySeat) return "Spectators can watch Flipget. Join a waiting table to choose a side and ready up.";
     if (table.status === "settled") return "Flipget settled. Use Deal Again to start another internal demo-credit flip.";
-    if (canFlip) return "Both demo participants are ready. Flip Coin is available.";
+    if (canFlip) return `${table.mode_label || "Flipget"} is ready. Flip Coin is available.`;
     if ((table.seats?.length || 0) < 2) return mySeat?.side
       ? "Flip requires two demo participants with unique sides. Add a demo opponent to complete the local flow."
       : "Flip requires two demo participants with unique sides.";
@@ -187,6 +199,14 @@ export default function FlipgetPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function requestExit() {
+    if (activeExitRisk) {
+      setExitConfirmOpen(true);
+      return;
+    }
+    navigate("/flipget");
   }
 
   if (!user?.token) {
@@ -247,13 +267,28 @@ export default function FlipgetPage() {
                 Stake is reserved from internal demo credits until the pre-flip table is left or the result settles.
               </span>
             </label>
+            <label className="text-xs uppercase tracking-widest text-zinc-500">
+              Mode
+              <select
+                value={mode}
+                onChange={(event) => setMode(event.target.value)}
+                className="mt-2 block w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 sm:w-48"
+              >
+                {FLIPGET_MODES.map((item) => (
+                  <option key={item.key} value={item.key}>{item.label}</option>
+                ))}
+              </select>
+              <span className="mt-2 block max-w-xs text-[11px] normal-case leading-5 tracking-normal text-zinc-500">
+                {FLIPGET_MODES.find((item) => item.key === mode)?.helper}
+              </span>
+            </label>
             <button
               className="btn-primary text-center"
               disabled={busy || backendOffline}
               onClick={() => run(async () => {
                 const created = await api("/tables", {
                   method: "POST",
-                  body: JSON.stringify({ stake_amount: stake, max_players: 2 }),
+                  body: JSON.stringify({ stake_amount: stake, max_players: 2, mode }),
                 });
                 navigate(`/flipget/${created.table_id}`);
               })}
@@ -273,8 +308,8 @@ export default function FlipgetPage() {
             {tables.map((item) => (
               <div key={item.table_id} className="flex flex-col items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
                 <div>
-                  <div className="font-display text-2xl tracking-widest">Flipget</div>
-                  <div className="text-sm text-zinc-500">{item.seats.length}/2 seats / {item.status}</div>
+                  <div className="font-display text-2xl tracking-widest">{item.mode_label || "Flipget"}</div>
+                  <div className="text-sm text-zinc-500">{item.seats.length}/2 seats / {item.status} / Round {item.current_round_number || 1}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                   <button className="btn-secondary" disabled={busy || backendOffline || item.status !== "waiting"} onClick={() => run(async () => {
@@ -307,7 +342,7 @@ export default function FlipgetPage() {
             <Link className="btn-ghost" to="/games">Games</Link>
             <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
             <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
-            <Link className="btn-ghost" to="/flipget">Lobby</Link>
+            <button className="btn-ghost" type="button" onClick={requestExit}>Back to Flipget</button>
           </div>
         </div>
         <div className="mt-6">
@@ -316,6 +351,12 @@ export default function FlipgetPage() {
         {table?.stake_amount > 0 && (
           <div className="mt-3 text-sm leading-6 text-zinc-500">
             Stake reserved: {table.stake_amount} internal demo credits per participant.
+          </div>
+        )}
+        {table && (
+          <div className="mt-3 text-sm leading-6 text-zinc-500">
+            Mode: {table.mode_label || "Single Flip"} / Round {table.current_round_number || 1} / {table.max_rounds || 1}<br />
+            Heads {table.score?.heads || 0} - Tails {table.score?.tails || 0}
           </div>
         )}
         <div className="mt-4">
@@ -411,7 +452,7 @@ export default function FlipgetPage() {
           <div className="mt-8 rounded-lg border border-yellow-700/40 bg-yellow-500/10 p-5">
             <div className="text-xs uppercase tracking-widest text-yellow-300">Result</div>
             <div className="mt-3 font-display text-3xl tracking-widest">
-              {table.round?.result} wins / winner: {table.round?.winner_user_id}
+              {table.winning_side || table.round?.result} wins / winner: {table.round?.winner_user_id}
             </div>
             <button className="btn-primary mt-5" disabled={busy} onClick={() => run(async () => {
               let next;
@@ -422,6 +463,20 @@ export default function FlipgetPage() {
               }
               navigate(`/flipget/${next.table_id}`);
             })}>Deal Again</button>
+          </div>
+        )}
+        {exitConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-md rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+              <div className="font-display text-2xl tracking-widest text-yellow-100">Leave Active Flipget?</div>
+              <p className="mt-4 text-sm leading-6 text-zinc-300">
+                Leaving may cause the current stake or participation to be lost. Flipget will keep the table state on the backend if you exit this screen.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button className="btn-secondary" type="button" onClick={() => setExitConfirmOpen(false)}>Stay</button>
+                <button className="btn-primary" type="button" onClick={() => navigate("/flipget")}>Leave Flipget</button>
+              </div>
+            </div>
           </div>
         )}
       </div>

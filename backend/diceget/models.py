@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Optional
 
 
-SUPPORTED_SCORE_GOALS = {50, 75, 100, 150}
+SUPPORTED_SCORE_GOALS = {40, 70, 120}
 # Compatibility alias for older callers while Diceget migrates its public
 # vocabulary from target score to score goal.
 SUPPORTED_TARGETS = SUPPORTED_SCORE_GOALS

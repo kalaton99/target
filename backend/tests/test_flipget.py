@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 
 import pytest
 from pymongo.errors import DuplicateKeyError
@@ -117,8 +118,17 @@ def make_service(result="heads"):
     return FlipgetService(coin_rng=lambda: result)
 
 
-def two_player_ready(service, result_side="heads"):
-    table = service.create_table(creator_user_id="u1", username="u1")
+def make_service_sequence(results):
+    values = list(results)
+
+    def rng():
+        return values.pop(0)
+
+    return FlipgetService(coin_rng=rng)
+
+
+def two_player_ready(service, result_side="heads", mode="single_flip"):
+    table = service.create_table(creator_user_id="u1", username="u1", mode=mode)
     service.join_table(table_id=table.id, user_id="u2", username="u2")
     service.choose_side(table_id=table.id, user_id="u1", side="heads")
     service.choose_side(table_id=table.id, user_id="u2", side="tails")
@@ -131,9 +141,26 @@ def test_create_table_has_exactly_two_seats_and_rejects_other_sizes():
     service = make_service()
     table = service.create_table(creator_user_id="u1", max_players=2)
     assert table.max_players == FLIPGET_SEATS == 2
+    assert table.mode == "single_flip"
+    assert table.to_dict()["mode_label"] == "Single Flip"
     with pytest.raises(FlipgetError) as err:
         service.create_table(creator_user_id="u2", max_players=3)
     assert err.value.code == "INVALID_TABLE_SIZE"
+    with pytest.raises(FlipgetError) as err:
+        service.create_table(creator_user_id="u3", mode="double_or_nothing")
+    assert err.value.code == "INVALID_MODE"
+
+
+def test_flipget_runtime_ui_exposes_modes_and_exit_guard_copy():
+    source = (Path(__file__).resolve().parents[2] / "frontend/src/pages/FlipgetPage.jsx").read_text(encoding="utf-8")
+
+    assert "Single Flip" in source
+    assert "Best of 3" in source
+    assert "Best of 5" in source
+    assert "Mode:" in source
+    assert "Heads {table.score?.heads || 0} - Tails {table.score?.tails || 0}" in source
+    assert "Leave Active Flipget?" in source
+    assert "Leaving may cause the current stake or participation to be lost." in source
 
 
 async def test_create_locks_creator_stake_once(ledger):
@@ -226,6 +253,8 @@ async def test_valid_flip_produces_backend_result_and_heads_wins_when_heads():
     assert flipped.round.winner_user_id == "u1"
     assert flipped.round.loser_user_id == "u2"
     assert flipped.status == "settled"
+    assert flipped.score == {"heads": 1, "tails": 0}
+    assert flipped.winning_side == "heads"
 
 
 async def test_tails_player_wins_when_result_tails():
@@ -235,6 +264,46 @@ async def test_tails_player_wins_when_result_tails():
     assert flipped.round.result == "tails"
     assert flipped.round.winner_user_id == "u2"
     assert flipped.round.loser_user_id == "u1"
+
+
+async def test_best_of_3_resolves_when_one_side_reaches_two_wins():
+    service = make_service_sequence(["heads", "heads"])
+    table = two_player_ready(service, mode="best_of_3")
+
+    first = await service.flip(table_id=table.id, user_id="u1")
+    assert first.status == "ready"
+    assert first.score == {"heads": 1, "tails": 0}
+    assert first.to_dict()["current_round_number"] == 2
+
+    second = await service.flip(table_id=table.id, user_id="u1")
+    assert second.status == "settled"
+    assert second.score == {"heads": 2, "tails": 0}
+    assert second.winning_side == "heads"
+    assert second.to_dict()["wins_required"] == 2
+
+
+async def test_best_of_5_resolves_when_one_side_reaches_three_wins():
+    service = make_service_sequence(["heads", "tails", "heads", "heads"])
+    table = two_player_ready(service, mode="best_of_5")
+
+    for _ in range(3):
+        progressed = await service.flip(table_id=table.id, user_id="u1")
+        assert progressed.status == "ready"
+
+    final = await service.flip(table_id=table.id, user_id="u1")
+    assert final.status == "settled"
+    assert final.score == {"heads": 3, "tails": 1}
+    assert final.winning_side == "heads"
+    assert final.to_dict()["max_rounds"] == 5
+
+
+async def test_cannot_flip_after_resolved_table():
+    service = make_service("heads")
+    table = two_player_ready(service)
+    await service.flip(table_id=table.id, user_id="u1")
+    with pytest.raises(FlipgetError) as err:
+        await service.flip(table_id=table.id, user_id="u1")
+    assert err.value.code == "TABLE_ALREADY_SETTLED"
 
 
 async def test_pre_flip_leave_unlocks_once(ledger):

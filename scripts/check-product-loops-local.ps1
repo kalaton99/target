@@ -123,7 +123,7 @@ function Test-DicegetLoop {
     $user = New-DemoUser -Prefix "dice"
     Invoke-Api -Method "GET" -Path "/api/diceget/tables" | Out-Null
     $created = Invoke-Api -Method "POST" -Path "/api/diceget/tables" -Headers $user.Headers -Body @{
-        score_goal = 50
+        score_goal = 70
         stake = 0
         max_players = 4
     }
@@ -141,21 +141,30 @@ function Test-DicegetLoop {
 }
 
 function Test-FlipgetLoop {
-    Write-Check "INFO" "Checking Flipget create -> choose -> ready -> demo opponent -> flip"
+    Write-Check "INFO" "Checking Flipget create -> choose -> ready -> demo opponent -> Best of 3 flips"
     $user = New-DemoUser -Prefix "flip"
     Invoke-Api -Method "GET" -Path "/api/flipget/tables" | Out-Null
     $created = Invoke-Api -Method "POST" -Path "/api/flipget/tables" -Headers $user.Headers -Body @{
         stake_amount = 0
         max_players = 2
+        mode = "best_of_3"
     }
     $tableId = $created.table_id
     Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/choose-side" -Headers $user.Headers -Body @{ side = "heads" } | Out-Null
     Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/ready" -Headers $user.Headers | Out-Null
     $opponent = Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/add-demo-opponent" -Headers $user.Headers -Body @{ username = "Demo Opponent" }
     Assert-True -Condition ($opponent.status -eq "ready") -Message "Flipget demo opponent did not ready the table."
-    $flipped = Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/flip" -Headers $user.Headers
-    Assert-True -Condition ($flipped.status -eq "settled") -Message "Flipget table did not settle."
-    Assert-True -Condition ($flipped.round.result -in @("heads", "tails")) -Message "Flipget result was missing."
+    $flipped = $null
+    for ($round = 1; $round -le 3; $round += 1) {
+        $flipped = Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/flip" -Headers $user.Headers
+        Assert-True -Condition ($flipped.round.result -in @("heads", "tails")) -Message "Flipget result was missing."
+        if ($flipped.status -eq "settled") {
+            break
+        }
+        Assert-True -Condition ($flipped.status -eq "ready") -Message "Flipget Best of 3 did not stay ready for the next flip."
+    }
+    Assert-True -Condition ($flipped.status -eq "settled") -Message "Flipget Best of 3 table did not settle."
+    Assert-True -Condition (($flipped.score.heads -ge 2) -or ($flipped.score.tails -ge 2)) -Message "Flipget Best of 3 did not reach the first-to-2 threshold."
     Write-Check "PASS" "Flipget live API loop completed"
 }
 

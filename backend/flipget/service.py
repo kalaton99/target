@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 
 from ledger.service import LedgerService
 
-from .models import FLIPGET_SEATS, SIDES, FlipgetRound, FlipgetSeat, FlipgetTable, Side
+from .models import FLIPGET_MODES, FLIPGET_SEATS, SIDES, FlipgetRound, FlipgetSeat, FlipgetTable, Side
 from .wallet_bridge import FlipgetPayoutParticipant, settle_flipget_payout
 
 
@@ -47,23 +47,29 @@ class FlipgetService:
         username: str = "",
         stake_amount: int = 100,
         max_players: int = FLIPGET_SEATS,
+        mode: str = "single_flip",
     ) -> FlipgetTable:
         if max_players != FLIPGET_SEATS:
             raise FlipgetError("INVALID_TABLE_SIZE", "Flipget tables must have exactly 2 seats")
         if stake_amount < 0 or stake_amount > 1_000_000:
             raise FlipgetError("INVALID_STAKE")
+        if mode not in FLIPGET_MODES:
+            raise FlipgetError("INVALID_MODE")
         table_id = _new_id("fg_tbl")
+        opening_round = FlipgetRound(
+            id=_new_id("fg_round"),
+            table_id=table_id,
+            round_number=1,
+            created_at=_now(),
+        )
         table = FlipgetTable(
             id=table_id,
             creator_user_id=creator_user_id,
             stake_amount=stake_amount,
+            mode=mode,  # type: ignore[assignment]
             created_at=_now(),
-            round=FlipgetRound(
-                id=_new_id("fg_round"),
-                table_id=table_id,
-                round_number=1,
-                created_at=_now(),
-            ),
+            round=opening_round,
+            rounds=[opening_round],
         )
         table.seats.append(
             FlipgetSeat(
@@ -142,13 +148,33 @@ class FlipgetService:
         loser = next(seat for seat in table.seats if seat.side != result)
         table.round.winner_user_id = winner.user_id
         table.round.loser_user_id = loser.user_id
-        return await self.settle(table_id, ledger)
+        table.score[result] = table.score.get(result, 0) + 1
+        now = _now()
+        table.round.status = "settled"
+        table.round.settled_at = table.round.settled_at or now
+        config = self._mode_config(table)
+        if table.score[result] >= config["wins_required"]:
+            table.winning_side = result  # type: ignore[assignment]
+            return await self.settle(table_id, ledger)
+        next_round = FlipgetRound(
+            id=_new_id("fg_round"),
+            table_id=table.id,
+            round_number=len(table.rounds) + 1,
+            created_at=_now(),
+        )
+        table.round = next_round
+        table.rounds.append(next_round)
+        table.status = "ready"
+        return table
 
     async def settle(self, table_id: str, ledger: Optional[LedgerService] = None) -> FlipgetTable:
         table = self.get_table(table_id)
         if table.status == "settled":
             return table
         if table.status != "flipping" or table.round is None or table.round.result not in SIDES:
+            raise FlipgetError("TABLE_NOT_SETTLEABLE")
+        config = self._mode_config(table)
+        if table.winning_side not in SIDES or table.score.get(table.winning_side, 0) < config["wins_required"]:
             raise FlipgetError("TABLE_NOT_SETTLEABLE")
         if ledger is not None:
             table.settlement_results = await settle_flipget_payout(
@@ -189,6 +215,7 @@ class FlipgetService:
             username=user_id,
             stake_amount=prior.stake_amount,
             max_players=FLIPGET_SEATS,
+            mode=prior.mode,
         )
 
     def _seat(self, table: FlipgetTable, user_id: str) -> FlipgetSeat:
@@ -223,9 +250,12 @@ class FlipgetService:
             raise FlipgetError("INVALID_RNG_RESULT")
         return result
 
+    def _mode_config(self, table: FlipgetTable) -> dict[str, int | str]:
+        return FLIPGET_MODES[table.mode]
+
     def _payout_participants(self, table: FlipgetTable) -> list[FlipgetPayoutParticipant]:
         assert table.round is not None
-        winner_id = table.round.winner_user_id
+        winner_id = next(seat.user_id for seat in table.seats if seat.side == table.winning_side)
         pot = len(table.seats) * table.stake_amount
         return [
             FlipgetPayoutParticipant(

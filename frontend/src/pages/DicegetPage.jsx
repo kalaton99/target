@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 
-const SCORE_GOALS = [50, 75, 100, 150];
+const SCORE_GOALS = [
+  { key: "sprint", label: "Sprint", goal: 40 },
+  { key: "classic", label: "Classic", goal: 70 },
+  { key: "marathon", label: "Marathon", goal: 120 },
+];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
@@ -112,11 +116,12 @@ export default function DicegetPage() {
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
   const [table, setTable] = useState(null);
-  const [selectedScoreGoal, setSelectedScoreGoal] = useState(50);
+  const [selectedScoreGoal, setSelectedScoreGoal] = useState(70);
   const [stake, setStake] = useState(100);
   const [botProfile, setBotProfile] = useState("normal");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
 
@@ -135,6 +140,11 @@ export default function DicegetPage() {
       && mySeat
       && table.current_turn_user_id === mySeat.user_id
       && !["held", "busted", "forfeited"].includes(mySeat.status),
+  );
+  const activeExitRisk = Boolean(
+    table
+      && mySeat
+      && !["waiting", "settled", "cancelled"].includes(table.status),
   );
   const actionHint = useMemo(() => {
     if (!table) return "Loading Diceget table state.";
@@ -193,6 +203,14 @@ export default function DicegetPage() {
     });
   }
 
+  function requestExit() {
+    if (activeExitRisk) {
+      setExitConfirmOpen(true);
+      return;
+    }
+    navigate("/diceget");
+  }
+
   if (!user?.token) {
     return (
       <div className="min-h-screen bg-black px-4 py-10 text-zinc-100">
@@ -239,15 +257,15 @@ export default function DicegetPage() {
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
-            {SCORE_GOALS.map((goal) => (
+            {SCORE_GOALS.map((mode) => (
               <button
-                key={goal}
+                key={mode.key}
                 type="button"
-                onClick={() => setSelectedScoreGoal(goal)}
-                className={`rounded-lg border p-5 text-left ${selectedScoreGoal === goal ? "border-yellow-500 bg-yellow-500/10" : "border-zinc-800 bg-zinc-950"}`}
+                onClick={() => setSelectedScoreGoal(mode.goal)}
+                className={`rounded-lg border p-5 text-left ${selectedScoreGoal === mode.goal ? "border-yellow-500 bg-yellow-500/10" : "border-zinc-800 bg-zinc-950"}`}
               >
-                <div className="font-display text-3xl tracking-widest">Score Goal {goal}</div>
-                <div className="mt-2 text-sm text-zinc-500">4 players</div>
+                <div className="font-display text-3xl tracking-widest">{mode.label} {mode.goal}</div>
+                <div className="mt-2 text-sm text-zinc-500">Score Goal / 4 players</div>
               </button>
             ))}
           </div>
@@ -332,7 +350,7 @@ export default function DicegetPage() {
             <Link className="btn-ghost" to="/games">Games</Link>
             <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
             <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
-            <Link className="btn-ghost" to="/diceget">Lobby</Link>
+            <button className="btn-ghost" type="button" onClick={requestExit}>Back to Diceget</button>
           </div>
         </div>
         <div className="mt-6">
@@ -452,6 +470,20 @@ export default function DicegetPage() {
               }
               navigate(`/diceget/${next.table_id}`);
             })}>Deal Again</button>
+          </div>
+        )}
+        {exitConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-md rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+              <div className="font-display text-2xl tracking-widest text-yellow-100">Leave Active Diceget?</div>
+              <p className="mt-4 text-sm leading-6 text-zinc-300">
+                Leaving may cause the current stake or participation to be lost. Diceget will keep running on the backend if you exit this screen.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button className="btn-secondary" type="button" onClick={() => setExitConfirmOpen(false)}>Stay</button>
+                <button className="btn-primary" type="button" onClick={() => navigate("/diceget")}>Leave Diceget</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
