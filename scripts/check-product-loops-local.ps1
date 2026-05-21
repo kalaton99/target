@@ -157,7 +157,8 @@ function Test-FlipgetLoop {
     $flipped = $null
     for ($round = 1; $round -le 3; $round += 1) {
         $flipped = Invoke-Api -Method "POST" -Path "/api/flipget/tables/$tableId/flip" -Headers $user.Headers
-        Assert-True -Condition ($flipped.round.result -in @("heads", "tails")) -Message "Flipget result was missing."
+        $completedRounds = @($flipped.rounds | Where-Object { $_.result -in @("heads", "tails") })
+        Assert-True -Condition (($completedRounds | Measure-Object).Count -ge $round) -Message "Flipget completed round result was missing."
         if ($flipped.status -eq "settled") {
             break
         }
