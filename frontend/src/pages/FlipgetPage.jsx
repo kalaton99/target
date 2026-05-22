@@ -8,13 +8,6 @@ const FLIPGET_MODES = [
   { key: "best_of_3", label: "Best of 3", helper: "First side to 2 wins resolves the table." },
   { key: "best_of_5", label: "Best of 5", helper: "First side to 3 wins resolves the table." },
 ];
-const QUICK_FLIPGET_TABLES = [
-  { label: "Quick Table 1", mode: "single_flip" },
-  { label: "Quick Table 2", mode: "best_of_3" },
-  { label: "Quick Table 3", mode: "best_of_5" },
-  { label: "Quick Table 4", mode: "best_of_3" },
-  { label: "Quick Table 5", mode: "single_flip" },
-];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
 
@@ -239,14 +232,6 @@ export default function FlipgetPage() {
     }
   }
 
-  async function createQuickTable(quick) {
-    const created = await api("/tables", {
-      method: "POST",
-      body: JSON.stringify({ stake_amount: stake, max_players: 2, mode: quick.mode }),
-    });
-    navigate(`/flipget/${created.table_id}`);
-  }
-
   function requestExit() {
     if (activeExitRisk) {
       setExitConfirmOpen(true);
@@ -303,31 +288,12 @@ export default function FlipgetPage() {
             <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
               <li>Choose Single Flip, Best of 3, or Best of 5.</li>
-              <li>Choose heads or tails each round.</li>
-              <li>Best of 3 requires 2 round wins.</li>
-              <li>Best of 5 requires 3 round wins.</li>
-              <li>Round History shows who chose what and who won each round.</li>
+              <li>Flipget is always a 2-participant table. The local demo helper can add exactly one demo opponent.</li>
+              <li>Choose heads or tails before every round, then ready up.</li>
+              <li>Single Flip resolves after one flip. Best of 3 requires 2 round wins; Best of 5 requires 3 round wins.</li>
+              <li>Round History shows each completed round, what each participant chose, and who won that round.</li>
+              <li>Leaving during an active match may count as a loss and may lose the reserved demo stake.</li>
             </ul>
-          </section>
-          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">Joinable Demo Tables</div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-5">
-              {QUICK_FLIPGET_TABLES.map((quick) => {
-                const label = FLIPGET_MODES.find((item) => item.key === quick.mode)?.label || quick.mode;
-                return (
-                  <button
-                    key={quick.label}
-                    type="button"
-                    onClick={() => run(() => createQuickTable(quick))}
-                    disabled={busy || backendOffline}
-                    className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10 disabled:opacity-40"
-                  >
-                    {quick.label}
-                    <span className="mt-1 block normal-case tracking-normal text-zinc-500">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
           </section>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="text-xs uppercase tracking-widest text-zinc-500">

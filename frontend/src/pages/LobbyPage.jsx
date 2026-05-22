@@ -17,14 +17,6 @@ const REDIRECT_MESSAGES = {
   signin_required: "Please sign in to continue.",
 };
 
-const QUICK_TARGET_TABLES = [
-  { label: "Quick Table 1", target: 31 },
-  { label: "Quick Table 2", target: 41 },
-  { label: "Quick Table 3", target: 51 },
-  { label: "Quick Table 4", target: 61 },
-  { label: "Quick Table 5", target: 31 },
-];
-
 function LS() {
   const get = () => {
     try {
@@ -194,16 +186,6 @@ export default function LobbyPage() {
 
   const doCreate = async () => createTargetTable();
 
-  const createQuickTargetTable = async (quick) => {
-    const seats = config.table_seats_by_target?.[Number(quick.target)] || 4;
-    await createTargetTable({
-      tableName: `${quick.label} / Target ${quick.target}`,
-      targetScore: quick.target,
-      tableStake: Number(stake),
-      demoBots: Math.max(0, seats - 1),
-    });
-  };
-
   const doJoin = async (tid) => {
     setErr("");
     try {
@@ -343,34 +325,14 @@ export default function LobbyPage() {
         <div className="rounded-lg border border-zinc-800 p-4 mb-6 bg-zinc-950/40">
           <div className="text-zinc-400 text-xs uppercase tracking-widest mb-3">How to Play</div>
           <ul className="space-y-2 text-sm leading-6 text-zinc-400">
-            <li>Choose a target score tier: 31, 41, 51, or 61.</li>
-            <li>31/41 are 4-seat tables; 51/61 are 5-seat tables.</li>
-            <li>Draw cards to get close to the target without going over.</li>
-            <li>Max 5 cards can be drawn or held in one turn.</li>
-            <li>Closest valid score wins; going over can bust or disqualify depending on current rules.</li>
-            <li>Leaving during an active hand may count as a loss.</li>
+            <li>Goal: get closest to the table target score without going over.</li>
+            <li>Current target tiers are 31, 41, 51, and 61. Tiers 31/41 use 4-seat tables; tiers 51/61 use 5-seat tables.</li>
+            <li>Card values: number cards score face value, A scores 1, and J/Q/K score 10.</li>
+            <li>Drawing a Joker disqualifies that player for the hand; going over the target score can bust you.</li>
+            <li>Each turn can hold at most 5 cards. When the draw limit is reached, drawing stops for that turn.</li>
+            <li>On your turn, use Hit/Draw to take a card or Stand/Check to stop drawing when those actions are available.</li>
+            <li>At showdown, the closest valid score wins. Leaving during an active hand may count as a loss and may lose the reserved demo stake.</li>
           </ul>
-        </div>
-
-        <div className="rounded-lg border border-zinc-800 p-4 mb-6 bg-zinc-950/40">
-          <div className="text-zinc-400 text-xs uppercase tracking-widest mb-3">Joinable Demo Tables</div>
-          <div className="grid gap-2 sm:grid-cols-5">
-            {QUICK_TARGET_TABLES.map((quick) => {
-              const seats = config.table_seats_by_target?.[Number(quick.target)] || 4;
-              return (
-                <button
-                  key={quick.label}
-                  type="button"
-                  data-testid={`target-quick-${quick.label.toLowerCase().replaceAll(" ", "-")}`}
-                  onClick={() => createQuickTargetTable(quick)}
-                  className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10"
-                >
-                  {quick.label}
-                  <span className="mt-1 block normal-case tracking-normal text-zinc-500">Target {quick.target} / {seats} seats</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Create table */}

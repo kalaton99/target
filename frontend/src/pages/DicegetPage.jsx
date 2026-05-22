@@ -7,13 +7,6 @@ const SCORE_GOALS = [
   { key: "classic", label: "Classic", goal: 70 },
   { key: "marathon", label: "Marathon", goal: 120 },
 ];
-const QUICK_DICEGET_TABLES = [
-  { label: "Quick Table 1", goal: 40 },
-  { label: "Quick Table 2", goal: 70 },
-  { label: "Quick Table 3", goal: 120 },
-  { label: "Quick Table 4", goal: 70 },
-  { label: "Quick Table 5", goal: 40 },
-];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
@@ -210,14 +203,6 @@ export default function DicegetPage() {
     });
   }
 
-  async function createQuickTable(goal, index) {
-    const created = await api("/tables", {
-      method: "POST",
-      body: JSON.stringify({ score_goal: goal, stake, max_players: 4, name: `Quick Table ${index + 1}` }),
-    });
-    navigate(`/diceget/${created.table_id}`);
-  }
-
   function requestExit() {
     if (activeExitRisk) {
       setExitConfirmOpen(true);
@@ -273,11 +258,12 @@ export default function DicegetPage() {
           <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
-              <li>Roll dice to increase your score toward the score goal.</li>
-              <li>Hold to lock your score.</li>
-              <li>Going over the goal can bust.</li>
-              <li>Highest valid or goal-reaching result wins according to current Diceget rules.</li>
-              <li>Give Up / Leave means surrendering the active game.</li>
+              <li>Choose a score goal mode: Sprint 40, Classic 70, or Marathon 120.</li>
+              <li>Roll dice on your turn to build score toward the selected goal.</li>
+              <li>Hold locks your current score and ends your rolling for the round.</li>
+              <li>Going over the score goal can bust that seat, so stop before the risk is too high.</li>
+              <li>When the table settles, Diceget compares valid locked scores and goal-reaching results using the current backend rules.</li>
+              <li>Give Up / Leave surrenders the active game and may lose the reserved demo stake.</li>
             </ul>
           </section>
 
@@ -294,24 +280,6 @@ export default function DicegetPage() {
               </button>
             ))}
           </div>
-
-          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">Joinable Demo Tables</div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-5">
-              {QUICK_DICEGET_TABLES.map((item, index) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => run(() => createQuickTable(item.goal, index))}
-                  disabled={busy || backendOffline}
-                  className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10 disabled:opacity-40"
-                >
-                  {item.label}
-                  <span className="mt-1 block normal-case tracking-normal text-zinc-500">Score Goal {item.goal}</span>
-                </button>
-              ))}
-            </div>
-          </section>
 
           <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="text-xs uppercase tracking-widest text-zinc-500">

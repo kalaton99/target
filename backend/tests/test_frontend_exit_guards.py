@@ -41,18 +41,19 @@ def test_jackget_frontend_is_separate_from_target_routes_and_warns_on_active_exi
     assert "Jackget" in games
 
 
-def test_game_lobbies_explain_rules_and_show_five_quick_tables():
+def test_game_lobbies_explain_rules_without_separate_quick_table_panels():
     pages = {
         "Target": ROOT / "frontend/src/pages/LobbyPage.jsx",
         "Diceget": ROOT / "frontend/src/pages/DicegetPage.jsx",
         "Flipget": ROOT / "frontend/src/pages/FlipgetPage.jsx",
         "Jackget": ROOT / "frontend/src/pages/JackgetPage.jsx",
+        "Tmarget": ROOT / "frontend/src/pages/TmargetPages.jsx",
     }
     for name, path in pages.items():
         source = path.read_text(encoding="utf-8")
         assert "How to Play" in source, name
-        for index in range(1, 6):
-            assert f"Quick Table {index}" in source, name
+        assert "Joinable Demo Tables" not in source, name
+        assert "Quick Table" not in source, name
 
 
 def test_diceget_visible_surrender_copy_is_clear_without_renaming_api():

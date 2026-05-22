@@ -4,13 +4,6 @@ import { apiFetch } from "@/lib/api";
 
 const STORAGE_KEY = "target_user";
 const OFFLINE_COPY = "Backend is unavailable. Start the local backend with .\\scripts\\start-backend-local.ps1, then refresh.";
-const QUICK_JACKGET_TABLES = [
-  { label: "Quick Table 1", maxPlayers: 2 },
-  { label: "Quick Table 2", maxPlayers: 3 },
-  { label: "Quick Table 3", maxPlayers: 4 },
-  { label: "Quick Table 4", maxPlayers: 4 },
-  { label: "Quick Table 5", maxPlayers: 2 },
-];
 
 function readSession() {
   try {
@@ -108,14 +101,6 @@ export default function JackgetPage() {
     navigate(`/jackget/${created.table_id}`);
   }
 
-  async function createQuickTable(maxPlayers) {
-    const created = await request("/api/jackget/tables", {
-      method: "POST",
-      body: JSON.stringify({ max_players: Number(maxPlayers) }),
-    });
-    navigate(`/jackget/${created.table_id}`);
-  }
-
   async function action(path, body = null) {
     const updated = await request(path, {
       method: "POST",
@@ -167,28 +152,13 @@ export default function JackgetPage() {
           <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
-              <li>2-4 players sit at the table.</li>
-              <li>Each player has a 3-symbol slot result per spin.</li>
-              <li>Each player spins 3 times total, with turns rotating between players.</li>
-              <li>Total score after 3 spins determines the winner.</li>
+              <li>Jackget tables seat 2-4 players.</li>
+              <li>Each player has a 3-reel slot panel. Every spin reveals 3 symbols or numbers.</li>
+              <li>Each player gets exactly 3 spins total, with turns rotating between players.</li>
+              <li>Numbers and symbols award points for triples, pairs, and mixed results.</li>
               <li>Demo opponents spin automatically on their turn.</li>
+              <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
             </ul>
-          </section>
-          <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">Joinable Demo Tables</div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-5">
-              {QUICK_JACKGET_TABLES.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => createQuickTable(item.maxPlayers)}
-                  className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10"
-                >
-                  {item.label}
-                  <span className="mt-1 block normal-case tracking-normal text-zinc-500">{item.maxPlayers} players</span>
-                </button>
-              ))}
-            </div>
           </section>
           <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">

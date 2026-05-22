@@ -220,6 +220,22 @@ function ErrorBox({ error }) {
   return <div className="rounded-lg border border-rose-800 bg-rose-950/30 p-5 text-rose-200">{error}</div>;
 }
 
+function TmargetHowToPlay({ className = "" }) {
+  return (
+    <section className={`rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 ${className}`}>
+      <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
+      <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
+        <li>Tmarget is a demo prediction-market product, not a game.</li>
+        <li>Open markets let signed-in users buy or sell YES/NO positions with internal demo credits only.</li>
+        <li>Positions show how many demo shares you hold on each outcome.</li>
+        <li>Market volume increases when demo-credit buy or sell trades are recorded.</li>
+        <li>Draft markets must be opened from Admin Markets before buying or selling is enabled.</li>
+        <li>Resolved or cancelled markets use the current demo backend settlement/refund rules. No real-money trading is enabled.</li>
+      </ul>
+    </section>
+  );
+}
+
 export function TmargetHomePage() {
   const links = [
     ["Markets", "/tmarget/markets", "Browse demo prediction markets backed by internal credits."],
@@ -240,6 +256,7 @@ export function TmargetHomePage() {
             Target, Diceget, and Flipget game modules, while sharing internal
             auth, wallet, ledger, audit, and admin infrastructure.
           </p>
+          <TmargetHowToPlay className="mt-6" />
         </div>
         <div className="grid gap-3">
           {links.map(([title, href, description]) => (
@@ -321,6 +338,7 @@ export function TmargetMarketsPage() {
           </select>
         </div>
       </div>
+      <TmargetHowToPlay className="mb-6" />
       {loading && <LoadingBox text="Loading markets..." />}
       <ErrorBox error={error} />
       {!loading && filtered.length === 0 && (
@@ -454,6 +472,7 @@ export function TmargetMarketDetailPlaceholder() {
               </Link>
             </div>
             <p className="mt-5 text-base leading-7 text-zinc-400">{market.description}</p>
+            <TmargetHowToPlay className="mt-6" />
             <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950 p-5">
               <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Resolution Criteria</div>
               <p className="mt-3 text-sm leading-6 text-zinc-400">{market.rule?.resolution_criteria}</p>
@@ -762,6 +781,7 @@ export function TmargetAdminMarketsPage() {
           real funds are involved.
         </aside>
       </div>
+      <TmargetHowToPlay className="mb-8" />
 
       <div className="grid gap-8 lg:grid-cols-[420px_1fr]">
         <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
