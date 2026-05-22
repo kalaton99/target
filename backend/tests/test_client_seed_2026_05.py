@@ -31,7 +31,7 @@ from game_engine.view_filter import public_view  # noqa: E402
 
 # ---------- helpers ----------
 
-def _make_state(n=3, target=30):
+def _make_state(n=3, target=31):
     s = GameState(table_id="t1", target_score=target, stake=100)
     s.players = [
         PlayerState(seat_index=i, user_id=f"u{i}", username=f"P{i}",
@@ -53,7 +53,7 @@ def _start_hand_action(*, server_seed: str = "a" * 64,
         "nonce": nonce,
         "server_seed": server_seed,
         "server_seed_hash": server_seed_hash,
-        "target_score": 30,
+        "target_score": 31,
     }
     if client_seeds_by_seat is not None:
         a["client_seeds_by_seat"] = client_seeds_by_seat

@@ -67,6 +67,7 @@ if (-not $backendReachable) {
 
 Test-BackendEndpoint -Name "Diceget tables" -Path "/api/diceget/tables" | Out-Null
 Test-BackendEndpoint -Name "Flipget tables" -Path "/api/flipget/tables" | Out-Null
+Test-BackendEndpoint -Name "Jackget tables" -Path "/api/jackget/tables" | Out-Null
 Test-BackendEndpoint -Name "Tmarget markets" -Path "/api/tmarget/markets" | Out-Null
 Test-BackendEndpoint -Name "Target lobby config" -Path "/api/v2/lobby/config" | Out-Null
 

@@ -23,6 +23,13 @@ const gameProducts = [
     description: "2-player coin flip game inside Axwins",
     href: "/games/flipget",
   },
+  {
+    name: "Jackget",
+    status: "Available",
+    category: "Game",
+    description: "2-4 player jackpot spin game inside Axwins",
+    href: "/games/jackget",
+  },
 ];
 
 const productModules = [
@@ -57,7 +64,7 @@ const DEMO_CREDIT_NOTICE =
 
 const walkthroughSteps = [
   "Start with Axwins as the platform hub.",
-  "Show Games: Target, Diceget, and Flipget.",
+  "Show Games: Target, Diceget, Flipget, and Jackget.",
   "Show Tmarget separately as a demo prediction market product.",
   "Close with Wallet / Ledger as read-only platform core.",
 ];
@@ -246,14 +253,14 @@ export function GamesPage() {
           </div>
           <h1 className="mt-2 font-display text-5xl tracking-widest text-zinc-100">Games</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-            Target, Diceget, and Flipget are Axwins game modules. Tmarget is listed separately below as a prediction market product.
+            Target, Diceget, Flipget, and Jackget are Axwins game modules. Tmarget is listed separately below as a prediction market product.
           </p>
         </div>
         <Link className="btn-ghost" to="/">
           Home
         </Link>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {gameProducts.map((product) => (
           <ProductCard key={product.name} product={product} />
         ))}

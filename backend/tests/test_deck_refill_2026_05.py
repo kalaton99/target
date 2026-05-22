@@ -27,10 +27,10 @@ def _make_hand_with_empty_deck():
     HIT, forcing a refill.
 
     Per GAME_RULES_LOCKED.md §2 there is no 2-seat table type;
-    `n_players=2` here means a 4-seat (target=30) table with 2
+    `n_players=2` here means a 4-seat (target=31) table with 2
     humans seated (the minimum legal start for the 4-seat tier).
     """
-    state = GameState(table_id="t1", target_score=30, stake=0)
+    state = GameState(table_id="t1", target_score=31, stake=0)
     state.players = [
         PlayerState(seat_index=0, user_id="u0", username="P0", balance_at_start=10000),
         PlayerState(seat_index=1, user_id="u1", username="P1", balance_at_start=10000),

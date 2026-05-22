@@ -85,7 +85,7 @@ function Test-TargetLoop {
     $user = New-DemoUser -Prefix "target"
     $config = Invoke-Api -Method "GET" -Path "/api/v2/lobby/config"
     Assert-True -Condition ([bool]$config.allow_bots) -Message "Target local bots are disabled; set TARGET_ALLOW_BOTS=1."
-    $target = 100
+    $target = 61
     $botCap = [int]$config.bot_count_max_by_target.PSObject.Properties["$target"].Value
     Assert-True -Condition ($botCap -eq 4) -Message "Target $target local demo bot cap should be 4 for a one-human 5-seat table; got $botCap. Restart backend with TARGET_BOT_COUNT_MAX=4."
 
@@ -172,6 +172,28 @@ function Test-FlipgetLoop {
     Write-Check "PASS" "Flipget live API loop completed"
 }
 
+function Test-JackgetLoop {
+    Write-Check "INFO" "Checking Jackget create -> demo opponents -> start -> spin -> settle"
+    $user = New-DemoUser -Prefix "jack"
+    Invoke-Api -Method "GET" -Path "/api/jackget/tables" | Out-Null
+    $created = Invoke-Api -Method "POST" -Path "/api/jackget/tables" -Headers $user.Headers -Body @{
+        max_players = 4
+    }
+    $tableId = $created.table_id
+    $filled = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/add-demo-opponents" -Headers $user.Headers
+    Assert-True -Condition (($filled.seats | Measure-Object).Count -eq 4) -Message "Jackget demo opponents did not fill the table."
+    $started = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/start" -Headers $user.Headers
+    Assert-True -Condition ($started.status -eq "in_progress") -Message "Jackget table did not start."
+    for ($i = 0; $i -lt 3; $i += 1) {
+        $spun = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/spin" -Headers $user.Headers
+    }
+    Assert-True -Condition (($spun.seats | Where-Object { $_.user_id -eq $user.UserId }).spins.Count -eq 3) -Message "Jackget human spins did not reach 3."
+    $settled = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/auto-play-demo-spins" -Headers $user.Headers
+    Assert-True -Condition ($settled.status -eq "settled") -Message "Jackget table did not settle after demo autoplay."
+    Assert-True -Condition (($settled.winners | Measure-Object).Count -gt 0) -Message "Jackget settled without visible winner."
+    Write-Check "PASS" "Jackget live API loop completed"
+}
+
 function Test-TmargetLoop {
     Write-Check "INFO" "Checking Tmarget create/open -> buy YES -> buy NO"
     $user = New-DemoUser -Prefix "tmarg"
@@ -222,6 +244,7 @@ foreach ($check in @(
     ${function:Test-TargetLoop},
     ${function:Test-DicegetLoop},
     ${function:Test-FlipgetLoop},
+    ${function:Test-JackgetLoop},
     ${function:Test-TmargetLoop},
     ${function:Test-WalletLedger}
 )) {

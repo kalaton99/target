@@ -2,10 +2,10 @@
 and /api/v2/dev/teardown_solo_table (Deal-Again cleanup).
 
 Covers the bug-fix scope from the 2026-01 Deal-Again spec:
-  - back-compat: no body  → target=30, 4 seats, 1 bot
-  - target=50           → 4 seats, 1 bot
-  - target=75           → 5 seats, 2 bots
-  - target=100          → 5 seats, 2 bots
+  - back-compat: no body  → target=31, 4 seats, 1 bot
+  - target=41           → 4 seats, 1 bot
+  - target=51           → 5 seats, 2 bots
+  - target=61          → 5 seats, 2 bots
   - invalid target      → 400 INVALID_TARGET_SCORE
   - non-int target      → 400 INVALID_TARGET_SCORE
   - teardown(valid)     → ok+existed=true, then idempotent existed=false
@@ -35,11 +35,11 @@ def _spawn(session, body=None):
 
 # --- spawn target_score handling ---
 
-def test_spawn_no_body_defaults_target_30(session):
+def test_spawn_no_body_defaults_target_31(session):
     r = _spawn(session)
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["target_score"] == 30
+    assert d["target_score"] == 31
     assert d["seats"] == 4
     assert isinstance(d.get("bot_user_ids"), list)
     assert len(d["bot_user_ids"]) == 1
@@ -47,31 +47,31 @@ def test_spawn_no_body_defaults_target_30(session):
     session.post(TEARDOWN, json={"table_id": d["table_id"]}, timeout=10)
 
 
-def test_spawn_target_50(session):
-    r = _spawn(session, {"target_score": 50})
+def test_spawn_target_41(session):
+    r = _spawn(session, {"target_score": 41})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["target_score"] == 50
+    assert d["target_score"] == 41
     assert d["seats"] == 4
     assert len(d["bot_user_ids"]) == 1
     session.post(TEARDOWN, json={"table_id": d["table_id"]}, timeout=10)
 
 
-def test_spawn_target_75_two_bots(session):
-    r = _spawn(session, {"target_score": 75})
+def test_spawn_target_51_two_bots(session):
+    r = _spawn(session, {"target_score": 51})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["target_score"] == 75
+    assert d["target_score"] == 51
     assert d["seats"] == 5
     assert len(d["bot_user_ids"]) == 2
     session.post(TEARDOWN, json={"table_id": d["table_id"]}, timeout=10)
 
 
-def test_spawn_target_100_two_bots(session):
-    r = _spawn(session, {"target_score": 100})
+def test_spawn_target_61_two_bots(session):
+    r = _spawn(session, {"target_score": 61})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["target_score"] == 100
+    assert d["target_score"] == 61
     assert d["seats"] == 5
     assert len(d["bot_user_ids"]) == 2
     session.post(TEARDOWN, json={"table_id": d["table_id"]}, timeout=10)
@@ -97,7 +97,7 @@ def test_spawn_non_integer_target_score(session):
 
 def test_teardown_idempotent(session):
     # First spawn a table to have a real table_id.
-    r = _spawn(session, {"target_score": 30})
+    r = _spawn(session, {"target_score": 31})
     assert r.status_code == 200
     table_id = r.json()["table_id"]
 

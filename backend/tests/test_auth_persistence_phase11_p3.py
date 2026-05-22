@@ -43,7 +43,7 @@ def _h(token):
 def _create_table(token, **overrides):
     body = {
         "name": _name("Room"),
-        "target_score": 30,
+        "target_score": 31,
         "stake": 100,
         "max_players": 2,
         "min_players": 2,

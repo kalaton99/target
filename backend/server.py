@@ -24,6 +24,7 @@ from realtime_v2.pubsub import PubSub as _V2PubSub
 from lobby.router import build_lobby_router
 from diceget.router import build_diceget_router
 from flipget.router import build_flipget_router
+from jackget.router import build_jackget_router
 from platform_wallet.router import router as platform_wallet_router
 from tmarget.router import build_tmarget_router
 from target.wallet_bridge import build_ledger_from_db
@@ -95,6 +96,7 @@ api_router.include_router(build_dev_router(engine_bridge))
 api_router.include_router(build_lobby_router(engine_bridge))
 api_router.include_router(build_diceget_router())
 api_router.include_router(build_flipget_router())
+api_router.include_router(build_jackget_router())
 api_router.include_router(build_tmarget_router())
 api_router.include_router(platform_wallet_router)
 

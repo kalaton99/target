@@ -61,8 +61,8 @@ class CreateTableRequest(BaseModel):
     server derives the seat count AND the min-seated-to-start from
     `target_score` per GAME_RULES_LOCKED.md §2:
 
-      target 30 / 50 → 4-seat table, starts when seated ≥ 2.
-      target 75 / 100 → 5-seat table, starts when seated ≥ 3.
+      target 31 / 41 → 4-seat table, starts when seated ≥ 2.
+      target 51 / 61 → 5-seat table, starts when seated ≥ 3.
 
     There is no 2-seat table type. Older clients still send the
     `max_players` / `min_players` fields; we silently drop their

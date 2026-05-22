@@ -79,8 +79,8 @@ Target admin controls should preserve the existing engine, reducer, RNG,
 fairness, protocol, payout behavior, and hand lifecycle. Local/demo bot controls
 may expose the current capacity model:
 
-- Target 30 and Target 50: one human plus up to three demo bots.
-- Target 75 and Target 100: one human plus up to four demo bots.
+- Target 31 and Target 41: one human plus up to three demo bots.
+- Target 51 and Target 61: one human plus up to four demo bots.
 
 Any production-oriented bot policy must remain separate from local demo
 capacity.

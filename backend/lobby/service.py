@@ -116,8 +116,8 @@ async def create_table(
     # function of target_score. Any client-supplied max_players /
     # min_players is silently ignored to avoid breaking older clients
     # during the migration window.
-    #   - 4-seat tables (target 30/50): start when seated ≥ 2.
-    #   - 5-seat tables (target 75/100): start when seated ≥ 3.
+    #   - 4-seat tables (target 31/41): start when seated ≥ 2.
+    #   - 5-seat tables (target 51/61): start when seated ≥ 3.
     # There is NO 2-seat table type; "n_players=2" in tests means a
     # 4-seat table partially filled.
     derived_max = seats_for_target(target_score)

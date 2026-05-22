@@ -43,10 +43,10 @@ from realtime_v2.pubsub import PubSub  # noqa: E402
 
 
 def _make_engine_with_two_seated_players():
-    """4-seat (target=30) table with 2 humans seated — the minimum
+    """4-seat (target=31) table with 2 humans seated — the minimum
     legal start for the 4-seat tier per GAME_RULES_LOCKED.md §2.
     There is no 2-seat table type."""
-    state = GameState(table_id="grace_t", target_score=30, stake=100)
+    state = GameState(table_id="grace_t", target_score=31, stake=100)
     state.players = [
         PlayerState(seat_index=0, user_id="u_a", username="A",
                     balance_at_start=10000),

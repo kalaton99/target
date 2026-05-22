@@ -187,6 +187,7 @@ function PlayPage() {
     pendingClientSeeds: {},
     deckRemaining: [],
     deckRefills: 0,
+    lastAction: null,
   });
   const [me, setMe] = useState({
     cards: [],
@@ -212,7 +213,7 @@ function PlayPage() {
   const [fairnessExplainerOpen, setFairnessExplainerOpen] = useState(false);
   // 2026-05 v3 — Deal-Again target-selector modal. Opens when the
   // local player clicks "Change target" at PAYOUT/SHOWDOWN/ENDED so
-  // they can pick a different target tier (30/50 → 4 seats, 75/100
+  // they can pick a different target tier (31/41 -> 4 seats, 51/61
   // → 5 seats). The default Deal-Again behaviour replays the
   // current tier — see the deal-again-btn handler.
   const [targetSelectorOpen, setTargetSelectorOpen] = useState(false);
@@ -260,7 +261,7 @@ function PlayPage() {
 
   // ----- spawn + connect -----
   // 2026-05 v3 — `targetScore` is optional; defaults to legacy
-  // behavior (solo target 30). The "Deal Again" flow passes an
+  // behavior (solo target 31). The "Deal Again" flow passes an
   // explicit value chosen by the user via the target-selector
   // modal. `previousTableId` (when provided) is torn down server-
   // side first so the abandoned engine doesn't leak.
@@ -537,6 +538,7 @@ function PlayPage() {
           pendingClientSeeds: m.pending_client_seeds || {},
           deckRemaining: m.deck_remaining || [],
           deckRefills: m.deck_refills || 0,
+          lastAction: m.last_action || null,
         });
         // Surface user-visible engine events (currently: auto-stand on
         // timeout). The events array carries one entry per intent applied
@@ -581,6 +583,15 @@ function PlayPage() {
               const text = `${name} auto-stand (timeout)`;
               appendLog(text);
               setNotice({ kind: "auto-stand", text, ts: Date.now() });
+            }
+            if (ev.type === "DRAW_LIMIT_REACHED") {
+              const owner =
+                players.find((p) => p.user_id === ev.user_id) ||
+                players.find((p) => p.seat === ev.seat);
+              const name = owner?.username || `seat ${ev.seat}`;
+              const text = `${name} reached the 5-card draw limit for this turn.`;
+              appendLog(text);
+              setNotice({ kind: "draw-limit", text, ts: Date.now() });
             }
             if (ev.type === "FOLD" && ev.auto) {
               const owner =
@@ -862,9 +873,11 @@ function PlayPage() {
 
   const handFinished =
     view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
+  const drawLimitReached = view.lastAction?.action === "DRAW_LIMIT_REACHED";
   const targetActionHint = useMemo(() => {
     if (wsState !== "open") return "Connecting to the Target table before actions unlock.";
     if (handFinished) return "Hand complete. Deal again or return to the Target lobby.";
+    if (drawLimitReached) return "Draw limit reached for this turn. The turn will move to the next player.";
     if (myTurn) return "Your draw turn: HIT draws another card, STAND locks your score.";
     if (myBettingTurn && Number(view.currentCallOwed || 0) > 0) {
       return `Your betting turn: CALL ${view.currentCallOwed} or FOLD.`;
@@ -872,7 +885,7 @@ function PlayPage() {
     if (myBettingTurn) return "Your betting turn: CHECK to pass, BET to raise, or FOLD.";
     const activePlayer = view.players.find((p) => p.seat === view.currentTurnSeat);
     return `Waiting for ${activePlayer?.username || "the active Target seat"} to act.`;
-  }, [handFinished, myBettingTurn, myTurn, view.currentCallOwed, view.currentTurnSeat, view.players, wsState]);
+  }, [drawLimitReached, handFinished, myBettingTurn, myTurn, view.currentCallOwed, view.currentTurnSeat, view.players, wsState]);
 
   // 2026-05 v2 PART 1 — showdown clarity helpers. Compute once so
   // every player row can derive its labels from the same snapshot.
@@ -1894,17 +1907,17 @@ function PlayPage() {
         )}
 
         {/* 2026-05 v3 — Deal-Again target-selector modal.
-            Replaces the old auto-spawn-target-30 behaviour: at PAYOUT,
+            Replaces the old auto-spawn-target-31 behaviour: at PAYOUT,
             "Deal Again" opens this modal so the player explicitly
             chooses the next hand's target tier. The previous solo
             table is torn down server-side as part of the spawn flow
             (see `startPlay`). */}
         {targetSelectorOpen && (() => {
           const tiers = [
-            { score: 30, seats: 4, label: "Quick · 4 seats" },
-            { score: 50, seats: 4, label: "Standard · 4 seats" },
-            { score: 75, seats: 5, label: "Long · 5 seats" },
-            { score: 100, seats: 5, label: "Marathon · 5 seats" },
+            { score: 31, seats: 4, label: "Quick - 4 seats" },
+            { score: 41, seats: 4, label: "Standard - 4 seats" },
+            { score: 51, seats: 5, label: "Long - 5 seats" },
+            { score: 61, seats: 5, label: "Marathon - 5 seats" },
           ];
           return (
             <div

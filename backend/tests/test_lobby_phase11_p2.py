@@ -132,14 +132,14 @@ class TestLobbyConfig:
             return int(per.get(str(k), per.get(k, -1)))
         if cfg["allow_bots"]:
             global_cap = int(cfg["bot_count_max"])
-            assert _n(30) == min(global_cap, 3)
-            assert _n(50) == min(global_cap, 3)
-            assert _n(75) == min(global_cap, 4)
-            assert _n(100) == min(global_cap, 4)
+            assert _n(31) == min(global_cap, 3)
+            assert _n(41) == min(global_cap, 3)
+            assert _n(51) == min(global_cap, 4)
+            assert _n(61) == min(global_cap, 4)
         else:
             # Production (ALLOW_BOTS=false) must advertise zero bots
             # everywhere so the UI can hide the control.
-            for k in (30, 50, 75, 100):
+            for k in (31, 41, 51, 61):
                 assert _n(k) == 0
 
     def test_local_demo_config_exposes_full_table_bot_fill_when_enabled(self):
@@ -151,10 +151,10 @@ class TestLobbyConfig:
         def _n(k):
             return int(per.get(str(k), per.get(k, -1)))
 
-        assert _n(30) == 3
-        assert _n(50) == 3
-        assert _n(75) == 4
-        assert _n(100) == 4
+        assert _n(31) == 3
+        assert _n(41) == 3
+        assert _n(51) == 4
+        assert _n(61) == 4
 
 
 # ============================================================
@@ -164,7 +164,7 @@ class TestLobbyConfig:
 def _create_table(token, name=None, **overrides):
     body = {
         "name": name or _name("Room"),
-        "target_score": 30,
+        "target_score": 31,
         "stake": 100,
     }
     body.update(overrides)
@@ -184,19 +184,19 @@ class TestTablesCRUD:
         assert t["creator_user_id"] == u["user_id"]
         assert len(t["seats"]) == 1
         assert t["seats"][0]["user_id"] == u["user_id"]
-        assert t["target_score"] == 30
-        # Server-derived seat cap (locked rule): target 30 → 4 seats.
+        assert t["target_score"] == 31
+        # Server-derived seat cap (locked rule): target 31 → 4 seats.
         assert t["max_players"] == 4
         assert t["min_players"] == 2
 
     def test_create_table_target_75_has_5_seats(self):
-        u = _auth(_name("t75"))
-        t = _create_table(u["token"], target_score=75).json()
+        u = _auth(_name("t51"))
+        t = _create_table(u["token"], target_score=51).json()
         assert t["max_players"] == 5
 
     def test_create_table_target_100_has_5_seats(self):
-        u = _auth(_name("t100"))
-        t = _create_table(u["token"], target_score=100).json()
+        u = _auth(_name("t61"))
+        t = _create_table(u["token"], target_score=61).json()
         assert t["max_players"] == 5
 
     def test_create_table_target_250_rejected_globally(self):
@@ -210,7 +210,7 @@ class TestTablesCRUD:
         # Older clients still send max_players=8; server must ignore it
         # and derive from target_score (locked-rules migration).
         u = _auth(_name("legacy"))
-        r = _create_table(u["token"], target_score=30, max_players=8, min_players=2)
+        r = _create_table(u["token"], target_score=31, max_players=8, min_players=2)
         assert r.status_code == 201, r.text
         t = r.json()
         assert t["max_players"] == 4  # NOT 8
@@ -232,7 +232,7 @@ class TestTablesCRUD:
     def test_join_other_user(self):
         u1 = _auth(_name("j1"))
         u2 = _auth(_name("j2"))
-        t = _create_table(u1["token"], target_score=30).json()  # 4 seats
+        t = _create_table(u1["token"], target_score=31).json()  # 4 seats
         r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                           headers=_h(u2["token"]), timeout=TIMEOUT)
         assert r.status_code == 200, r.text
@@ -248,9 +248,9 @@ class TestTablesCRUD:
         assert len(r.json()["seats"]) == 1
 
     def test_join_full_table_rejected(self):
-        # Target 30 → 4 seats. Fill all 4, then a 5th join must be rejected.
+        # target 31 → 4 seats. Fill all 4, then a 5th join must be rejected.
         creator = _auth(_name("f0"))
-        t = _create_table(creator["token"], target_score=30).json()
+        t = _create_table(creator["token"], target_score=31).json()
         for i in range(1, 4):
             u = _auth(_name(f"f{i}"))
             r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
@@ -265,7 +265,7 @@ class TestTablesCRUD:
     def test_leave_table(self):
         u1 = _auth(_name("l1"))
         u2 = _auth(_name("l2"))
-        t = _create_table(u1["token"], target_score=30).json()
+        t = _create_table(u1["token"], target_score=31).json()
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                       headers=_h(u2["token"]), timeout=TIMEOUT)
         r = requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/leave",
@@ -296,57 +296,57 @@ class TestBotsGated:
             assert r.status_code == 400
             assert "BOTS_DISABLED" in r.text
 
-    def test_target30_allows_effective_bot_cap(self):
+    def test_target31_allows_effective_bot_cap(self):
         cfg = _lobby_config()
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
-        cap = _effective_bot_cap(cfg, 30)
+        cap = _effective_bot_cap(cfg, 31)
         assert cap == 3
-        u = _auth(_name("t30b3"))
-        r = _create_table(u["token"], target_score=30, bot_count=cap)
+        u = _auth(_name("t31b3"))
+        r = _create_table(u["token"], target_score=31, bot_count=cap)
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == cap
 
-    def test_target50_allows_full_local_demo_bot_fill(self):
+    def test_target41_allows_full_local_demo_bot_fill(self):
         cfg = _lobby_config()
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
-        cap = _effective_bot_cap(cfg, 50)
+        cap = _effective_bot_cap(cfg, 41)
         assert cap == 3
-        u = _auth(_name("t50b3"))
-        r = _create_table(u["token"], target_score=50, bot_count=cap)
+        u = _auth(_name("t41b3"))
+        r = _create_table(u["token"], target_score=41, bot_count=cap)
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == cap
 
-    def test_target30_rejects_above_effective_bot_cap(self):
+    def test_target31_rejects_above_effective_bot_cap(self):
         cfg = _lobby_config()
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
-        cap = _effective_bot_cap(cfg, 30)
-        u = _auth(_name("t30b4"))
-        r = _create_table(u["token"], target_score=30, bot_count=cap + 1)
+        cap = _effective_bot_cap(cfg, 31)
+        u = _auth(_name("t31b4"))
+        r = _create_table(u["token"], target_score=31, bot_count=cap + 1)
         assert r.status_code == 400, r.text
         assert "BOT_COUNT_EXCEEDED" in r.text
 
-    def test_target75_allows_effective_bot_cap(self):
+    def test_target51_allows_effective_bot_cap(self):
         cfg = _lobby_config()
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
-        cap = _effective_bot_cap(cfg, 75)
+        cap = _effective_bot_cap(cfg, 51)
         assert cap == 4
-        u = _auth(_name("t75b4"))
-        r = _create_table(u["token"], target_score=75, bot_count=cap)
+        u = _auth(_name("t51b4"))
+        r = _create_table(u["token"], target_score=51, bot_count=cap)
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == cap
 
-    def test_target100_allows_effective_bot_cap(self):
+    def test_target61_allows_effective_bot_cap(self):
         cfg = _lobby_config()
         if not cfg["allow_bots"]:
             pytest.skip("bots disabled on this server")
-        cap = _effective_bot_cap(cfg, 100)
+        cap = _effective_bot_cap(cfg, 61)
         assert cap == 4
-        u = _auth(_name("t100b4"))
-        r = _create_table(u["token"], target_score=100, bot_count=cap)
+        u = _auth(_name("t61b4"))
+        r = _create_table(u["token"], target_score=61, bot_count=cap)
         assert r.status_code == 201, r.text
         assert r.json().get("bot_count") == cap
 
@@ -354,7 +354,7 @@ class TestBotsGated:
         # Pydantic-level guard at le=4 — server must reject 5+ regardless
         # of target. 422 from Pydantic / 400 if overridden.
         u = _auth(_name("gc"))
-        r = _create_table(u["token"], target_score=100, bot_count=5)
+        r = _create_table(u["token"], target_score=61, bot_count=5)
         assert r.status_code in (400, 422), r.text
 
 
@@ -386,7 +386,7 @@ class TestStartLifecycle:
         u1 = _auth(_name("as1"))
         u2 = _auth(_name("as2"))
         u3 = _auth(_name("as3"))
-        t = _create_table(u1["token"], target_score=30).json()
+        t = _create_table(u1["token"], target_score=31).json()
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/join",
                       headers=_h(u2["token"]), timeout=TIMEOUT)
         requests.post(f"{API}/v2/lobby/tables/{t['table_id']}/start",
@@ -517,7 +517,7 @@ class TestTwoUserE2E:
                         )
                         continue
                     if m.get("type") == "STATE_UPDATE":
-                        assert m["target_score"] == 30
+                        assert m["target_score"] == 31
                         assert len(m["players"]) == 2
                         # Both should be human users (no bot).
                         ids = [p["user_id"] for p in m["players"]]

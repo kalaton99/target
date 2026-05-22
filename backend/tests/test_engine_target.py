@@ -1,7 +1,7 @@
 """TARGET v2 engine tests — covers the 2026-02 rewrite.
 
 Scope:
-  - Dynamic target: 30 / 50 / 75 / 100 (2026-05 v2 — 250 removed)
+  - Dynamic target: 31 / 41 / 51 / 61 (2026-05 v2 — 250 removed)
   - Phase order: ANTE -> BETTING_R1 -> DEAL_INITIAL -> DRAW -> SHOWDOWN -> PAYOUT
   - Initial deal: 1 card per player (NOT 2)
   - 51% rule (BET / RAISE / CALL / CHECK / FOLD)
@@ -31,7 +31,7 @@ from game_engine.types import GameState, PlayerState  # noqa: E402
 
 # ---------- helpers ----------
 
-def make_state(n_players=2, *, target=30, stake=100, balances=None):
+def make_state(n_players=2, *, target=31, stake=100, balances=None):
     state = GameState(table_id="t1", target_score=target, stake=stake)
     bals = balances if balances is not None else [10000] * n_players
     state.players = [
@@ -70,15 +70,15 @@ def all_check_through_betting(state):
 class TestScoring:
     def test_face_values(self):
         cards = [{"rank": "J", "suit": "S"}, {"rank": "Q", "suit": "H"}]
-        s = score_hand(cards, target=30)
+        s = score_hand(cards, target=31)
         assert s["total"] == 7 + 8
 
     def test_king_is_nine(self):
-        s = score_hand([{"rank": "K", "suit": "S"}], target=30)
+        s = score_hand([{"rank": "K", "suit": "S"}], target=31)
         assert s["total"] == 9
 
     def test_ace_promotes_when_safe(self):
-        s = score_hand([{"rank": "A", "suit": "S"}, {"rank": "9", "suit": "C"}], target=30)
+        s = score_hand([{"rank": "A", "suit": "S"}, {"rank": "9", "suit": "C"}], target=31)
         assert s["total"] == 20
         assert s["soft"] is True
 
@@ -90,14 +90,14 @@ class TestScoring:
         assert s["soft"] is False
 
     def test_joker_is_dq(self):
-        s = score_hand([{"rank": "JOKER", "suit": "*"}, {"rank": "5", "suit": "S"}], target=30)
+        s = score_hand([{"rank": "JOKER", "suit": "*"}, {"rank": "5", "suit": "S"}], target=31)
         assert s["disqualified"] is True
         assert s["busted"] is False
 
-    def test_target_50_does_not_bust_normal_blackjack_hand(self):
-        # 22 would bust at 21 but not at 50
+    def test_target_41_does_not_bust_normal_blackjack_hand(self):
+        # 22 would bust at 21 but not at 41
         cards = [{"rank": "10", "suit": "S"}, {"rank": "Q", "suit": "H"}, {"rank": "4", "suit": "C"}]
-        s = score_hand(cards, target=50)
+        s = score_hand(cards, target=41)
         assert s["busted"] is False
         assert s["total"] == 10 + 8 + 4
 
@@ -312,7 +312,7 @@ class _FixedDeck:
 
 class TestDrawAndSpecials:
     def test_hit_draws_one_card_and_recomputes_score(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         # Active is seat 0
@@ -323,7 +323,7 @@ class TestDrawAndSpecials:
         assert len(state.players[seat].cards) == before + 1
 
     def test_joker_disqualifies_on_hit(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         # Stack a joker on top
@@ -334,12 +334,12 @@ class TestDrawAndSpecials:
         assert state.players[seat].disqualified is True
 
     def test_bust_save_with_hearts_2_transfers_highest_and_saves(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         # We'll inject controlled cards: P0 starts with 2H + Q (8) = 10.
         # We force the next card on HIT to be K (9) -> would 10+9=19 if not busting.
-        # To force a bust-save, give P0 starting 2H + K + Q (= 0 + 9 + 8 = 17) and target=30
-        # would not bust. Need a higher target=30 means need score>30.
-        # Simulate: hand has 2H + 9 + 9 = 0+9+9 = 18, then +K = 27, +K = 36 (busts at 30).
+        # To force a bust-save, give P0 starting 2H + K + Q (= 0 + 9 + 8 = 17) and target=31
+        # would not bust. Need a higher target=31 means need score>31.
+        # Simulate: hand has 2H + 9 + 9 = 0+9+9 = 18, then +K = 27, +K = 36 (busts at 31).
         # Instead, we'll directly construct DRAW state and call HIT.
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
@@ -353,14 +353,14 @@ class TestDrawAndSpecials:
         ]
         # Rescore manually
         from game_engine.scoring import score_hand
-        s = score_hand(p.cards, 30)
+        s = score_hand(p.cards, 31)
         p.score, p.soft, p.busted, p.disqualified = s["total"], s["soft"], s["busted"], s["disqualified"]
         # next HIT will draw a K (9). 18 + 9 = 27 -- doesn't bust.
-        # Force K. Push a specific bust card: Q (8): 18+8=26 fine. We need >30. K=9: 27 fine.
-        # Total after HIT = 18 + draw_card_value. To bust at >30, need draw_card_value > 12.
+        # Force K. Push a specific bust card: Q (8): 18+8=26 fine. We need >31. K=9: 27 fine.
+        # Total after HIT = 18 + draw_card_value. To bust at >31, need draw_card_value > 12.
         # Card values are at most 9 (K). So we need to set up a higher hand.
         # Let me redo: P0 has 2H + K + K = 0+9+9 = 18. Next K = 27. Still safe.
-        # Actually the hand can never bust at 30 from cards alone since max card is 9 (K).
+        # Actually the hand can never bust at 31 from cards alone since max card is 9 (K).
         # 4 K's = 36 busts. Plus 2H is 0. So: 2H + K + K + K = 27. +K = 36 busts.
         # Let me make sure deck top is K.
         p.cards = [
@@ -369,7 +369,7 @@ class TestDrawAndSpecials:
             {"rank": "K", "suit": "C"},
             {"rank": "K", "suit": "D"},
         ]
-        s = score_hand(p.cards, 30)
+        s = score_hand(p.cards, 31)
         p.score, p.soft, p.busted, p.disqualified = s["total"], s["soft"], s["busted"], s["disqualified"]
         assert p.score == 29 and not p.busted
         # Push a K on top of deck: 29 + 9 = 38 busts.
@@ -389,7 +389,7 @@ class TestDrawAndSpecials:
         assert state.players[0].stood is True
 
     def test_play_two_manual_transfer(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         seat = state.current_turn_seat
@@ -402,7 +402,7 @@ class TestDrawAndSpecials:
             {"rank": "9", "suit": "D"},
         ]
         from game_engine.scoring import score_hand
-        s = score_hand(p.cards, 30)
+        s = score_hand(p.cards, 31)
         p.score, p.soft, p.busted, p.disqualified = s["total"], s["soft"], s["busted"], s["disqualified"]
         opp_before = list(opp.cards)
         # Send the 9D (index 2) to opponent
@@ -419,14 +419,14 @@ class TestDrawAndSpecials:
         assert len(state.players[1].cards) == len(opp_before) + 1
 
     def test_play_two_with_no_defense_card_fails(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         seat = state.current_turn_seat
         p = state.players[seat]
         p.cards = [{"rank": "K", "suit": "S"}]  # no 2H/2C
         from game_engine.scoring import score_hand
-        s = score_hand(p.cards, 30)
+        s = score_hand(p.cards, 31)
         p.score = s["total"]
         with pytest.raises(ReducerError, match="PLAY_TWO_NO_DEFENSE_CARD"):
             reduce(state, {
@@ -435,7 +435,7 @@ class TestDrawAndSpecials:
             })
 
     def test_play_ten_attack_sends_card_to_opponent(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         seat = state.current_turn_seat
@@ -446,7 +446,7 @@ class TestDrawAndSpecials:
             {"rank": "9", "suit": "S"},
         ]
         from game_engine.scoring import score_hand
-        s = score_hand(p.cards, 30)
+        s = score_hand(p.cards, 31)
         p.score = s["total"]
         opp_before = len(opp.cards)
         state, events = reduce(state, {
@@ -461,7 +461,7 @@ class TestDrawAndSpecials:
         assert len(state.players[1].cards) == opp_before + 1
 
     def test_play_ten_without_attack_card_fails(self):
-        state = make_state(2, target=30)
+        state = make_state(2, target=31)
         state, _ = start_hand(state)
         state = all_check_through_betting(state)
         seat = state.current_turn_seat

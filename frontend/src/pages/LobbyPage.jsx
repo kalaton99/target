@@ -42,7 +42,7 @@ export default function LobbyPage() {
   const redirectMsg = REDIRECT_MESSAGES[searchParams.get("msg")] || "";
   // create-form state
   const [name, setName] = useState("My Table");
-  const [target, setTarget] = useState(30);
+  const [target, setTarget] = useState(31);
   const [stake, setStake] = useState(100);
   // 2026-05 v3 — How-to-play overlay (X1)
   const [howToPlayOpen, setHowToPlayOpen] = useState(false);
@@ -55,8 +55,8 @@ export default function LobbyPage() {
   const [config, setConfig] = useState({
     allow_bots: false,
     bot_count_max: 0,
-    bot_count_max_by_target: { 30: 0, 50: 0, 75: 0, 100: 0 },
-    table_seats_by_target: { 30: 4, 50: 4, 75: 5, 100: 5 },
+    bot_count_max_by_target: { 31: 0, 41: 0, 51: 0, 61: 0 },
+    table_seats_by_target: { 31: 4, 41: 4, 51: 5, 61: 5 },
   });
   useEffect(() => {
     apiFetch("/api/v2/lobby/config")
@@ -72,7 +72,7 @@ export default function LobbyPage() {
     ?? config.bot_count_max
     ?? 0;
   const seatsForTarget = config.table_seats_by_target?.[Number(target)] ?? null;
-  // If the user switches target downward (e.g. 100 → 30) while bots
+  // If the user switches target downward (e.g. 61 -> 31) while bots
   // were set to 4, clamp the input so we don't submit an invalid value.
   useEffect(() => {
     if (Number(botCount) > perTargetBotMax) {
@@ -335,10 +335,10 @@ export default function LobbyPage() {
                 onChange={(e) => setTarget(Number(e.target.value))}
                 className="bg-zinc-900 border border-zinc-700 rounded p-2"
               >
-                <option value={30}>30 — fast (4 seats)</option>
-                <option value={50}>50 — fast (4 seats)</option>
-                <option value={75}>75 — long (5 seats)</option>
-                <option value={100}>100 — long (5 seats)</option>
+                                <option value={31}>31 - fast (4 seats)</option>
+                                <option value={41}>41 - fast (4 seats)</option>
+                                <option value={51}>51 - long (5 seats)</option>
+                                <option value={61}>61 - long (5 seats)</option>
               </select>
             </div>
             <div className="flex flex-col">
@@ -393,7 +393,7 @@ export default function LobbyPage() {
             )}
           </div>
           <p className="text-zinc-500 text-xs mb-3" data-testid="target-hint">
-            {Number(target) <= 50
+            {Number(target) <= 41
               ? `Target ${target}: fast 4-seat table. Starts when 2+ players are seated.`
               : `Target ${target}: longer 5-seat table. Starts when 3+ players are seated.`}
             {config.allow_bots && perTargetBotMax > 0 && (

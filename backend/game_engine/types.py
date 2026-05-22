@@ -20,6 +20,7 @@ class PlayerState:
     disqualified: bool = False
     folded: bool = False
     stood: bool = False
+    draws_this_turn: int = 0
     sitting_out: bool = False
     connected: bool = True
     payout: int = 0
@@ -88,7 +89,7 @@ class GameState:
     server_seed_buffer: Optional[str] = None
 
     # ---- Hand-level config ----
-    target_score: int = DEFAULT_TARGET_SCORE   # 30 | 50 | 100 | 250
+    target_score: int = DEFAULT_TARGET_SCORE   # 31 | 41 | 51 | 61
     stake: int = 100                # ante per player
     max_players: int = 8
     table_type: str = "FREE"        # FREE | PAID

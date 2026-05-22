@@ -9,7 +9,7 @@ and reviewers who need a quick path through the current demo-release material.
 ## Product Boundaries
 
 - Axwins is the platform.
-- Target, Diceget, and Flipget are games inside Axwins.
+- Target, Diceget, Flipget, and Jackget are games inside Axwins.
 - Target gameplay work is handled separately and should not be mixed into
   platform documentation or Tmarget work.
 - Tmarget is not a game. It is a separate demo prediction market product inside
@@ -66,6 +66,9 @@ need to be stated:
 - `DICEGET_FLIPGET_PLAYTEST_QA.md`
   - Playtest QA audit for Diceget and Flipget, including findings, risk levels,
     and recommended fix order.
+- `JACKGET_GAME_RULES_DRAFT.md`
+  - Draft rules for the separate Jackget local demo game, including table
+    limits, 3-reel scoring, turn order, and product-boundary notes.
 - `AXWINS_DEPLOYMENT_PREP.md`
   - Local/demo deployment preparation checklist, verification commands, route
     checklist, storage notes, and release gate.
@@ -114,25 +117,27 @@ need to be stated:
 11. `WINSGET_FUTURE_PLATFORM_ROADMAP.md`
 12. `AXWINS_WALLET_LEDGER_MODEL.md`
 13. `DICEGET_FLIPGET_PLAYTEST_QA.md`
-14. `AXWINS_DEPLOYMENT_PREP.md`
-15. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
-16. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
-17. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
-18. `TMARGET_DURABLE_BACKEND_SELECTION.md`
-19. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
-20. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
-21. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
-22. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
-23. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+14. `JACKGET_GAME_RULES_DRAFT.md`
+15. `AXWINS_DEPLOYMENT_PREP.md`
+16. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
+17. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
+18. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+19. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+20. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+21. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+22. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+23. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+24. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 
 Current demo-ready scope includes:
 
 - Axwins platform shell.
-- Games navigation for Target, Diceget, and Flipget.
+- Games navigation for Target, Diceget, Flipget, and Jackget.
 - Diceget demo game module.
 - Flipget demo game module.
+- Jackget demo game module.
 - Tmarget demo prediction market product.
 - Read-only Wallet / Ledger / Transaction History UI.
 - Internal Demo Credits only.
@@ -149,7 +154,7 @@ Unless a future task explicitly scopes the work:
 
 - Do not change Target gameplay, reducer, RNG, payout math, special-card logic,
   or WebSocket protocol.
-- Do not change Diceget or Flipget gameplay rules.
+- Do not change Diceget, Flipget, or Jackget gameplay rules.
 - Do not change Tmarget pricing, settlement behavior, runtime repository
   activation, storage contract, or demo admin guard behavior.
 - Do not change wallet/ledger behavior.
@@ -168,7 +173,7 @@ Potential future phases, each requiring its own explicit scope:
 - Tmarget durable repository implementation planning and inactive adapter
   scaffolding.
 - Tmarget admin UX polish and operational audit improvements.
-- Diceget/Flipget playtest QA follow-up.
+- Diceget/Flipget/Jackget playtest QA follow-up.
 - Target integration review, excluding gameplay bugfixes unless handled in the
   separate Target gameplay flow.
 - CI pipeline and release gate automation.

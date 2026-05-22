@@ -2,7 +2,7 @@
 seen in human+bot multi-round games on large-target tables.
 
 Approach: drive a 5-seated hand (1 human + 4 bots — a 5-seat
-target=100 table at full capacity, per GAME_RULES_LOCKED.md §2) all
+target=61 table at full capacity, per GAME_RULES_LOCKED.md §2) all
 the way from START_HAND to PAYOUT using the *actual* bot decision
 rule from `_BotDriver._decide_draw_action` (HIT while score < 60% of
 target), applied directly at the reducer level. We don't use
@@ -113,33 +113,33 @@ def _drive_to_payout(state: GameState, target: int, max_steps: int = 300):
 
 class TestStuckStateRepro:
 
-    def test_target_100_with_1_human_and_4_bots_reaches_payout(self):
-        state = _make_hand(target_score=100, seats=5)
-        state = _drive_to_payout(state, target=100, max_steps=400)
+    def test_target_61_with_1_human_and_4_bots_reaches_payout(self):
+        state = _make_hand(target_score=61, seats=5)
+        state = _drive_to_payout(state, target=61, max_steps=400)
         assert state.winners  # at least one winner
         # Each in_hand player must have a payout computed.
         in_hand_count = sum(1 for p in state.players if p.in_hand)
         assert in_hand_count >= 1
 
-    def test_target_75_with_1_human_and_4_bots_reaches_payout(self):
-        state = _make_hand(target_score=75, seats=5)
-        state = _drive_to_payout(state, target=75, max_steps=400)
+    def test_target_51_with_1_human_and_4_bots_reaches_payout(self):
+        state = _make_hand(target_score=51, seats=5)
+        state = _drive_to_payout(state, target=51, max_steps=400)
         assert state.winners
 
-    def test_target_30_with_1_human_and_3_bots_reaches_payout(self):
-        state = _make_hand(target_score=30, seats=4)
-        state = _drive_to_payout(state, target=30, max_steps=200)
+    def test_target_31_with_1_human_and_3_bots_reaches_payout(self):
+        state = _make_hand(target_score=31, seats=4)
+        state = _drive_to_payout(state, target=31, max_steps=200)
         assert state.winners
 
     def test_deck_refills_is_zero_on_target_30_hand(self):
-        # Target 30 doesn't need many hits — deck should never refill.
-        state = _make_hand(target_score=30, seats=4)
-        state = _drive_to_payout(state, target=30, max_steps=200)
+        # Target 31 doesn't need many hits — deck should never refill.
+        state = _make_hand(target_score=31, seats=4)
+        state = _drive_to_payout(state, target=31, max_steps=200)
         assert state.deck_refills == 0
 
     def test_deck_refills_counter_survives_to_payout(self):
         # The counter is a live diagnostic that doesn't break the hand.
         # We assert it's non-negative; exact values depend on shuffle seed.
-        state = _make_hand(target_score=100, seats=5)
-        state = _drive_to_payout(state, target=100, max_steps=400)
+        state = _make_hand(target_score=61, seats=5)
+        state = _drive_to_payout(state, target=61, max_steps=400)
         assert state.deck_refills >= 0

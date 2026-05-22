@@ -47,6 +47,7 @@ from core.constants import (
     DEFENSE_RANK,
     DEFENSE_SUITS,
     LOTTERY_BPS,
+    MAX_DRAWS_PER_TURN,
     SERVER_ONLY_ACTIONS,
     STAND_THRESHOLD,
     TURN_TIMEOUT_MS,
@@ -273,6 +274,8 @@ def _enter_draw_round(state: GameState, events: List[Dict[str, Any]], draw_n: in
     state.draw_active_count = sum(
         1 for i in in_hand if state.players[i].in_hand
     )
+    for i in in_hand:
+        state.players[i].draws_this_turn = 0
     events.append({
         "type": "PHASE",
         "phase": state.phase,
@@ -429,6 +432,7 @@ def _maybe_end_draw(state: GameState, events: List[Dict[str, Any]], current_seat
     if nxt is None:
         _end_draw_round(state, events)
         return True
+    state.players[nxt].draws_this_turn = 0
     _set_turn(state, nxt)
     return False
 
@@ -850,11 +854,14 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
                 raise ReducerError("DECK_EMPTY")
             card = state.deck.pop(0)
             p.cards.append(card)
+            p.draws_this_turn += 1
             _rescore(p, state.target_score)
             ev = {
                 "type": "CARD_DRAWN", "seat": seat, "user_id": p.user_id,
                 "card": card, "score": p.score,
                 "busted": p.busted, "disqualified": p.disqualified,
+                "draws_this_turn": p.draws_this_turn,
+                "draw_limit": MAX_DRAWS_PER_TURN,
             }
             events.append(ev)
             if p.busted and not p.disqualified:
@@ -862,7 +869,24 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
                 _attempt_bust_save(state, seat, events)
             if p.busted or p.disqualified:
                 p.stood = True
-            state.last_action_summary = {"action": "HIT", "seat": seat}
+            draw_limit_reached = p.draws_this_turn >= MAX_DRAWS_PER_TURN and not (p.busted or p.disqualified)
+            if draw_limit_reached:
+                p.stood = True
+                events.append({
+                    "type": "DRAW_LIMIT_REACHED",
+                    "seat": seat,
+                    "user_id": p.user_id,
+                    "draws_this_turn": p.draws_this_turn,
+                    "draw_limit": MAX_DRAWS_PER_TURN,
+                })
+                state.last_action_summary = {
+                    "action": "DRAW_LIMIT_REACHED",
+                    "seat": seat,
+                    "draws_this_turn": p.draws_this_turn,
+                    "draw_limit": MAX_DRAWS_PER_TURN,
+                }
+            else:
+                state.last_action_summary = {"action": "HIT", "seat": seat}
             if p.stood or p.busted or p.disqualified:
                 _maybe_end_draw(state, events, seat)
             else:

@@ -9,7 +9,7 @@ Card values:
   Ace          = 1 or 11 (auto-resolved to highest non-bust value)
   Joker        = instant DISQUALIFICATION
 
-`target` is per-table (30 / 50 / 100 / 250) and must be passed explicitly.
+`target` is per-table (31 / 41 / 51 / 61) and must be passed explicitly.
 """
 from typing import Any, Dict, List
 

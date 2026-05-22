@@ -50,7 +50,7 @@ async def _start_hand(engine: TurnEngine) -> None:
         "server_seed": "0" * 64,
         "server_seed_hash": "h" * 64,
         "client_seeds": "",
-        "target_score": 30,
+        "target_score": 31,
     })
     deadline = asyncio.get_event_loop().time() + 2.0
     while asyncio.get_event_loop().time() < deadline:

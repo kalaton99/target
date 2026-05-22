@@ -27,7 +27,7 @@ from game_engine.types import GameState, PlayerState  # noqa: E402
 
 
 def _make_state(n=3):
-    s = GameState(table_id="t1", target_score=30, stake=100)
+    s = GameState(table_id="t1", target_score=31, stake=100)
     s.players = [
         PlayerState(seat_index=i, user_id=f"u{i}", username=f"P{i}",
                     balance_at_start=10000)

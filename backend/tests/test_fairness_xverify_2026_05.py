@@ -27,7 +27,7 @@ from game_engine.types import GameState, PlayerState  # noqa: E402
 from game_engine.view_filter import public_view  # noqa: E402
 
 
-def _make_state(n=4, target=50):
+def _make_state(n=4, target=41):
     s = GameState(table_id="t1", target_score=target, stake=100)
     s.players = [
         PlayerState(seat_index=i, user_id=f"u{i}", username=f"P{i}",
@@ -70,12 +70,12 @@ def test_payout_broadcast_recovers_full_card_multiset():
     consumed defense card disappears from any player's hand.
     """
     plain, h = generate_server_seed()
-    state = _make_state(n=4, target=50)
+    state = _make_state(n=4, target=41)
     state, _ = reduce(state, {
         "type": "START_HAND", "source": "SERVER",
         "hand_id": "h_xverify_001", "nonce": 1,
         "server_seed": plain, "server_seed_hash": h,
-        "target_score": 50,
+        "target_score": 41,
     })
     state, _ = _drive_to_payout(state)
     assert state.phase == "PAYOUT", f"did not reach PAYOUT, got {state.phase}"
@@ -116,23 +116,23 @@ def test_deck_refill_breaks_naive_topn_match():
     This test asserts the failure mode so we know a future verifier
     can branch on it.
     """
-    # With target=50 and 4 players each drawing many cards, the 54-card
-    # deck rarely exhausts. To force a refill, we use target=100 with
+    # With target=41 and 4 players each drawing many cards, the 54-card
+    # deck rarely exhausts. To force a refill, we use target=61 with
     # 5 players and lots of HITs. Easier: simulate by running many
     # hands rapidly via repeated HIT until refill triggers. Skip if
     # we can't reproduce in 200 steps — the assertion below is then
     # vacuous and we just confirm `deck_refills == 0` => match.
     plain, h = generate_server_seed()
-    state = _make_state(n=4, target=100)
+    state = _make_state(n=4, target=61)
     state, _ = reduce(state, {
         "type": "START_HAND", "source": "SERVER",
         "hand_id": "h_xverify_002", "nonce": 1,
         "server_seed": plain, "server_seed_hash": h,
-        "target_score": 100,
+        "target_score": 61,
     })
     state, _ = _drive_to_payout(state)
     assert state.phase == "PAYOUT"
     assert state.deck_refills == 0, (
         "balanced HIT/STAND policy should never deplete the 53-card "
-        f"deck mid-hand at target=100; got {state.deck_refills}"
+        f"deck mid-hand at target=61; got {state.deck_refills}"
     )

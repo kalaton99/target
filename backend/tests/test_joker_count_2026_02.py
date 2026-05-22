@@ -46,7 +46,7 @@ class TestJokerCount:
         contain exactly one Joker — the rule applies through the full
         shuffle path, not just the raw builder.
         """
-        state = GameState(table_id="t1", target_score=30, stake=0)
+        state = GameState(table_id="t1", target_score=31, stake=0)
         state.players = [
             PlayerState(seat_index=0, user_id="u0", username="P0", balance_at_start=10000),
             PlayerState(seat_index=1, user_id="u1", username="P1", balance_at_start=10000),
@@ -77,7 +77,7 @@ class TestJokerCount:
         this by walking the deck pre-DEAL_INITIAL plus what's already
         been dealt: at any moment, the union has ≤ 1 Joker.
         """
-        state = GameState(table_id="t1", target_score=30, stake=0)
+        state = GameState(table_id="t1", target_score=31, stake=0)
         state.players = [
             PlayerState(seat_index=0, user_id="u0", username="P0", balance_at_start=10000),
             PlayerState(seat_index=1, user_id="u1", username="P1", balance_at_start=10000),

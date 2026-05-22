@@ -16,6 +16,8 @@ from diceget.router import build_diceget_router
 from diceget.service import DicegetService
 from flipget.router import build_flipget_router
 from flipget.service import FlipgetService
+from jackget.router import build_jackget_router
+from jackget.service import JackgetService
 from tmarget.admin_guard import demo_admin_guard
 from tmarget.router import build_tmarget_router
 from tmarget.service import TmargetService
@@ -161,6 +163,7 @@ def _client(monkeypatch):
     app.dependency_overrides[demo_admin_guard] = lambda: None
     app.include_router(build_diceget_router(DicegetService(dice_rng=lambda: 2)), prefix="/api")
     app.include_router(build_flipget_router(FlipgetService(coin_rng=lambda: "heads")), prefix="/api")
+    app.include_router(build_jackget_router(JackgetService(reel_rng=lambda: "Seven")), prefix="/api")
     app.include_router(build_tmarget_router(TmargetService()), prefix="/api")
     return TestClient(app), current
 
@@ -288,3 +291,31 @@ def test_tmarget_api_loop_yes_no_positions_and_market_payload(monkeypatch):
 
     current["user_id"] = "u2"
     assert client.get("/api/tmarget/me/positions").json()["positions"] == []
+
+
+def test_jackget_api_loop_stays_in_jackget_namespace(monkeypatch):
+    client, _current = _client(monkeypatch)
+
+    created = client.post("/api/jackget/tables", json={"max_players": 4})
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload["table_id"].startswith("jg_tbl_")
+    table_id = payload["table_id"]
+
+    filled = client.post(f"/api/jackget/tables/{table_id}/add-demo-opponents")
+    assert filled.status_code == 200
+    assert len(filled.json()["seats"]) == 4
+
+    started = client.post(f"/api/jackget/tables/{table_id}/start")
+    assert started.status_code == 200
+    assert started.json()["status"] == "in_progress"
+
+    for _ in range(3):
+        spin = client.post(f"/api/jackget/tables/{table_id}/spin")
+        assert spin.status_code == 200
+    autoplay = client.post(f"/api/jackget/tables/{table_id}/auto-play-demo-spins")
+    assert autoplay.status_code == 200
+    result = autoplay.json()
+    assert result["status"] == "settled"
+    assert result["winners"]
+    assert all(len(seat["spins"]) == 3 for seat in result["seats"])

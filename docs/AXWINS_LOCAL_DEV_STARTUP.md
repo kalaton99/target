@@ -241,7 +241,7 @@ failed WebSocket requests to Axwins API paths.
 ### Target Quick Play
 
 The `/play` quick bot flow depends on local dev bots. For this local guide,
-`TARGET_ALLOW_BOTS=1` and `TARGET_BOT_COUNT_MAX=4` enable that demo path. Target 30/50 tables can auto-fill 3 demo bot seats, while Target 75/100 tables can auto-fill 4 demo bot seats.
+`TARGET_ALLOW_BOTS=1` and `TARGET_BOT_COUNT_MAX=4` enable that demo path. Target 31/41 tables can auto-fill 3 demo bot seats, while Target 51/61 tables can auto-fill 4 demo bot seats.
 Do not use bot settings to imply production gameplay or real-money behavior.
 
 ## Non-Goals

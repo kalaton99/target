@@ -18,8 +18,8 @@ JOKER-draw rate.
 
 Wording note (per GAME_RULES_LOCKED.md §2): there is NO 2-seat table
 type. The test scenarios below use `n_players=2` to mean "a 4-seat
-(target=30) table with 2 humans seated" — the minimum legal start
-for the 4-seat tier. 5-seat tables (target 75/100) require ≥3
+(target=31) table with 2 humans seated" — the minimum legal start
+for the 4-seat tier. 5-seat tables (target 51/61) require ≥3
 seated to start.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ from game_engine.reducer import reduce  # noqa: E402
 from game_engine.types import GameState, PlayerState  # noqa: E402
 
 
-def _make_state(n=2, target=30):
+def _make_state(n=2, target=31):
     s = GameState(table_id="phase_skip_t", target_score=target, stake=100)
     s.players = [
         PlayerState(seat_index=i, user_id=f"u{i}", username=f"P{i}",
@@ -84,7 +84,7 @@ class TestCanonical5PhaseProgression:
             BETTING_R1 → DRAW_1 → BETTING_R2 → DRAW_2 → BETTING_R3 →
             SHOWDOWN/PAYOUT.
         """
-        state = _make_state(2, target=30)
+        state = _make_state(2, target=31)
         state = _start(state)
         seen = [state.phase]
 
@@ -125,11 +125,11 @@ class TestJokerCollapsesProgression:
         `len(in_hand)==1` and short-circuits to SHOWDOWN — BETTING_R3
         must NEVER appear.
 
-        Scenario uses 2 seated players on a 4-seat (target=30) table —
+        Scenario uses 2 seated players on a 4-seat (target=31) table —
         the minimum legal start for the 4-seat tier per
         GAME_RULES_LOCKED.md §2. There is no 2-seat table type.
         """
-        state = _make_state(2, target=30)
+        state = _make_state(2, target=31)
         state = _start(state)
         # Fast-forward to DRAW_1.
         state = _all_check(state)
@@ -190,9 +190,9 @@ class TestJokerCollapsesProgression:
         SHOWDOWN. Neither BETTING_R2, DRAW_2 nor BETTING_R3 must be
         entered.
 
-        Scenario: 4-seat (target=30) table with 2 humans seated.
+        Scenario: 4-seat (target=31) table with 2 humans seated.
         """
-        state = _make_state(2, target=30)
+        state = _make_state(2, target=31)
         state = _start(state)
         state = _all_check(state)
         assert state.phase == "DRAW_1"
@@ -231,9 +231,9 @@ class TestFoldCollapsesProgression:
         count to 1; the reducer skips DRAW_2 and BETTING_R3, going
         straight to SHOWDOWN.
 
-        Scenario: 4-seat (target=30) table with 2 humans seated.
+        Scenario: 4-seat (target=31) table with 2 humans seated.
         """
-        state = _make_state(2, target=30)
+        state = _make_state(2, target=31)
         state = _start(state)
         state = _all_check(state)        # → DRAW_1
         state = _all_stand(state)         # → BETTING_R2

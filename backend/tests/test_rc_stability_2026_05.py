@@ -6,8 +6,8 @@ matrix. No retries, no blind sleeps as workarounds — failures are
 faithfully reported.
 
 Per GAME_RULES_LOCKED.md §2:
-  target 30 / 50  → 4-seat tables, start when seated ≥ 2
-  target 75 / 100 → 5-seat tables, start when seated ≥ 3
+  target 31 / 41  → 4-seat tables, start when seated ≥ 2
+  target 51 / 61 → 5-seat tables, start when seated ≥ 3
 
 "max bots" per tier — capped by `max_bots_for_target()`:
   - 4-seat tier → 3 bots (+ 1 human = 4 seats)
@@ -113,7 +113,7 @@ async def _ws_connect(tid: str, tok: str):
 
 def _max_bots(target: int) -> int:
     # Mirrors `max_bots_for_target()` from core/constants.py.
-    seats = 4 if target in (30, 50) else 5
+    seats = 4 if target in (31, 41) else 5
     return min(4, seats - 1)
 
 
@@ -269,7 +269,7 @@ async def _maybe_act(ws, state: Dict, uid: str, target: int, acted_sv: int):
 # Scenarios 1–4 — 10 full games per target tier with max bots
 # =====================================================================
 
-@pytest.mark.parametrize("target", [30, 50, 75, 100])
+@pytest.mark.parametrize("target", [31, 41, 51, 61])
 @pytest.mark.asyncio
 async def test_rc_full_games_with_max_bots(target: int):
     """Scenarios 1–4: 10 complete hands at each target tier with the
@@ -335,7 +335,7 @@ async def test_rc_reconnect_spam_during_hand():
         pytest.skip("bots disabled on this server")
 
     u = _auth(_name("recsp"))
-    t = _create_table(u["token"], target=30, bot_count=1,
+    t = _create_table(u["token"], target=31, bot_count=1,
                       name=_name("rcRec"))
     sr = _start(u["token"], t["table_id"])
     assert sr.status_code == 200, sr.text
@@ -351,7 +351,7 @@ async def test_rc_reconnect_spam_during_hand():
 
     # Now play the hand to completion. Seat must still be preserved.
     rep = await _drive_full_game(
-        u["token"], u["user_id"], t["table_id"], 30, max_seconds=60.0,
+        u["token"], u["user_id"], t["table_id"], 31, max_seconds=60.0,
     )
     assert rep["final_phase"] in ("PAYOUT", "HAND_COMPLETE"), (
         f"after reconnect spam, hand never reached PAYOUT: "
@@ -381,7 +381,7 @@ async def test_rc_refresh_page_mid_hand():
         pytest.skip("bots disabled on this server")
 
     u = _auth(_name("refresh"))
-    t = _create_table(u["token"], target=50, bot_count=1,
+    t = _create_table(u["token"], target=41, bot_count=1,
                       name=_name("rcRef"))
     sr = _start(u["token"], t["table_id"])
     assert sr.status_code == 200
@@ -440,7 +440,7 @@ async def test_rc_refresh_page_mid_hand():
 
     # Finish the hand from a 3rd WS (simulates the user's continued play)
     rep = await _drive_full_game(
-        u["token"], u["user_id"], t["table_id"], 50, max_seconds=60.0,
+        u["token"], u["user_id"], t["table_id"], 41, max_seconds=60.0,
     )
     assert rep["final_phase"] in ("PAYOUT", "HAND_COMPLETE"), (
         f"hand stranded after refresh: phases={rep['phases_seen']}"
@@ -468,12 +468,12 @@ async def test_rc_multiple_tables_concurrent():
     coros = []
     for i in range(n_tables):
         u = _auth(_name(f"mt{i}"))
-        t = _create_table(u["token"], target=30, bot_count=1,
+        t = _create_table(u["token"], target=31, bot_count=1,
                           name=_name(f"rcMT{i}"))
         sr = _start(u["token"], t["table_id"])
         assert sr.status_code == 200
         coros.append(_drive_full_game(
-            u["token"], u["user_id"], t["table_id"], 30,
+            u["token"], u["user_id"], t["table_id"], 31,
             max_seconds=90.0,
         ))
 
@@ -496,14 +496,14 @@ async def test_rc_multiple_tables_concurrent():
 
 @pytest.mark.asyncio
 async def test_rc_player_disconnects_forever():
-    """1 human + 3 bots at target=30 (4-seat tier filled). The human
+    """1 human + 3 bots at target=31 (4-seat tier filled). The human
     connects briefly, then disconnects permanently. Grace timer (20s)
     must sit them out and the bot-driven hand must still reach PAYOUT."""
     if not _allow_bots():
         pytest.skip("bots disabled on this server")
 
     u = _auth(_name("gone"))
-    t = _create_table(u["token"], target=30, bot_count=3,
+    t = _create_table(u["token"], target=31, bot_count=3,
                       name=_name("rcGone"))
     sr = _start(u["token"], t["table_id"])
     assert sr.status_code == 200
@@ -593,7 +593,7 @@ async def test_rc_start_join_leave_edge_cases():
     # (a) non-creator /start rejection
     creator = _auth(_name("a"))
     other = _auth(_name("b"))
-    t = _create_table(creator["token"], target=30, bot_count=0,
+    t = _create_table(creator["token"], target=31, bot_count=0,
                       name=_name("eA"))
     _join(other["token"], t["table_id"])
     r = _start(other["token"], t["table_id"])
@@ -609,9 +609,9 @@ async def test_rc_start_join_leave_edge_cases():
         f"second /start expected 4xx, got {r2.status_code}: {r2.text}"
     )
 
-    # (c) join full table — fill a target=30 4-seat table with bots
+    # (c) join full table — fill a target=31 4-seat table with bots
     creator2 = _auth(_name("c"))
-    t2 = _create_table(creator2["token"], target=30, bot_count=3,
+    t2 = _create_table(creator2["token"], target=31, bot_count=3,
                        name=_name("eC"))  # 1 human + 3 bots = 4 seats = full
     _start(creator2["token"], t2["table_id"])
     intruder = _auth(_name("d"))

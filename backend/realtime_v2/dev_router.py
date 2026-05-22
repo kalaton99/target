@@ -125,7 +125,7 @@ class _BotDriver:
         stress suite is stable. We use the bottom 16 bits of a SHA-1
         digest mod 100 as a cheap, dependency-free integer RNG.
         """
-        target = int(msg.get("target_score") or 30)
+        target = int(msg.get("target_score") or 31)
         score = 0
         for p in msg.get("players") or []:
             if p.get("user_id") == self._bot_user_id:
@@ -226,7 +226,7 @@ class _BotDriver:
 
 def build_dev_router(bridge: EngineBridge) -> APIRouter:
     router = APIRouter(prefix="/v2/dev", tags=["realtime_v2.dev"])
-    # 2026-05 v3 — multi-bot solo tables (target 75/100 require 2
+    # 2026-05 v3 — multi-bot solo tables (target 51/61 require 2
     # bots to satisfy `min_seated_for_target`). One table_id maps to
     # the list of `_BotDriver`s that need to be stopped on teardown.
     bots: Dict[str, list[_BotDriver]] = {}
@@ -245,7 +245,7 @@ def build_dev_router(bridge: EngineBridge) -> APIRouter:
 
         # 2026-05 v3 — accept optional `target_score` so the
         # frontend Deal-Again target-selector modal can spawn the
-        # correct tier (30/50 → 4 seats, 75/100 → 5 seats). Default
+        # correct tier (31/41 → 4 seats, 51/61 → 5 seats). Default
         # remains the legacy DEFAULT_TARGET_SCORE for back-compat
         # with the standalone PLAY button and any internal callers
         # that posted with no body.

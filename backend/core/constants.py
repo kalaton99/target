@@ -22,8 +22,9 @@ TURN_TIMEOUT_REASON = "TURN_TIMEOUT_15S"
 TIMEOUT_GRACE_MS = 500           # network jitter tolerance
 
 # ---------- Game rules ----------
-VALID_TARGET_SCORES = (30, 50, 75, 100)
-DEFAULT_TARGET_SCORE = 30        # used by dev spawn; production must be explicit
+VALID_TARGET_SCORES = (31, 41, 51, 61)
+DEFAULT_TARGET_SCORE = 31        # used by dev spawn; production must be explicit
+MAX_DRAWS_PER_TURN = 5
 JOKERS_IN_DECK = 1
 DECK_SIZE_WITH_JOKERS = 53
 
@@ -34,12 +35,12 @@ DECK_SIZE_WITH_JOKERS = 53
 # 2026-05 v3 wording note: there is NO 2-seat table type in the rules.
 # When tests/comments/diagnostics say "n_players=2", they mean a 4-seat
 # table with 2 humans seated (the minimum legal start for that tier).
-# 5-seat tables (target 75 / 100) require ≥3 humans seated to start.
+# 5-seat tables (target 51 / 61) require ≥3 humans seated to start.
 TABLE_SEATS_BY_TARGET = {
-    30: 4,
-    50: 4,
-    75: 5,
-    100: 5,
+    31: 4,
+    41: 4,
+    51: 5,
+    61: 5,
 }
 
 # Minimum seated players required to start a hand, per target tier.
@@ -47,10 +48,10 @@ TABLE_SEATS_BY_TARGET = {
 # (dev-only); production tables must satisfy the threshold in human
 # seats alone.
 MIN_SEATED_BY_TARGET = {
-    30: 2,
-    50: 2,
-    75: 3,
-    100: 3,
+    31: 2,
+    41: 2,
+    51: 3,
+    61: 3,
 }
 
 # ---------- Player limits ----------
@@ -157,8 +158,8 @@ def min_seated_for_target(target_score: int) -> int:
     """Minimum seated players required to start a hand at this target.
 
     Per GAME_RULES_LOCKED.md §2:
-      - 4-seat tables (target 30, 50): start when seated ≥ 2.
-      - 5-seat tables (target 75, 100): start when seated ≥ 3.
+      - 4-seat tables (target 31, 41): start when seated ≥ 2.
+      - 5-seat tables (target 51, 61): start when seated ≥ 3.
 
     "Seated" includes bots (dev-only); production tables must satisfy
     the threshold in human seats alone. There is no 2-seat table type

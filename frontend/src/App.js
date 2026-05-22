@@ -9,6 +9,7 @@ import { TablesPage } from "@/pages/TablesPage";
 import PlayPage from "@/pages/PlayPage";
 import DicegetPage from "@/pages/DicegetPage";
 import FlipgetPage from "@/pages/FlipgetPage";
+import JackgetPage from "@/pages/JackgetPage";
 import WalletPage from "@/pages/WalletPage";
 import LobbyPage from "@/pages/LobbyPage";
 import {
@@ -53,6 +54,9 @@ function App() {
           <Route path="/games/flipget" element={<Navigate to="/flipget" replace />} />
           <Route path="/flipget" element={<FlipgetPage />} />
           <Route path="/flipget/:tableId" element={<FlipgetPage />} />
+          <Route path="/games/jackget" element={<Navigate to="/jackget" replace />} />
+          <Route path="/jackget" element={<JackgetPage />} />
+          <Route path="/jackget/:tableId" element={<JackgetPage />} />
           <Route path="/tmarget" element={<TmargetHomePage />} />
           <Route path="/tmarget/markets" element={<TmargetMarketsPage />} />
           <Route path="/tmarget/markets/:slug" element={<TmargetMarketDetailPlaceholder />} />
