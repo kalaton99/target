@@ -847,6 +847,24 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
         p = state.players[seat]
 
         if a_type == "HIT":
+            if len(p.cards) >= MAX_DRAWS_PER_TURN:
+                p.stood = True
+                events.append({
+                    "type": "DRAW_LIMIT_REACHED",
+                    "seat": seat,
+                    "user_id": p.user_id,
+                    "cards_held": len(p.cards),
+                    "draw_limit": MAX_DRAWS_PER_TURN,
+                })
+                state.last_action_summary = {
+                    "action": "DRAW_LIMIT_REACHED",
+                    "seat": seat,
+                    "cards_held": len(p.cards),
+                    "draw_limit": MAX_DRAWS_PER_TURN,
+                }
+                _maybe_end_draw(state, events, seat)
+                state.version += 1
+                return state, events
             _refill_deck_if_empty(state, events)
             if not state.deck:
                 # Refill yields 52 fresh cards, so this should never hit;
@@ -869,19 +887,21 @@ def reduce(state: GameState, action: Dict[str, Any]) -> Tuple[GameState, List[Di
                 _attempt_bust_save(state, seat, events)
             if p.busted or p.disqualified:
                 p.stood = True
-            draw_limit_reached = p.draws_this_turn >= MAX_DRAWS_PER_TURN and not (p.busted or p.disqualified)
+            draw_limit_reached = len(p.cards) >= MAX_DRAWS_PER_TURN and not (p.busted or p.disqualified)
             if draw_limit_reached:
                 p.stood = True
                 events.append({
                     "type": "DRAW_LIMIT_REACHED",
                     "seat": seat,
                     "user_id": p.user_id,
+                    "cards_held": len(p.cards),
                     "draws_this_turn": p.draws_this_turn,
                     "draw_limit": MAX_DRAWS_PER_TURN,
                 })
                 state.last_action_summary = {
                     "action": "DRAW_LIMIT_REACHED",
                     "seat": seat,
+                    "cards_held": len(p.cards),
                     "draws_this_turn": p.draws_this_turn,
                     "draw_limit": MAX_DRAWS_PER_TURN,
                 }

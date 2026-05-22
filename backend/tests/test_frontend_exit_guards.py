@@ -39,3 +39,26 @@ def test_jackget_frontend_is_separate_from_target_routes_and_warns_on_active_exi
     assert 'path="/jackget/:tableId"' in app
     assert "/games/jackget" in app
     assert "Jackget" in games
+
+
+def test_game_lobbies_explain_rules_and_show_five_quick_tables():
+    pages = {
+        "Target": ROOT / "frontend/src/pages/LobbyPage.jsx",
+        "Diceget": ROOT / "frontend/src/pages/DicegetPage.jsx",
+        "Flipget": ROOT / "frontend/src/pages/FlipgetPage.jsx",
+        "Jackget": ROOT / "frontend/src/pages/JackgetPage.jsx",
+    }
+    for name, path in pages.items():
+        source = path.read_text(encoding="utf-8")
+        assert "How to Play" in source, name
+        for index in range(1, 6):
+            assert f"Quick Table {index}" in source, name
+
+
+def test_diceget_visible_surrender_copy_is_clear_without_renaming_api():
+    source = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
+
+    assert ">Forfeit<" not in source
+    assert "Give Up" in source
+    assert "reserved demo stake may be lost" in source
+    assert "/forfeit" in source

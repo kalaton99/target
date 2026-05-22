@@ -7,6 +7,13 @@ const SCORE_GOALS = [
   { key: "classic", label: "Classic", goal: 70 },
   { key: "marathon", label: "Marathon", goal: 120 },
 ];
+const QUICK_DICEGET_TABLES = [
+  { label: "Quick Table 1", goal: 40 },
+  { label: "Quick Table 2", goal: 70 },
+  { label: "Quick Table 3", goal: 120 },
+  { label: "Quick Table 4", goal: 70 },
+  { label: "Quick Table 5", goal: 40 },
+];
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
@@ -156,7 +163,7 @@ export default function DicegetPage() {
         : "All 4 seats are filled. Start Diceget to unlock roll actions.";
     }
     if (table.status !== "active") return "Dice actions are available only while the table is active.";
-    if (myTurn) return "Your turn: roll to add to your score, hold to bank it, or forfeit the table.";
+    if (myTurn) return "Your turn: roll to add to your score, hold to bank it, or choose Give Up to surrender the table.";
     return `Waiting for ${currentSeat?.username || currentSeat?.user_id || "the active seat"} to act.`;
   }, [currentSeat, mySeat, myTurn, table]);
 
@@ -203,6 +210,14 @@ export default function DicegetPage() {
     });
   }
 
+  async function createQuickTable(goal, index) {
+    const created = await api("/tables", {
+      method: "POST",
+      body: JSON.stringify({ score_goal: goal, stake, max_players: 4, name: `Quick Table ${index + 1}` }),
+    });
+    navigate(`/diceget/${created.table_id}`);
+  }
+
   function requestExit() {
     if (activeExitRisk) {
       setExitConfirmOpen(true);
@@ -242,7 +257,7 @@ export default function DicegetPage() {
               <div className="font-luxe text-xs uppercase tracking-[0.45em] text-yellow-300">Axwins Game</div>
               <h1 className="mt-2 font-display text-5xl tracking-widest">Diceget</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-                4-player dice game inside Axwins. Pick a score goal, create or join a table, then roll, hold, or forfeit on your turn.
+                4-player dice game inside Axwins. Pick a score goal, create or join a table, then roll, hold, or give up on your turn.
               </p>
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
@@ -255,6 +270,16 @@ export default function DicegetPage() {
           <div className="mt-6">
             <Notice>{DEMO_CREDIT_NOTICE}</Notice>
           </div>
+          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
+              <li>Roll dice to increase your score toward the score goal.</li>
+              <li>Hold to lock your score.</li>
+              <li>Going over the goal can bust.</li>
+              <li>Highest valid or goal-reaching result wins according to current Diceget rules.</li>
+              <li>Give Up / Leave means surrendering the active game.</li>
+            </ul>
+          </section>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
             {SCORE_GOALS.map((mode) => (
@@ -269,6 +294,24 @@ export default function DicegetPage() {
               </button>
             ))}
           </div>
+
+          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="text-xs uppercase tracking-widest text-zinc-500">Joinable Demo Tables</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-5">
+              {QUICK_DICEGET_TABLES.map((item, index) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => run(() => createQuickTable(item.goal, index))}
+                  disabled={busy || backendOffline}
+                  className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10 disabled:opacity-40"
+                >
+                  {item.label}
+                  <span className="mt-1 block normal-case tracking-normal text-zinc-500">Score Goal {item.goal}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
           <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="text-xs uppercase tracking-widest text-zinc-500">
@@ -419,8 +462,11 @@ export default function DicegetPage() {
             <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
               <button className="btn-primary" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/roll`, { method: "POST" }))}>Roll</button>
               <button className="btn-secondary" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/hold`, { method: "POST" }))}>Hold</button>
-              <button className="btn-ghost" title={actionHint} disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Forfeit</button>
+              <button className="btn-ghost" title="Leaving now may count as a loss and your reserved demo stake may be lost." disabled={!myTurn || busy || backendOffline} onClick={() => run(() => api(`/tables/${table.table_id}/forfeit`, { method: "POST" }))}>Give Up</button>
             </div>
+            <p className="mt-3 text-xs leading-5 text-zinc-500">
+              Leaving now may count as a loss and your reserved demo stake may be lost.
+            </p>
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
             <div className="mb-4 text-xs uppercase tracking-widest text-zinc-500">Roll History</div>

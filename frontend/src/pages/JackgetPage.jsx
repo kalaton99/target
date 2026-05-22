@@ -4,6 +4,13 @@ import { apiFetch } from "@/lib/api";
 
 const STORAGE_KEY = "target_user";
 const OFFLINE_COPY = "Backend is unavailable. Start the local backend with .\\scripts\\start-backend-local.ps1, then refresh.";
+const QUICK_JACKGET_TABLES = [
+  { label: "Quick Table 1", maxPlayers: 2 },
+  { label: "Quick Table 2", maxPlayers: 3 },
+  { label: "Quick Table 3", maxPlayers: 4 },
+  { label: "Quick Table 4", maxPlayers: 4 },
+  { label: "Quick Table 5", maxPlayers: 2 },
+];
 
 function readSession() {
   try {
@@ -101,6 +108,14 @@ export default function JackgetPage() {
     navigate(`/jackget/${created.table_id}`);
   }
 
+  async function createQuickTable(maxPlayers) {
+    const created = await request("/api/jackget/tables", {
+      method: "POST",
+      body: JSON.stringify({ max_players: Number(maxPlayers) }),
+    });
+    navigate(`/jackget/${created.table_id}`);
+  }
+
   async function action(path, body = null) {
     const updated = await request(path, {
       method: "POST",
@@ -150,6 +165,32 @@ export default function JackgetPage() {
           </div>
           {error && <div className="mb-4 rounded border border-rose-700/60 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
           <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
+              <li>2-4 players sit at the table.</li>
+              <li>Each player has a 3-symbol slot result per spin.</li>
+              <li>Each player spins 3 times total, with turns rotating between players.</li>
+              <li>Total score after 3 spins determines the winner.</li>
+              <li>Demo opponents spin automatically on their turn.</li>
+            </ul>
+          </section>
+          <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="text-xs uppercase tracking-widest text-zinc-500">Joinable Demo Tables</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-5">
+              {QUICK_JACKGET_TABLES.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => createQuickTable(item.maxPlayers)}
+                  className="rounded border border-yellow-700/50 bg-black/30 px-3 py-3 text-left text-xs uppercase tracking-widest text-yellow-200 hover:bg-yellow-500/10"
+                >
+                  {item.label}
+                  <span className="mt-1 block normal-case tracking-normal text-zinc-500">{item.maxPlayers} players</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-xs uppercase tracking-widest text-zinc-500">
                 Table size
@@ -197,7 +238,6 @@ export default function JackgetPage() {
   const isMyTurn = table?.current_turn_user_id === session.user_id;
   const canStart = table && table.creator_user_id === session.user_id && ["waiting", "ready"].includes(table.status) && table.seats.length >= 2;
   const canSpin = table?.status === "in_progress" && isMyTurn && (humanSeat?.spins?.length || 0) < (table.spins_per_player || 3);
-  const canAutoplay = table?.status === "in_progress" && table.seats?.some((seat) => seat.is_demo && seat.user_id === table.current_turn_user_id);
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 p-4 sm:p-6">
@@ -246,16 +286,9 @@ export default function JackgetPage() {
                 >
                   Spin
                 </button>
-                <button
-                  onClick={() => action(`/api/jackget/tables/${table.table_id}/auto-play-demo-spins`)}
-                  disabled={!canAutoplay}
-                  className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300 disabled:opacity-40"
-                >
-                  Auto-play Demo Spins
-                </button>
               </div>
               <p className="mt-3 text-xs leading-5 text-zinc-500">
-                Internal demo credits only. Jackget is separate from Target, Diceget, Flipget, and Tmarget.
+                Internal demo credits only. Jackget is separate from Target, Diceget, Flipget, and Tmarget. Demo opponents spin automatically when their turn arrives.
               </p>
             </section>
 

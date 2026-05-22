@@ -313,9 +313,7 @@ def test_jackget_api_loop_stays_in_jackget_namespace(monkeypatch):
     for _ in range(3):
         spin = client.post(f"/api/jackget/tables/{table_id}/spin")
         assert spin.status_code == 200
-    autoplay = client.post(f"/api/jackget/tables/{table_id}/auto-play-demo-spins")
-    assert autoplay.status_code == 200
-    result = autoplay.json()
+    result = spin.json()
     assert result["status"] == "settled"
     assert result["winners"]
     assert all(len(seat["spins"]) == 3 for seat in result["seats"])

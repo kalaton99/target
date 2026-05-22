@@ -156,6 +156,11 @@ class JackgetService:
         return table
 
     def spin(self, *, table_id: str, user_id: str, reels: Optional[list[str]] = None) -> JackgetTable:
+        table = self._spin_once(table_id=table_id, user_id=user_id, reels=reels)
+        self._auto_play_current_demo_turns(table)
+        return table
+
+    def _spin_once(self, *, table_id: str, user_id: str, reels: Optional[list[str]] = None) -> JackgetTable:
         table = self.get_table(table_id)
         if table.status != "in_progress":
             raise JackgetError("TABLE_NOT_ACTIVE")
@@ -174,21 +179,12 @@ class JackgetService:
         )
         seat.spins.append(spin)
         seat.total_score += score
-        if len(seat.spins) >= JACKGET_SPINS_PER_PLAYER:
-            self._advance_turn_or_settle(table)
+        self._advance_turn_or_settle(table, from_user_id=user_id)
         return table
 
     def auto_play_demo_spins(self, *, table_id: str) -> JackgetTable:
         table = self.get_table(table_id)
-        guard = 0
-        while table.status == "in_progress" and table.current_turn_user_id:
-            guard += 1
-            if guard > JACKGET_MAX_PLAYERS * JACKGET_SPINS_PER_PLAYER:
-                raise JackgetError("DEMO_AUTOPLAY_GUARD")
-            seat = self._seat(table, table.current_turn_user_id)
-            if not seat.is_demo:
-                break
-            self.spin(table_id=table_id, user_id=seat.user_id)
+        self._auto_play_current_demo_turns(table)
         return table
 
     def _spin_reel(self) -> str:
@@ -206,13 +202,32 @@ class JackgetService:
     def _refresh_waiting_status(self, table: JackgetTable) -> None:
         table.status = "ready" if len(table.seats) >= JACKGET_MIN_PLAYERS else "waiting"
 
-    def _advance_turn_or_settle(self, table: JackgetTable) -> None:
-        for seat in table.seats:
+    def _advance_turn_or_settle(self, table: JackgetTable, *, from_user_id: str) -> None:
+        if all(len(seat.spins) >= JACKGET_SPINS_PER_PLAYER for seat in table.seats):
+            best = max(seat.total_score for seat in table.seats)
+            table.winners = [seat.user_id for seat in table.seats if seat.total_score == best]
+            table.status = "settled"
+            table.current_turn_user_id = None
+            table.settled_at = _now()
+            return
+
+        current_index = next(
+            (idx for idx, seat in enumerate(table.seats) if seat.user_id == from_user_id),
+            -1,
+        )
+        for offset in range(1, len(table.seats) + 1):
+            seat = table.seats[(current_index + offset) % len(table.seats)]
             if len(seat.spins) < JACKGET_SPINS_PER_PLAYER:
                 table.current_turn_user_id = seat.user_id
                 return
-        best = max(seat.total_score for seat in table.seats)
-        table.winners = [seat.user_id for seat in table.seats if seat.total_score == best]
-        table.status = "settled"
-        table.current_turn_user_id = None
-        table.settled_at = _now()
+
+    def _auto_play_current_demo_turns(self, table: JackgetTable) -> None:
+        guard = 0
+        while table.status == "in_progress" and table.current_turn_user_id:
+            guard += 1
+            if guard > JACKGET_MAX_PLAYERS * JACKGET_SPINS_PER_PLAYER:
+                raise JackgetError("DEMO_AUTOPLAY_GUARD")
+            seat = self._seat(table, table.current_turn_user_id)
+            if not seat.is_demo:
+                return
+            self._spin_once(table_id=table.id, user_id=seat.user_id)

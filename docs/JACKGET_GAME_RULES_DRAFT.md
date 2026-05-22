@@ -17,7 +17,8 @@ Current phase: internal demo credits only. No payment, crypto, deposit, withdraw
 - Each participant spins exactly 3 times.
 - A spin produces exactly 3 reel values.
 - A participant can spin only on their own turn.
-- After a participant completes 3 spins, turn moves to the next participant.
+- After each single spin, turn moves to the next participant who still has spins left.
+- Demo opponents spin automatically when their turn arrives, then turn returns to the human participant when applicable.
 - When every participant has completed 3 spins, the table settles.
 
 ## Reels

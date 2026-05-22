@@ -50,15 +50,33 @@ def test_jackget_turn_order_spin_limit_and_settlement():
     table = service.start_table(table_id=table.id, user_id="u1")
     assert table.current_turn_user_id == "u1"
 
-    for _ in range(JACKGET_SPINS_PER_PLAYER):
+    table = service.spin(table_id=table.id, user_id="u1")
+    assert len(table.seats[0].spins) == 1
+    assert len(table.seats[1].spins) == 1
+    assert table.current_turn_user_id == "u1"
+
+    for _ in range(JACKGET_SPINS_PER_PLAYER - 1):
         table = service.spin(table_id=table.id, user_id="u1")
     assert len(table.seats[0].spins) == JACKGET_SPINS_PER_PLAYER
-    assert table.current_turn_user_id != "u1"
+    assert all(len(seat.spins) == JACKGET_SPINS_PER_PLAYER for seat in table.seats)
+    assert table.status == "settled"
+    assert table.current_turn_user_id is None
     with pytest.raises(JackgetError) as blocked:
         service.spin(table_id=table.id, user_id="u1")
-    assert blocked.value.code == "NOT_YOUR_TURN"
+    assert blocked.value.code == "TABLE_NOT_ACTIVE"
 
-    table = service.auto_play_demo_spins(table_id=table.id)
-    assert table.status == "settled"
     assert len(table.winners) == 2
     assert all(seat.total_score == 300 for seat in table.seats)
+
+
+def test_jackget_three_player_demo_turns_auto_resolve_until_human_turn():
+    sequence = iter(["Cherry", "Cherry", "Cherry"] * 18)
+    service = JackgetService(reel_rng=lambda: next(sequence))
+    table = service.create_table(creator_user_id="u1", username="Player", max_players=3)
+    table = service.add_demo_opponents(table_id=table.id)
+    table = service.start_table(table_id=table.id, user_id="u1")
+
+    table = service.spin(table_id=table.id, user_id="u1")
+
+    assert [len(seat.spins) for seat in table.seats] == [1, 1, 1]
+    assert table.current_turn_user_id == "u1"

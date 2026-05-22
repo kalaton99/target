@@ -874,10 +874,11 @@ function PlayPage() {
   const handFinished =
     view.phase === "PAYOUT" || view.phase === "SHOWDOWN" || view.phase === "ENDED";
   const drawLimitReached = view.lastAction?.action === "DRAW_LIMIT_REACHED";
+  const myDrawLimitReached = myTurn && (me.cards?.length || 0) >= 5;
   const targetActionHint = useMemo(() => {
     if (wsState !== "open") return "Connecting to the Target table before actions unlock.";
     if (handFinished) return "Hand complete. Deal again or return to the Target lobby.";
-    if (drawLimitReached) return "Draw limit reached for this turn. The turn will move to the next player.";
+    if (drawLimitReached || myDrawLimitReached) return "Draw limit reached for this turn. The turn will move to the next player.";
     if (myTurn) return "Your draw turn: HIT draws another card, STAND locks your score.";
     if (myBettingTurn && Number(view.currentCallOwed || 0) > 0) {
       return `Your betting turn: CALL ${view.currentCallOwed} or FOLD.`;
@@ -885,7 +886,7 @@ function PlayPage() {
     if (myBettingTurn) return "Your betting turn: CHECK to pass, BET to raise, or FOLD.";
     const activePlayer = view.players.find((p) => p.seat === view.currentTurnSeat);
     return `Waiting for ${activePlayer?.username || "the active Target seat"} to act.`;
-  }, [drawLimitReached, handFinished, myBettingTurn, myTurn, view.currentCallOwed, view.currentTurnSeat, view.players, wsState]);
+  }, [drawLimitReached, handFinished, myBettingTurn, myDrawLimitReached, myTurn, view.currentCallOwed, view.currentTurnSeat, view.players, wsState]);
 
   // 2026-05 v2 PART 1 — showdown clarity helpers. Compute once so
   // every player row can derive its labels from the same snapshot.
@@ -1430,7 +1431,7 @@ function PlayPage() {
           <button
             data-testid="hit-btn"
             onClick={() => send("HIT")}
-            disabled={!myTurn}
+            disabled={!myTurn || myDrawLimitReached}
             title={targetActionHint}
             className="px-4 sm:px-7 py-3 rounded-md border border-yellow-600/50 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-30 disabled:cursor-not-allowed tracking-[0.2em] sm:tracking-[0.3em] uppercase text-sm sm:text-base"
           >

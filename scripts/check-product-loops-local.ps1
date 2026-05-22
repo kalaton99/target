@@ -188,8 +188,8 @@ function Test-JackgetLoop {
         $spun = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/spin" -Headers $user.Headers
     }
     Assert-True -Condition (($spun.seats | Where-Object { $_.user_id -eq $user.UserId }).spins.Count -eq 3) -Message "Jackget human spins did not reach 3."
-    $settled = Invoke-Api -Method "POST" -Path "/api/jackget/tables/$tableId/auto-play-demo-spins" -Headers $user.Headers
-    Assert-True -Condition ($settled.status -eq "settled") -Message "Jackget table did not settle after demo autoplay."
+    $settled = $spun
+    Assert-True -Condition ($settled.status -eq "settled") -Message "Jackget table did not settle after automatic demo turns."
     Assert-True -Condition (($settled.winners | Measure-Object).Count -gt 0) -Message "Jackget settled without visible winner."
     Write-Check "PASS" "Jackget live API loop completed"
 }
