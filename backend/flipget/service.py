@@ -144,6 +144,11 @@ class FlipgetService:
         table.round.status = "flipping"
         result = self._flip_coin()
         table.round.result = result  # type: ignore[assignment]
+        table.round.side_by_user = {
+            seat.user_id: seat.side
+            for seat in table.seats
+            if seat.side in SIDES
+        }
         winner = next(seat for seat in table.seats if seat.side == result)
         loser = next(seat for seat in table.seats if seat.side != result)
         table.round.winner_user_id = winner.user_id

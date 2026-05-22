@@ -170,6 +170,11 @@ def test_flipget_runtime_ui_exposes_modes_and_exit_guard_copy():
     assert "Player round wins:" in source
     assert "Opponent round wins:" in source
     assert "Current round result:" in source
+    assert "Round History" in source
+    assert "Coin result:" in source
+    assert "Winning side:" in source
+    assert "Winning participant:" in source
+    assert "side_by_user" in source
     assert "Choose heads or tails for this round" in source
     assert "Leave Active Flipget?" in source
     assert "Leaving may cause the current stake or participation to be lost." in source
@@ -264,6 +269,7 @@ async def test_valid_flip_produces_backend_result_and_heads_wins_when_heads():
     assert flipped.round.result == "heads"
     assert flipped.round.winner_user_id == "u1"
     assert flipped.round.loser_user_id == "u2"
+    assert flipped.round.side_by_user == {"u1": "heads", "u2": "tails"}
     assert flipped.status == "settled"
     assert flipped.score == {"heads": 1, "tails": 0}
     assert flipped.winning_side == "heads"
@@ -276,6 +282,7 @@ async def test_tails_player_wins_when_result_tails():
     assert flipped.round.result == "tails"
     assert flipped.round.winner_user_id == "u2"
     assert flipped.round.loser_user_id == "u1"
+    assert flipped.round.side_by_user == {"u1": "heads", "u2": "tails"}
 
 
 async def test_best_of_3_resolves_when_one_side_reaches_two_wins():
@@ -286,6 +293,8 @@ async def test_best_of_3_resolves_when_one_side_reaches_two_wins():
     assert first.status == "waiting"
     assert first.score == {"heads": 1, "tails": 0}
     assert first.to_dict()["current_round_number"] == 2
+    assert first.rounds[0].side_by_user == {"u1": "heads", "u2": "tails"}
+    assert first.rounds[0].winner_user_id == "u1"
     assert all(seat.side is None and not seat.ready for seat in first.seats)
 
     with pytest.raises(FlipgetError) as err:
@@ -297,7 +306,26 @@ async def test_best_of_3_resolves_when_one_side_reaches_two_wins():
     assert second.status == "settled"
     assert second.score == {"heads": 2, "tails": 0}
     assert second.winning_side == "heads"
+    assert [round_.winner_user_id for round_ in second.rounds] == ["u1", "u1"]
+    assert sum(1 for round_ in second.rounds if round_.winner_user_id == "u1") == 2
+    assert sum(1 for round_ in second.rounds if round_.winner_user_id == "u2") == 0
     assert second.to_dict()["wins_required"] == 2
+
+
+async def test_participant_round_wins_follow_each_round_side_selection():
+    service = make_service_sequence(["heads", "tails"])
+    table = two_player_ready(service, mode="best_of_3")
+
+    first = await service.flip(table_id=table.id, user_id="u1")
+    assert first.rounds[0].side_by_user == {"u1": "heads", "u2": "tails"}
+    assert first.rounds[0].winner_user_id == "u1"
+
+    ready_round(service, table, user_side="heads")
+    second = await service.flip(table_id=table.id, user_id="u1")
+    assert second.rounds[1].side_by_user == {"u1": "heads", "u2": "tails"}
+    assert second.rounds[1].winner_user_id == "u2"
+    assert sum(1 for round_ in second.rounds if round_.winner_user_id == "u1") == 1
+    assert sum(1 for round_ in second.rounds if round_.winner_user_id == "u2") == 1
 
 
 async def test_best_of_5_resolves_when_one_side_reaches_three_wins():
@@ -314,6 +342,9 @@ async def test_best_of_5_resolves_when_one_side_reaches_three_wins():
     assert final.status == "settled"
     assert final.score == {"heads": 3, "tails": 1}
     assert final.winning_side == "heads"
+    assert [round_.winner_user_id for round_ in final.rounds] == ["u1", "u1", "u1", "u1"]
+    assert sum(1 for round_ in final.rounds if round_.winner_user_id == "u1") == 4
+    assert sum(1 for round_ in final.rounds if round_.winner_user_id == "u2") == 0
     assert final.to_dict()["max_rounds"] == 5
 
 

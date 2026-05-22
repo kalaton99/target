@@ -41,6 +41,7 @@ class FlipgetRound:
     result: Optional[Side] = None
     winner_user_id: Optional[str] = None
     loser_user_id: Optional[str] = None
+    side_by_user: dict[str, Side] = field(default_factory=dict)
     created_at: float = 0
     settled_at: Optional[float] = None
 

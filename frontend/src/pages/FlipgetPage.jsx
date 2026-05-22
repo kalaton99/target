@@ -145,6 +145,23 @@ export default function FlipgetPage() {
   const playerRoundWins = completedRounds.filter((round) => round.winner_user_id === user?.user_id).length;
   const opponentRoundWins = completedRounds.length - playerRoundWins;
   const matchHasStarted = completedRounds.length > 0;
+  const participantLabel = useCallback((userId) => {
+    if (!userId) return "-";
+    if (userId === user?.user_id) return "Player";
+    const seat = table?.seats?.find((candidate) => candidate.user_id === userId);
+    if (seat?.user_id?.startsWith("fg_demo_opponent_") || seat?.username === "Demo Opponent") {
+      return "Demo Opponent";
+    }
+    return seat?.username || userId;
+  }, [table?.seats, user?.user_id]);
+  const participantSide = useCallback((round, userId) => {
+    const side = round?.side_by_user?.[userId];
+    return side ? side.charAt(0).toUpperCase() + side.slice(1) : "-";
+  }, []);
+  const demoOpponentSeat = useMemo(
+    () => table?.seats?.find((seat) => seat.user_id?.startsWith("fg_demo_opponent_") || seat.username === "Demo Opponent"),
+    [table?.seats],
+  );
   const canLeavePreFlip = Boolean(
     mySeat
       && table
@@ -447,6 +464,24 @@ export default function FlipgetPage() {
           <div className="grid gap-4">
             <Seat seat={table?.seats?.[0]} fallbackIndex={0} />
             <Seat seat={table?.seats?.[1]} fallbackIndex={1} />
+            {completedRounds.length > 0 && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+                <div className="text-xs uppercase tracking-widest text-zinc-500">Round History</div>
+                <div className="mt-3 grid gap-3">
+                  {completedRounds.map((round) => (
+                    <div key={round.id} className="rounded border border-zinc-800 bg-black/30 p-3 text-sm leading-6 text-zinc-400">
+                      <div className="font-display text-xl tracking-widest text-zinc-100">Round {round.round_number}</div>
+                      <div>Coin result: {round.result ? round.result.charAt(0).toUpperCase() + round.result.slice(1) : "-"}</div>
+                      <div>Winning side: {round.result ? round.result.charAt(0).toUpperCase() + round.result.slice(1) : "-"}</div>
+                      <div>Winning participant: {participantLabel(round.winner_user_id)}</div>
+                      <div className="text-xs text-zinc-500">
+                        Player chose {participantSide(round, user?.user_id)} / Demo Opponent chose {participantSide(round, demoOpponentSeat?.user_id)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {table?.status === "waiting" && table.seats?.length < 2 && (
               <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-950/40 p-4 text-sm text-zinc-500">
                 Waiting for one more demo participant. Flip requires two demo participants with unique sides.

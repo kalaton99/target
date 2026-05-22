@@ -230,6 +230,10 @@ def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypat
     payload = flipped.json()
     assert payload["status"] == "waiting"
     assert payload["current_round_number"] == 2
+    assert payload["rounds"][0]["side_by_user"]["u1"] == "heads"
+    demo_id = next(seat["user_id"] for seat in payload["seats"] if seat["user_id"].startswith("fg_demo_opponent_"))
+    assert payload["rounds"][0]["side_by_user"][demo_id] == "tails"
+    assert payload["rounds"][0]["winner_user_id"] == "u1"
     assert {seat["side"] for seat in payload["seats"]} == {None}
     assert not any(seat["ready"] for seat in payload["seats"])
 
@@ -247,6 +251,7 @@ def test_flipget_api_loop_blocks_one_user_then_completes_two_user_flip(monkeypat
     assert payload["status"] == "settled"
     assert payload["round"]["result"] == "heads"
     assert payload["round"]["winner_user_id"] == "u1"
+    assert [round_["winner_user_id"] for round_ in payload["rounds"]] == ["u1", "u1"]
 
 
 def test_tmarget_api_loop_yes_no_positions_and_market_payload(monkeypatch):
