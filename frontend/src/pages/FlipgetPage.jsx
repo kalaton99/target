@@ -120,8 +120,10 @@ export default function FlipgetPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [showAllTables, setShowAllTables] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
+  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
 
   const mySeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === user?.user_id),
@@ -347,7 +349,7 @@ export default function FlipgetPage() {
                 No active Flipget tables. Create a 2-player table to start.
               </div>
             )}
-            {tables.map((item) => (
+            {visibleTables.map((item) => (
               <div key={item.table_id} className="flex flex-col items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
                 <div>
                   <div className="font-display text-2xl tracking-widest">{item.mode_label || "Flipget"}</div>
@@ -362,6 +364,15 @@ export default function FlipgetPage() {
                 </div>
               </div>
             ))}
+            {!showAllTables && tables.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTables(true)}
+                className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
+              >
+                Show all {tables.length} open Flipget tables
+              </button>
+            )}
           </div>
         </div>
       </div>

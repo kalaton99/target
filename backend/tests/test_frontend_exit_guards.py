@@ -56,6 +56,39 @@ def test_game_lobbies_explain_rules_without_separate_quick_table_panels():
         assert "Quick Table" not in source, name
 
 
+def test_lobby_lists_default_to_five_visible_rows_without_backend_caps():
+    expected = {
+        "Target": ("frontend/src/pages/LobbyPage.jsx", "const visibleTables = showAllTables ? tables : tables.slice(0, 5);"),
+        "Diceget": ("frontend/src/pages/DicegetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
+        "Flipget": ("frontend/src/pages/FlipgetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
+        "Jackget": ("frontend/src/pages/JackgetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
+        "Tmarget": ("frontend/src/pages/TmargetPages.jsx", "const visibleMarkets = showAllMarkets ? filtered : filtered.slice(0, 5);"),
+    }
+    for name, (relative, cap_expression) in expected.items():
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert cap_expression in source, name
+        assert "Show all" in source, name
+
+
+def test_how_to_play_copy_covers_current_rules():
+    target = (ROOT / "frontend/src/pages/LobbyPage.jsx").read_text(encoding="utf-8")
+    diceget = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
+    flipget = (ROOT / "frontend/src/pages/FlipgetPage.jsx").read_text(encoding="utf-8")
+    jackget = (ROOT / "frontend/src/pages/JackgetPage.jsx").read_text(encoding="utf-8")
+    tmarget = (ROOT / "frontend/src/pages/TmargetPages.jsx").read_text(encoding="utf-8")
+
+    for text in ("31, 41, 51, and 61", "31/41 use 4-seat tables", "J/Q/K score 10", "5 cards", "reserved demo stake"):
+        assert text in target
+    for text in ("Sprint 40", "Classic 70", "Marathon 120", "Roll dice", "Give Up"):
+        assert text in diceget
+    for text in ("Single Flip", "Best of 3", "Best of 5", "before every round", "one demo opponent"):
+        assert text in flipget
+    for text in ("2-4 players", "3-reel slot", "exactly 3 spins", "Demo opponents spin automatically"):
+        assert text in jackget
+    for text in ("demo prediction-market product", "YES/NO positions", "Market volume", "No real-money trading"):
+        assert text in tmarget
+
+
 def test_diceget_visible_surrender_copy_is_clear_without_renaming_api():
     source = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
 

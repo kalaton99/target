@@ -44,6 +44,7 @@ export default function LobbyPage() {
   const [name, setName] = useState("My Table");
   const [target, setTarget] = useState(31);
   const [stake, setStake] = useState(100);
+  const [showAllTables, setShowAllTables] = useState(false);
   // 2026-05 v3 — How-to-play overlay (X1)
   const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   // 2026-05: max/min are server-derived from target_score (locked-rules
@@ -72,6 +73,7 @@ export default function LobbyPage() {
     ?? config.bot_count_max
     ?? 0;
   const seatsForTarget = config.table_seats_by_target?.[Number(target)] ?? null;
+  const visibleTables = showAllTables ? tables : tables.slice(0, 5);
   // If the user switches target downward (e.g. 61 -> 31) while bots
   // were set to 4, clamp the input so we don't submit an invalid value.
   useEffect(() => {
@@ -448,7 +450,7 @@ export default function LobbyPage() {
           {tables.length === 0 && (
             <div className="text-zinc-600 italic" data-testid="tables-empty">No tables yet — create one above.</div>
           )}
-          {tables.map((t) => {
+          {visibleTables.map((t) => {
             const seated = t.seats.some((s) => s.user_id === user.user_id);
             const isCreator = t.creator_user_id === user.user_id;
             const full = t.seats.length >= t.max_players;
@@ -497,6 +499,15 @@ export default function LobbyPage() {
               </div>
             );
           })}
+          {!showAllTables && tables.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setShowAllTables(true)}
+              className="w-full rounded-md border border-zinc-800 bg-zinc-950/60 p-3 text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
+            >
+              Show all {tables.length} open tables
+            </button>
+          )}
         </div>
 
         {err && <div data-testid="lobby-err" className="text-rose-400 mt-4 text-sm">{err}</div>}

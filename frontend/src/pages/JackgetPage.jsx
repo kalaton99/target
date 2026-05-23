@@ -33,6 +33,8 @@ export default function JackgetPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [showAllTables, setShowAllTables] = useState(false);
+  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
 
   const authHeaders = useMemo(() => ({
     "Content-Type": "application/json",
@@ -187,7 +189,7 @@ export default function JackgetPage() {
             {loading && <div className="text-sm text-zinc-500">Loading Jackget tables...</div>}
             {!loading && tables.length === 0 && <div className="text-sm text-zinc-500">No Jackget tables yet.</div>}
             <div className="space-y-2">
-              {tables.map((item) => (
+              {visibleTables.map((item) => (
                 <Link
                   key={item.table_id}
                   to={`/jackget/${item.table_id}`}
@@ -197,6 +199,15 @@ export default function JackgetPage() {
                   <span className="text-zinc-500">{item.seats?.length || 0}/{item.max_players} seated / {item.status}</span>
                 </Link>
               ))}
+              {!showAllTables && tables.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTables(true)}
+                  className="w-full rounded border border-zinc-800 bg-black/30 p-3 text-left text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
+                >
+                  Show all {tables.length} open Jackget tables
+                </button>
+              )}
             </div>
           </section>
         </div>

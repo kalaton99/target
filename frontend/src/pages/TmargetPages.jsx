@@ -277,6 +277,7 @@ export function TmargetMarketsPage() {
   const [markets, setMarkets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showAllMarkets, setShowAllMarkets] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -310,6 +311,7 @@ export function TmargetMarketsPage() {
     const matchesCategory = category === "all" || market.category === category;
     return matchesQuery && matchesCategory;
   });
+  const visibleMarkets = showAllMarkets ? filtered : filtered.slice(0, 5);
 
   return (
     <TmargetShell>
@@ -348,8 +350,17 @@ export function TmargetMarketsPage() {
         </div>
       )}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((market) => <MarketCard key={market.id || market.slug} market={market} />)}
+        {visibleMarkets.map((market) => <MarketCard key={market.id || market.slug} market={market} />)}
       </div>
+      {!showAllMarkets && filtered.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAllMarkets(true)}
+          className="mt-4 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
+        >
+          Show all {filtered.length} demo markets
+        </button>
+      )}
     </TmargetShell>
   );
 }

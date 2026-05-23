@@ -122,11 +122,13 @@ export default function DicegetPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [showAllTables, setShowAllTables] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
 
   const latestRoll = table?.rolls?.[table.rolls.length - 1];
   const scoreGoalOf = (item) => item?.score_goal ?? item?.target_score;
+  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
   const currentSeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === table.current_turn_user_id),
     [table],
@@ -319,7 +321,7 @@ export default function DicegetPage() {
                 No active Diceget tables. Create a 4-player table to start.
               </div>
             )}
-            {tables.map((item) => (
+            {visibleTables.map((item) => (
               <div key={item.table_id} className="flex flex-col items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4 sm:flex-row sm:items-center">
                 <div>
                   <div className="font-display text-2xl tracking-widest">Score Goal {scoreGoalOf(item)}</div>
@@ -334,6 +336,15 @@ export default function DicegetPage() {
                 </div>
               </div>
             ))}
+            {!showAllTables && tables.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTables(true)}
+                className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
+              >
+                Show all {tables.length} open Diceget tables
+              </button>
+            )}
           </div>
         </div>
       </div>
