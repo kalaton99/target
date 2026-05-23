@@ -16,6 +16,7 @@ const REDIRECT_MESSAGES = {
   session_expired: "Your session expired. Please sign in again.",
   signin_required: "Please sign in to continue.",
 };
+const VALID_TARGET_TIERS = new Set([31, 41, 51, 61]);
 
 function LS() {
   const get = () => {
@@ -73,7 +74,8 @@ export default function LobbyPage() {
     ?? config.bot_count_max
     ?? 0;
   const seatsForTarget = config.table_seats_by_target?.[Number(target)] ?? null;
-  const visibleTables = showAllTables ? tables : tables.slice(0, 5);
+  const currentTargetTables = tables.filter((table) => VALID_TARGET_TIERS.has(Number(table.target_score)));
+  const visibleTables = showAllTables ? currentTargetTables : currentTargetTables.slice(0, 5);
   // If the user switches target downward (e.g. 61 -> 31) while bots
   // were set to 4, clamp the input so we don't submit an invalid value.
   useEffect(() => {
@@ -312,7 +314,7 @@ export default function LobbyPage() {
               title="How to play"
               className="px-3 py-2 rounded-md border border-yellow-700/60 text-yellow-300 hover:bg-yellow-500/10 text-xs uppercase tracking-widest"
             >
-              How to play
+              How to Play
             </button>
             <button
               data-testid="logout-btn"
@@ -322,19 +324,6 @@ export default function LobbyPage() {
               Logout
             </button>
           </div>
-        </div>
-
-        <div className="rounded-lg border border-zinc-800 p-4 mb-6 bg-zinc-950/40">
-          <div className="text-zinc-400 text-xs uppercase tracking-widest mb-3">How to Play</div>
-          <ul className="space-y-2 text-sm leading-6 text-zinc-400">
-            <li>Goal: get closest to the table target score without going over.</li>
-            <li>Current target tiers are 31, 41, 51, and 61. Tiers 31/41 use 4-seat tables; tiers 51/61 use 5-seat tables.</li>
-            <li>Card values: number cards score face value, A scores 1, and J/Q/K score 10.</li>
-            <li>Drawing a Joker disqualifies that player for the hand; going over the target score can bust you.</li>
-            <li>Each turn can hold at most 5 cards. When the draw limit is reached, drawing stops for that turn.</li>
-            <li>On your turn, use Hit/Draw to take a card or Stand/Check to stop drawing when those actions are available.</li>
-            <li>At showdown, the closest valid score wins. Leaving during an active hand may count as a loss and may lose the reserved demo stake.</li>
-          </ul>
         </div>
 
         {/* Create table */}
@@ -499,13 +488,13 @@ export default function LobbyPage() {
               </div>
             );
           })}
-          {!showAllTables && tables.length > 5 && (
+          {!showAllTables && currentTargetTables.length > 5 && (
             <button
               type="button"
               onClick={() => setShowAllTables(true)}
               className="w-full rounded-md border border-zinc-800 bg-zinc-950/60 p-3 text-xs uppercase tracking-widest text-zinc-400 hover:text-yellow-300"
             >
-              Show all {tables.length} open tables
+              Show all {currentTargetTables.length} open tables
             </button>
           )}
         </div>
@@ -528,7 +517,7 @@ export default function LobbyPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="text-yellow-300 uppercase tracking-widest text-xs">How to play TARGET</div>
+                <div className="text-yellow-300 uppercase tracking-widest text-xs">How to Play TARGET</div>
                 <button
                   data-testid="how-to-play-close"
                   type="button"
@@ -538,39 +527,26 @@ export default function LobbyPage() {
                   Close
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid gap-3 text-sm leading-6 text-zinc-300">
                 <div className="rounded border border-zinc-800 bg-black/40 p-4">
-                  <div className="text-yellow-400 text-base font-semibold mb-2">1 · Goal</div>
-                  <p className="text-zinc-300 text-sm leading-relaxed">
-                    Get your card score as close to the table's <span className="text-yellow-300">target</span> as you can — without going over.
-                    Closest score wins the pot at the end of the hand.
-                  </p>
+                  <div className="text-yellow-400 text-base font-semibold mb-2">Goal and table tiers</div>
+                  <p>Get closest to the selected target score without going over. Current target tiers are 31, 41, 51, and 61. Target 31/41 use 4-seat tables; Target 51/61 use 5-seat tables.</p>
                 </div>
                 <div className="rounded border border-zinc-800 bg-black/40 p-4">
-                  <div className="text-yellow-400 text-base font-semibold mb-2">2 · One hand</div>
-                  <p className="text-zinc-300 text-sm leading-relaxed">
-                    Each hand has 5 phases:
-                  </p>
-                  <ol className="text-zinc-400 text-xs leading-5 mt-2 list-decimal list-inside">
-                    <li>Round 1 — bet, call or check</li>
-                    <li>Draw 1 — hit (take a card) or stand</li>
-                    <li>Round 2 — bet again</li>
-                    <li>Draw 2 — last chance to draw</li>
-                    <li>Round 3 — final bets, then showdown</li>
-                  </ol>
+                  <div className="text-yellow-400 text-base font-semibold mb-2">Card scoring and special cards</div>
+                  <p>Cards 2-10 score face value, A scores 1, and J/Q/K score 10. Drawing a Joker disqualifies that player for the hand under the current rules. Going over the table target can bust or disqualify the hand.</p>
                 </div>
                 <div className="rounded border border-zinc-800 bg-black/40 p-4">
-                  <div className="text-emerald-400 text-base font-semibold mb-2">3 · Provably fair</div>
-                  <p className="text-zinc-300 text-sm leading-relaxed">
-                    Every shuffle is committed (locked) before the deal and revealed at PAYOUT.
-                    Click <span className="text-emerald-300">Verify result</span> on the play
-                    screen to recompute the deck yourself with SHA-256 — no trust required.
-                  </p>
+                  <div className="text-yellow-400 text-base font-semibold mb-2">Turn flow</div>
+                  <p>Betting/check/call phases alternate with draw phases. Hit/Draw takes a card. Stand/Check stops drawing when available. Call matches the current bet when betting is open, and Fold leaves the active hand according to the current backend rules.</p>
+                  <p className="mt-2">A player can draw or hold at most 5 cards in one turn. After 5 cards, drawing stops and the turn passes or resolves according to the current game flow.</p>
+                </div>
+                <div className="rounded border border-zinc-800 bg-black/40 p-4">
+                  <div className="text-yellow-400 text-base font-semibold mb-2">Winning, exit risk, and fairness</div>
+                  <p>At showdown/payout, the closest valid score to the target wins. Leaving during an active hand may count as a loss or forfeit and may lose the reserved demo stake.</p>
+                  <p className="mt-2">Every shuffle is committed before the deal and revealed at payout. Use Verify result on the play screen to recompute the deck from the revealed seed and client seeds.</p>
                 </div>
               </div>
-              <p className="text-zinc-500 text-xs mt-4 text-center">
-                Cards: 2–10 score face value, A=1, J/Q/K=10. Drawing a Joker disqualifies you for the hand.
-              </p>
             </div>
           </div>
         )}

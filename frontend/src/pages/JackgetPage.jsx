@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 
 const STORAGE_KEY = "target_user";
 const OFFLINE_COPY = "Backend is unavailable. Start the local backend with .\\scripts\\start-backend-local.ps1, then refresh.";
+const TABLE_STATUS_RANK = { waiting: 0, ready: 1, in_progress: 2, settled: 3, cancelled: 4 };
 
 function readSession() {
   try {
@@ -34,7 +35,9 @@ export default function JackgetPage() {
   const [loading, setLoading] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [showAllTables, setShowAllTables] = useState(false);
-  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+  const sortedTables = [...tables].sort((a, b) => (TABLE_STATUS_RANK[a.status] ?? 9) - (TABLE_STATUS_RANK[b.status] ?? 9));
+  const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);
 
   const authHeaders = useMemo(() => ({
     "Content-Type": "application/json",
@@ -146,22 +149,16 @@ export default function JackgetPage() {
                 Separate local demo game. Each participant spins a 3-reel display exactly three times; highest demo score wins.
               </p>
             </div>
-            <Link className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:bg-zinc-900" to="/games">
-              Back to Games
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded border border-yellow-700/60 px-4 py-2 text-xs uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/10" type="button" onClick={() => setHowToPlayOpen(true)}>
+                How to Play
+              </button>
+              <Link className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:bg-zinc-900" to="/games">
+                Back to Games
+              </Link>
+            </div>
           </div>
           {error && <div className="mb-4 rounded border border-rose-700/60 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
-          <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
-              <li>Jackget tables seat 2-4 players.</li>
-              <li>Each player has a 3-reel slot panel. Every spin reveals 3 symbols or numbers.</li>
-              <li>Each player gets exactly 3 spins total, with turns rotating between players.</li>
-              <li>Numbers and symbols award points for triples, pairs, and mixed results.</li>
-              <li>Demo opponents spin automatically on their turn.</li>
-              <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
-            </ul>
-          </section>
           <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-xs uppercase tracking-widest text-zinc-500">
@@ -210,6 +207,25 @@ export default function JackgetPage() {
               )}
             </div>
           </section>
+          {howToPlayOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+              <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Jackget</div>
+                  <button className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+                </div>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+                  <li>Jackget is a jackpot-style 3-reel game.</li>
+                  <li>Tables seat 2-4 players, and each participant has a 3-reel slot display.</li>
+                  <li>Each player gets exactly 3 spins total. Turns rotate between players.</li>
+                  <li>Human players press Spin only on their own turn. Demo opponents spin automatically on their turn.</li>
+                  <li>Numbers and symbols award points according to the current backend scoring rules for triples, pairs, and mixed results.</li>
+                  <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
+                  <li>Leaving during an active table may count as a loss and may lose the reserved demo stake.</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -319,6 +335,25 @@ export default function JackgetPage() {
           </>
         )}
       </div>
+      {howToPlayOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Jackget</div>
+              <button className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+            </div>
+            <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+              <li>Jackget is a jackpot-style 3-reel game.</li>
+              <li>Tables seat 2-4 players, and each participant has a 3-reel slot display.</li>
+              <li>Each player gets exactly 3 spins total. Turns rotate between players.</li>
+              <li>Human players press Spin only on their own turn. Demo opponents spin automatically on their turn.</li>
+              <li>Numbers and symbols award points according to the current backend scoring rules for triples, pairs, and mixed results.</li>
+              <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
+              <li>Leaving during an active table may count as a loss and may lose the reserved demo stake.</li>
+            </ul>
+          </div>
+        </div>
+      )}
       {exitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
           <div className="max-w-sm rounded-lg border border-rose-700/50 bg-zinc-950 p-5">

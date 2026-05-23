@@ -10,6 +10,7 @@ const SCORE_GOALS = [
 const BOT_PROFILES = ["safe", "normal", "aggressive"];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
+const TABLE_STATUS_RANK = { waiting: 0, active: 1, showdown: 2, settled: 3, cancelled: 4 };
 
 function storedUser() {
   try {
@@ -123,12 +124,14 @@ export default function DicegetPage() {
   const [error, setError] = useState("");
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [showAllTables, setShowAllTables] = useState(false);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
 
   const latestRoll = table?.rolls?.[table.rolls.length - 1];
   const scoreGoalOf = (item) => item?.score_goal ?? item?.target_score;
-  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
+  const sortedTables = [...tables].sort((a, b) => (TABLE_STATUS_RANK[a.status] ?? 9) - (TABLE_STATUS_RANK[b.status] ?? 9));
+  const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);
   const currentSeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === table.current_turn_user_id),
     [table],
@@ -250,6 +253,7 @@ export default function DicegetPage() {
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
               <Link className="btn-ghost" to="/">Axwins</Link>
               <Link className="btn-ghost" to="/games">Games</Link>
+              <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(true)}>How to Play</button>
               <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
               <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
             </div>
@@ -257,17 +261,6 @@ export default function DicegetPage() {
           <div className="mt-6">
             <Notice>{DEMO_CREDIT_NOTICE}</Notice>
           </div>
-          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
-              <li>Choose a score goal mode: Sprint 40, Classic 70, or Marathon 120.</li>
-              <li>Roll dice on your turn to build score toward the selected goal.</li>
-              <li>Hold locks your current score and ends your rolling for the round.</li>
-              <li>Going over the score goal can bust that seat, so stop before the risk is too high.</li>
-              <li>When the table settles, Diceget compares valid locked scores and goal-reaching results using the current backend rules.</li>
-              <li>Give Up / Leave surrenders the active game and may lose the reserved demo stake.</li>
-            </ul>
-          </section>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
             {SCORE_GOALS.map((mode) => (
@@ -346,6 +339,25 @@ export default function DicegetPage() {
               </button>
             )}
           </div>
+          {howToPlayOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+              <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Diceget</div>
+                  <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+                </div>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+                  <li>Choose a score goal mode: Sprint 40, Classic 70, or Marathon 120.</li>
+                  <li>Diceget is a 4-player dice table. Bots or demo participants can fill seats for local play.</li>
+                  <li>On your turn, roll dice to build score toward the selected score goal.</li>
+                  <li>Hold locks your current score and ends your rolling for the round or turn.</li>
+                  <li>Going over the score goal can bust that seat.</li>
+                  <li>When the table settles, Diceget compares valid locked scores and goal-reaching results using the current backend winner rules.</li>
+                  <li>Give Up means surrendering the active game and may lose the reserved demo stake.</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -495,6 +507,25 @@ export default function DicegetPage() {
               }
               navigate(`/diceget/${next.table_id}`);
             })}>Deal Again</button>
+          </div>
+        )}
+        {howToPlayOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+              <div className="flex items-center justify-between gap-4">
+                <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Diceget</div>
+                <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+              </div>
+              <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+                <li>Choose a score goal mode: Sprint 40, Classic 70, or Marathon 120.</li>
+                <li>Diceget is a 4-player dice table. Bots or demo participants can fill seats for local play.</li>
+                <li>On your turn, roll dice to build score toward the selected score goal.</li>
+                <li>Hold locks your current score and ends your rolling for the round or turn.</li>
+                <li>Going over the score goal can bust that seat.</li>
+                <li>When the table settles, Diceget compares valid locked scores and goal-reaching results using the current backend winner rules.</li>
+                <li>Give Up means surrendering the active game and may lose the reserved demo stake.</li>
+              </ul>
+            </div>
           </div>
         )}
         {exitConfirmOpen && (

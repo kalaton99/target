@@ -52,22 +52,40 @@ def test_game_lobbies_explain_rules_without_separate_quick_table_panels():
     for name, path in pages.items():
         source = path.read_text(encoding="utf-8")
         assert "How to Play" in source, name
+        assert "howToPlayOpen" in source, name
+        assert "setHowToPlayOpen(true)" in source, name
+        assert "Close" in source, name
         assert "Joinable Demo Tables" not in source, name
         assert "Quick Table" not in source, name
 
 
 def test_lobby_lists_default_to_five_visible_rows_without_backend_caps():
     expected = {
-        "Target": ("frontend/src/pages/LobbyPage.jsx", "const visibleTables = showAllTables ? tables : tables.slice(0, 5);"),
-        "Diceget": ("frontend/src/pages/DicegetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
-        "Flipget": ("frontend/src/pages/FlipgetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
-        "Jackget": ("frontend/src/pages/JackgetPage.jsx", "const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();"),
-        "Tmarget": ("frontend/src/pages/TmargetPages.jsx", "const visibleMarkets = showAllMarkets ? filtered : filtered.slice(0, 5);"),
+        "Target": ("frontend/src/pages/LobbyPage.jsx", "const visibleTables = showAllTables ? currentTargetTables : currentTargetTables.slice(0, 5);"),
+        "Diceget": ("frontend/src/pages/DicegetPage.jsx", "const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);"),
+        "Flipget": ("frontend/src/pages/FlipgetPage.jsx", "const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);"),
+        "Jackget": ("frontend/src/pages/JackgetPage.jsx", "const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);"),
+        "Tmarget": ("frontend/src/pages/TmargetPages.jsx", "const visibleMarkets = showAllMarkets ? sortedMarkets : sortedMarkets.slice(0, 5);"),
     }
     for name, (relative, cap_expression) in expected.items():
         source = (ROOT / relative).read_text(encoding="utf-8")
         assert cap_expression in source, name
         assert "Show all" in source, name
+
+
+def test_lobby_lists_filter_or_deprioritize_stale_tables():
+    target = (ROOT / "frontend/src/pages/LobbyPage.jsx").read_text(encoding="utf-8")
+    diceget = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
+    flipget = (ROOT / "frontend/src/pages/FlipgetPage.jsx").read_text(encoding="utf-8")
+    jackget = (ROOT / "frontend/src/pages/JackgetPage.jsx").read_text(encoding="utf-8")
+
+    assert "VALID_TARGET_TIERS" in target
+    for legacy in ("new Set([30", "50, 75, 100", "target 30", "target 100"):
+        assert legacy not in target
+    assert "currentTargetTables = tables.filter" in target
+    assert "TABLE_STATUS_RANK" in diceget
+    assert "TABLE_STATUS_RANK" in flipget
+    assert "TABLE_STATUS_RANK" in jackget
 
 
 def test_how_to_play_copy_covers_current_rules():
@@ -79,9 +97,9 @@ def test_how_to_play_copy_covers_current_rules():
 
     for text in ("31, 41, 51, and 61", "31/41 use 4-seat tables", "J/Q/K score 10", "5 cards", "reserved demo stake"):
         assert text in target
-    for text in ("Sprint 40", "Classic 70", "Marathon 120", "Roll dice", "Give Up"):
+    for text in ("Sprint 40", "Classic 70", "Marathon 120", "roll dice", "Give Up"):
         assert text in diceget
-    for text in ("Single Flip", "Best of 3", "Best of 5", "before every round", "one demo opponent"):
+    for text in ("Single Flip", "Best of 3", "Best of 5", "fresh Heads/Tails choice", "one demo opponent"):
         assert text in flipget
     for text in ("2-4 players", "3-reel slot", "exactly 3 spins", "Demo opponents spin automatically"):
         assert text in jackget

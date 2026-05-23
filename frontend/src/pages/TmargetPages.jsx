@@ -49,6 +49,7 @@ const STATUS_COPY = {
     helper: "This market was cancelled and eligible demo-credit refunds are handled by admin controls.",
   },
 };
+const MARKET_STATUS_RANK = { open: 0, draft: 1, paused: 2, closed: 3, resolved: 4, cancelled: 5 };
 
 function storedUser() {
   try {
@@ -127,6 +128,7 @@ function tradeDisabledMessage({ user, market }) {
 }
 
 function TmargetShell({ children }) {
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       <header className="border-b border-zinc-800 bg-zinc-950/80">
@@ -161,6 +163,9 @@ function TmargetShell({ children }) {
             <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/tmarget/admin/markets">
               Admin
             </Link>
+            <button className="rounded border border-yellow-700/60 px-3 py-2 text-center text-yellow-300 hover:bg-yellow-500/10" type="button" onClick={() => setHowToPlayOpen(true)}>
+              How to Play
+            </button>
             <Link className="rounded border border-zinc-800 px-3 py-2 text-center hover:text-yellow-300" to="/wallet">
               Wallet / Ledger
             </Link>
@@ -173,6 +178,17 @@ function TmargetShell({ children }) {
         </div>
         {children}
       </main>
+      {howToPlayOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Tmarget</div>
+              <button className="rounded border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest text-zinc-300" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+            </div>
+            <TmargetHowToPlay />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -256,7 +272,6 @@ export function TmargetHomePage() {
             Target, Diceget, and Flipget game modules, while sharing internal
             auth, wallet, ledger, audit, and admin infrastructure.
           </p>
-          <TmargetHowToPlay className="mt-6" />
         </div>
         <div className="grid gap-3">
           {links.map(([title, href, description]) => (
@@ -311,7 +326,8 @@ export function TmargetMarketsPage() {
     const matchesCategory = category === "all" || market.category === category;
     return matchesQuery && matchesCategory;
   });
-  const visibleMarkets = showAllMarkets ? filtered : filtered.slice(0, 5);
+  const sortedMarkets = [...filtered].sort((a, b) => (MARKET_STATUS_RANK[a.status] ?? 9) - (MARKET_STATUS_RANK[b.status] ?? 9));
+  const visibleMarkets = showAllMarkets ? sortedMarkets : sortedMarkets.slice(0, 5);
 
   return (
     <TmargetShell>
@@ -340,7 +356,6 @@ export function TmargetMarketsPage() {
           </select>
         </div>
       </div>
-      <TmargetHowToPlay className="mb-6" />
       {loading && <LoadingBox text="Loading markets..." />}
       <ErrorBox error={error} />
       {!loading && filtered.length === 0 && (
@@ -483,7 +498,6 @@ export function TmargetMarketDetailPlaceholder() {
               </Link>
             </div>
             <p className="mt-5 text-base leading-7 text-zinc-400">{market.description}</p>
-            <TmargetHowToPlay className="mt-6" />
             <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950 p-5">
               <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Resolution Criteria</div>
               <p className="mt-3 text-sm leading-6 text-zinc-400">{market.rule?.resolution_criteria}</p>
@@ -792,8 +806,6 @@ export function TmargetAdminMarketsPage() {
           real funds are involved.
         </aside>
       </div>
-      <TmargetHowToPlay className="mb-8" />
-
       <div className="grid gap-8 lg:grid-cols-[420px_1fr]">
         <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-5">
           <div className="text-xs uppercase tracking-[0.35em] text-zinc-500">Create Demo Market</div>

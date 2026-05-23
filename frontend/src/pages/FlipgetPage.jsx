@@ -10,6 +10,7 @@ const FLIPGET_MODES = [
 ];
 const DEMO_CREDIT_NOTICE =
   "Axwins currently uses internal demo credits only. Deposits, withdrawals, cash-out, crypto, card payments, and real-money trading are not enabled.";
+const TABLE_STATUS_RANK = { waiting: 0, ready: 1, flipping: 2, settled: 3, cancelled: 4 };
 
 function storedUser() {
   try {
@@ -121,9 +122,11 @@ export default function FlipgetPage() {
   const [error, setError] = useState("");
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [showAllTables, setShowAllTables] = useState(false);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const user = storedUser();
   const backendOffline = error.startsWith("Backend is offline.");
-  const visibleTables = showAllTables ? [...tables].reverse() : [...tables].slice(-5).reverse();
+  const sortedTables = [...tables].sort((a, b) => (TABLE_STATUS_RANK[a.status] ?? 9) - (TABLE_STATUS_RANK[b.status] ?? 9));
+  const visibleTables = showAllTables ? sortedTables : sortedTables.slice(0, 5);
 
   const mySeat = useMemo(
     () => table?.seats?.find((seat) => seat.user_id === user?.user_id),
@@ -279,6 +282,7 @@ export default function FlipgetPage() {
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
               <Link className="btn-ghost" to="/">Axwins</Link>
               <Link className="btn-ghost" to="/games">Games</Link>
+              <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(true)}>How to Play</button>
               <Link className="btn-ghost" to="/tmarget">Tmarget</Link>
               <Link className="btn-ghost" to="/wallet">Wallet / Ledger</Link>
             </div>
@@ -286,17 +290,6 @@ export default function FlipgetPage() {
           <div className="mt-6">
             <Notice>{DEMO_CREDIT_NOTICE}</Notice>
           </div>
-          <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
-              <li>Choose Single Flip, Best of 3, or Best of 5.</li>
-              <li>Flipget is always a 2-participant table. The local demo helper can add exactly one demo opponent.</li>
-              <li>Choose heads or tails before every round, then ready up.</li>
-              <li>Single Flip resolves after one flip. Best of 3 requires 2 round wins; Best of 5 requires 3 round wins.</li>
-              <li>Round History shows each completed round, what each participant chose, and who won that round.</li>
-              <li>Leaving during an active match may count as a loss and may lose the reserved demo stake.</li>
-            </ul>
-          </section>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:items-end">
             <label className="text-xs uppercase tracking-widest text-zinc-500">
               Stake
@@ -374,6 +367,25 @@ export default function FlipgetPage() {
               </button>
             )}
           </div>
+          {howToPlayOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+              <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Flipget</div>
+                  <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+                </div>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+                  <li>Flipget is a 2-player coin-flip game.</li>
+                  <li>Choose Single Flip, Best of 3, or Best of 5.</li>
+                  <li>Each round requires a fresh Heads/Tails choice, then both participants ready up before the flip.</li>
+                  <li>Single Flip settles after one flip. Best of 3 requires 2 round wins; Best of 5 requires 3 round wins.</li>
+                  <li>Round History shows the coin result, winning side, winning participant, and each participant choice for every completed round.</li>
+                  <li>The local demo helper can add exactly one demo opponent.</li>
+                  <li>Leaving during an active match may count as a loss and may lose the reserved demo stake.</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -537,6 +549,25 @@ export default function FlipgetPage() {
               }
               navigate(`/flipget/${next.table_id}`);
             })}>Deal Again</button>
+          </div>
+        )}
+        {howToPlayOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-2xl rounded-lg border border-yellow-700/50 bg-zinc-950 p-6 shadow-2xl">
+              <div className="flex items-center justify-between gap-4">
+                <div className="font-display text-2xl tracking-widest text-yellow-100">How to Play Flipget</div>
+                <button className="btn-ghost" type="button" onClick={() => setHowToPlayOpen(false)}>Close</button>
+              </div>
+              <ul className="mt-5 space-y-2 text-sm leading-6 text-zinc-300">
+                <li>Flipget is a 2-player coin-flip game.</li>
+                <li>Choose Single Flip, Best of 3, or Best of 5.</li>
+                <li>Each round requires a fresh Heads/Tails choice, then both participants ready up before the flip.</li>
+                <li>Single Flip settles after one flip. Best of 3 requires 2 round wins; Best of 5 requires 3 round wins.</li>
+                <li>Round History shows the coin result, winning side, winning participant, and each participant choice for every completed round.</li>
+                <li>The local demo helper can add exactly one demo opponent.</li>
+                <li>Leaving during an active match may count as a loss and may lose the reserved demo stake.</li>
+              </ul>
+            </div>
           </div>
         )}
         {exitConfirmOpen && (
