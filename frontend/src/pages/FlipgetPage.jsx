@@ -349,11 +349,13 @@ export default function FlipgetPage() {
                   <div className="text-sm text-zinc-500">{item.seats.length}/2 seats / {item.status} / Round {item.current_round_number || 1}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                  <button className="btn-secondary" disabled={busy || backendOffline || item.status !== "waiting"} onClick={() => run(async () => {
-                    await api(`/tables/${item.table_id}/join`, { method: "POST" });
-                    navigate(`/flipget/${item.table_id}`);
-                  })}>Join Table</button>
-                  <Link className="btn-ghost" to={`/flipget/${item.table_id}`}>View</Link>
+                  {item.status === "waiting" && (
+                    <button className="btn-secondary" disabled={busy || backendOffline} onClick={() => run(async () => {
+                      await api(`/tables/${item.table_id}/join`, { method: "POST" });
+                      navigate(`/flipget/${item.table_id}`);
+                    })}>Join Table</button>
+                  )}
+                  <Link className="btn-ghost" to={`/flipget/${item.table_id}`}>{item.status === "waiting" ? "View" : "View Table"}</Link>
                 </div>
               </div>
             ))}

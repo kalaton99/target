@@ -88,6 +88,16 @@ def test_lobby_lists_filter_or_deprioritize_stale_tables():
     assert "TABLE_STATUS_RANK" in jackget
 
 
+def test_settled_game_tables_are_view_only_in_lobby_actions():
+    for relative in (
+        "frontend/src/pages/DicegetPage.jsx",
+        "frontend/src/pages/FlipgetPage.jsx",
+    ):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert 'item.status === "waiting" && (' in source
+        assert 'item.status === "waiting" ? "View" : "View Table"' in source
+
+
 def test_how_to_play_copy_covers_current_rules():
     target = (ROOT / "frontend/src/pages/LobbyPage.jsx").read_text(encoding="utf-8")
     diceget = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")

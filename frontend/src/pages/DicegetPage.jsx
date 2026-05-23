@@ -321,11 +321,13 @@ export default function DicegetPage() {
                   <div className="text-sm text-zinc-500">{item.seats.length}/4 seats / {item.status}</div>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                  <button className="btn-secondary" disabled={busy || backendOffline || item.status !== "waiting"} onClick={() => run(async () => {
-                    await api(`/tables/${item.table_id}/join`, { method: "POST" });
-                    navigate(`/diceget/${item.table_id}`);
-                  })}>Join Table</button>
-                  <Link className="btn-ghost" to={`/diceget/${item.table_id}`}>View</Link>
+                  {item.status === "waiting" && (
+                    <button className="btn-secondary" disabled={busy || backendOffline} onClick={() => run(async () => {
+                      await api(`/tables/${item.table_id}/join`, { method: "POST" });
+                      navigate(`/diceget/${item.table_id}`);
+                    })}>Join Table</button>
+                  )}
+                  <Link className="btn-ghost" to={`/diceget/${item.table_id}`}>{item.status === "waiting" ? "View" : "View Table"}</Link>
                 </div>
               </div>
             ))}
