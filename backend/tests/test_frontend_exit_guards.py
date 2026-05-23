@@ -75,14 +75,20 @@ def test_lobby_lists_default_to_five_visible_rows_without_backend_caps():
 
 def test_lobby_lists_filter_or_deprioritize_stale_tables():
     target = (ROOT / "frontend/src/pages/LobbyPage.jsx").read_text(encoding="utf-8")
+    target_service = (ROOT / "backend/lobby/service.py").read_text(encoding="utf-8")
     diceget = (ROOT / "frontend/src/pages/DicegetPage.jsx").read_text(encoding="utf-8")
     flipget = (ROOT / "frontend/src/pages/FlipgetPage.jsx").read_text(encoding="utf-8")
     jackget = (ROOT / "frontend/src/pages/JackgetPage.jsx").read_text(encoding="utf-8")
 
     assert "VALID_TARGET_TIERS" in target
+    assert "TARGET_TABLE_STATUS_RANK" in target
+    assert "currentTargetTables.length === 0" in target
+    assert "No current Target tables for tiers 31, 41, 51, or 61." in target
     for legacy in ("new Set([30", "50, 75, 100", "target 30", "target 100"):
         assert legacy not in target
-    assert "currentTargetTables = tables.filter" in target
+    assert "const currentTargetTables = tables" in target
+    assert ".filter((table) => VALID_TARGET_TIERS.has(Number(table.target_score)))" in target
+    assert '"target_score": {"$in": list(VALID_TARGET_SCORES)}' in target_service
     assert "TABLE_STATUS_RANK" in diceget
     assert "TABLE_STATUS_RANK" in flipget
     assert "TABLE_STATUS_RANK" in jackget
@@ -105,7 +111,7 @@ def test_how_to_play_copy_covers_current_rules():
     jackget = (ROOT / "frontend/src/pages/JackgetPage.jsx").read_text(encoding="utf-8")
     tmarget = (ROOT / "frontend/src/pages/TmargetPages.jsx").read_text(encoding="utf-8")
 
-    for text in ("31, 41, 51, and 61", "31/41 use 4-seat tables", "J/Q/K score 10", "5 cards", "reserved demo stake"):
+    for text in ("31, 41, 51, and 61", "31/41 use 4-seat tables", "J scores 7", "Q scores 8", "K scores 9", "5 cards", "reserved demo stake"):
         assert text in target
     for text in ("Sprint 40", "Classic 70", "Marathon 120", "roll dice", "Give Up"):
         assert text in diceget

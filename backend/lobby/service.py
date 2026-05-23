@@ -153,7 +153,10 @@ async def create_table(
 
 
 async def list_tables(db: AsyncIOMotorDatabase, status: str = "LOBBY") -> List[Dict[str, Any]]:
-    cursor = db["lobby_tables"].find({"status": status}, {"_id": 0}).sort("created_at", -1)
+    cursor = db["lobby_tables"].find(
+        {"status": status, "target_score": {"$in": list(VALID_TARGET_SCORES)}},
+        {"_id": 0},
+    ).sort("created_at", -1)
     return [_public_table(d) async for d in cursor]
 
 

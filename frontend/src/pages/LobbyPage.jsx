@@ -17,6 +17,7 @@ const REDIRECT_MESSAGES = {
   signin_required: "Please sign in to continue.",
 };
 const VALID_TARGET_TIERS = new Set([31, 41, 51, 61]);
+const TARGET_TABLE_STATUS_RANK = { LOBBY: 0, RUNNING: 1, ENDED: 2 };
 
 function LS() {
   const get = () => {
@@ -74,7 +75,16 @@ export default function LobbyPage() {
     ?? config.bot_count_max
     ?? 0;
   const seatsForTarget = config.table_seats_by_target?.[Number(target)] ?? null;
-  const currentTargetTables = tables.filter((table) => VALID_TARGET_TIERS.has(Number(table.target_score)));
+  const currentTargetTables = tables
+    .filter((table) => VALID_TARGET_TIERS.has(Number(table.target_score)))
+    .sort((a, b) => {
+      const aFull = (a.seats?.length || 0) >= Number(a.max_players || 0);
+      const bFull = (b.seats?.length || 0) >= Number(b.max_players || 0);
+      if (aFull !== bFull) return aFull ? 1 : -1;
+      const statusDelta = (TARGET_TABLE_STATUS_RANK[a.status] ?? 9) - (TARGET_TABLE_STATUS_RANK[b.status] ?? 9);
+      if (statusDelta !== 0) return statusDelta;
+      return Number(b.created_at || 0) - Number(a.created_at || 0);
+    });
   const visibleTables = showAllTables ? currentTargetTables : currentTargetTables.slice(0, 5);
   // If the user switches target downward (e.g. 61 -> 31) while bots
   // were set to 4, clamp the input so we don't submit an invalid value.
@@ -436,8 +446,8 @@ export default function LobbyPage() {
           </button>
         </div>
         <div className="space-y-2" data-testid="tables-list">
-          {tables.length === 0 && (
-            <div className="text-zinc-600 italic" data-testid="tables-empty">No tables yet — create one above.</div>
+          {currentTargetTables.length === 0 && (
+            <div className="text-zinc-600 italic" data-testid="tables-empty">No current Target tables for tiers 31, 41, 51, or 61. Create one above.</div>
           )}
           {visibleTables.map((t) => {
             const seated = t.seats.some((s) => s.user_id === user.user_id);
@@ -534,7 +544,7 @@ export default function LobbyPage() {
                 </div>
                 <div className="rounded border border-zinc-800 bg-black/40 p-4">
                   <div className="text-yellow-400 text-base font-semibold mb-2">Card scoring and special cards</div>
-                  <p>Cards 2-10 score face value, A scores 1, and J/Q/K score 10. Drawing a Joker disqualifies that player for the hand under the current rules. Going over the table target can bust or disqualify the hand.</p>
+                  <p>Cards 2-10 score face value, A scores 1, J scores 7, Q scores 8, and K scores 9. Aces can count higher when it fits under the target. Drawing a Joker disqualifies that player for the hand under the current rules. Going over the table target can bust or disqualify the hand.</p>
                 </div>
                 <div className="rounded border border-zinc-800 bg-black/40 p-4">
                   <div className="text-yellow-400 text-base font-semibold mb-2">Turn flow</div>
