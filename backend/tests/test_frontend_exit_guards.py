@@ -53,7 +53,9 @@ def test_game_lobbies_explain_rules_without_separate_quick_table_panels():
         source = path.read_text(encoding="utf-8")
         assert "How to Play" in source, name
         assert "howToPlayOpen" in source, name
+        assert "useState(false)" in source, name
         assert "setHowToPlayOpen(true)" in source, name
+        assert "setHowToPlayOpen(false)" in source, name
         assert "Close" in source, name
         assert "Joinable Demo Tables" not in source, name
         assert "Quick Table" not in source, name
@@ -117,10 +119,18 @@ def test_how_to_play_copy_covers_current_rules():
         assert text in diceget
     for text in ("Single Flip", "Best of 3", "Best of 5", "fresh Heads/Tails choice", "one demo opponent"):
         assert text in flipget
-    for text in ("2-4 players", "3-reel slot", "exactly 3 spins", "Demo opponents spin automatically"):
+    for text in ("2-4 players", "3-reel slot", "exactly 3 spins", "Demo opponents spin automatically", "Three Sevens score 100 points", "Two matching reels score 15"):
         assert text in jackget
-    for text in ("demo prediction-market product", "YES/NO positions", "Market volume", "No real-money trading"):
+    for text in ("demo prediction-market product", "YES/NO positions", "Market volume", "draft, open, paused, closed, resolved, and cancelled", "Admin Markets", "No real-money trading", "oracle", "KYC", "dispute", "order book"):
         assert text in tmarget
+
+
+def test_jackget_copy_does_not_send_players_through_target_lobby():
+    source = (ROOT / "frontend/src/pages/JackgetPage.jsx").read_text(encoding="utf-8")
+
+    assert "Target lobby before opening Jackget" not in source
+    assert "Open Target Lobby" not in source
+    assert "platform lobby before opening Jackget" in source
 
 
 def test_diceget_visible_surrender_copy_is_clear_without_renaming_api():

@@ -242,11 +242,14 @@ function TmargetHowToPlay({ className = "" }) {
       <div className="text-xs uppercase tracking-widest text-zinc-500">How to Play</div>
       <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-400">
         <li>Tmarget is a demo prediction-market product, not a game.</li>
+        <li>Market lifecycle states are draft, open, paused, closed, resolved, and cancelled.</li>
         <li>Open markets let signed-in users buy or sell YES/NO positions with internal demo credits only.</li>
         <li>Positions show how many demo shares you hold on each outcome.</li>
         <li>Market volume increases when demo-credit buy or sell trades are recorded.</li>
-        <li>Draft markets must be opened from Admin Markets before buying or selling is enabled.</li>
-        <li>Resolved or cancelled markets use the current demo backend settlement/refund rules. No real-money trading is enabled.</li>
+        <li>Public market pages show the market, prices, positions, trades, and disabled reasons. Admin Markets is the demo-only place for create/open/pause/close/resolve/cancel lifecycle controls.</li>
+        <li>Draft markets must be opened from Admin Markets before buying or selling is enabled. Paused and closed markets block new trades until lifecycle controls change state.</li>
+        <li>Resolved or cancelled markets use the current demo backend settlement/refund rules.</li>
+        <li>No real-money trading, oracle, KYC, dispute, order book, deposits, withdrawals, or production market behavior is enabled here.</li>
       </ul>
     </section>
   );

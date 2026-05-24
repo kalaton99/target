@@ -128,9 +128,9 @@ export default function JackgetPage() {
       <div className="min-h-screen bg-black text-zinc-100 p-6 flex items-center justify-center">
         <div className="max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 text-center">
           <h1 className="font-display text-4xl tracking-widest">Jackget</h1>
-          <p className="mt-3 text-sm text-zinc-500">Register a local demo username in the Target lobby before opening Jackget.</p>
+          <p className="mt-3 text-sm text-zinc-500">Register a local demo username in the platform lobby before opening Jackget.</p>
           <Link className="mt-5 inline-flex rounded border border-yellow-700/60 px-4 py-2 text-xs uppercase tracking-widest text-yellow-300" to="/lobby">
-            Open Target Lobby
+            Open Platform Lobby
           </Link>
         </div>
       </div>
@@ -219,7 +219,8 @@ export default function JackgetPage() {
                   <li>Tables seat 2-4 players, and each participant has a 3-reel slot display.</li>
                   <li>Each player gets exactly 3 spins total. Turns rotate between players.</li>
                   <li>Human players press Spin only on their own turn. Demo opponents spin automatically on their turn.</li>
-                  <li>Numbers and symbols award points according to the current backend scoring rules for triples, pairs, and mixed results.</li>
+                  <li>Three Sevens score 100 points, Diamonds 90, Crowns 80, Stars 70, Bells 60, and Cherries 50.</li>
+                  <li>Three matching numbers score the number times 10. Two matching reels score 15. Mixed reels add numeric values, while symbols count as 5 each.</li>
                   <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
                   <li>Leaving during an active table may count as a loss and may lose the reserved demo stake.</li>
                 </ul>
@@ -347,7 +348,8 @@ export default function JackgetPage() {
               <li>Tables seat 2-4 players, and each participant has a 3-reel slot display.</li>
               <li>Each player gets exactly 3 spins total. Turns rotate between players.</li>
               <li>Human players press Spin only on their own turn. Demo opponents spin automatically on their turn.</li>
-              <li>Numbers and symbols award points according to the current backend scoring rules for triples, pairs, and mixed results.</li>
+              <li>Three Sevens score 100 points, Diamonds 90, Crowns 80, Stars 70, Bells 60, and Cherries 50.</li>
+              <li>Three matching numbers score the number times 10. Two matching reels score 15. Mixed reels add numeric values, while symbols count as 5 each.</li>
               <li>After all players finish 3 spins, the highest total score wins. Ties can show multiple winners.</li>
               <li>Leaving during an active table may count as a loss and may lose the reserved demo stake.</li>
             </ul>
