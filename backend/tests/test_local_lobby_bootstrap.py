@@ -7,7 +7,7 @@ from diceget.service import DicegetService
 from flipget.models import FLIPGET_MODES
 from flipget.service import FlipgetService
 from jackget.models import JACKGET_MAX_PLAYERS, JACKGET_MIN_PLAYERS
-from jackget.service import JackgetService
+from jackget.service import JackgetError, JackgetService
 from lobby import service as target_lobby_service
 
 
@@ -164,8 +164,45 @@ def test_jackget_bootstrap_table_transfers_creator_to_first_joiner(monkeypatch):
     joined = service.join_table(table_id=seeded["table_id"], user_id="u_real", username="Player")
 
     assert joined.creator_user_id == "u_real"
-    assert len(joined.seats) == 1
+    assert len(joined.seats) == joined.max_players
     assert joined.seats[0].username == "Player"
+    assert not joined.seats[0].is_demo
+    assert all(seat.is_demo for seat in joined.seats[1:])
+    assert joined.status == "ready"
+
+
+def test_jackget_seeded_table_cannot_be_filled_with_only_demo_opponents(monkeypatch):
+    monkeypatch.setenv("WINSGET_LOCAL_TABLE_BOOTSTRAP", "1")
+    service = JackgetService()
+    seeded = service.list_tables()[0]
+
+    with pytest.raises(JackgetError) as blocked:
+        service.add_demo_opponents(table_id=seeded["table_id"])
+
+    assert getattr(blocked.value, "code", "") == "REQUIRES_HUMAN_PLAYER"
+    table = service.get_table(seeded["table_id"])
+    assert table.seats == []
+
+
+def test_jackget_seeded_table_join_then_start_autoplays_demo_turns(monkeypatch):
+    monkeypatch.setenv("WINSGET_LOCAL_TABLE_BOOTSTRAP", "1")
+    sequence = iter(["Cherry", "Cherry", "Cherry"] * 18)
+    service = JackgetService(reel_rng=lambda: next(sequence))
+    seeded = service.list_tables()[0]
+
+    joined = service.join_table(table_id=seeded["table_id"], user_id="u_real", username="Player")
+    assert joined.creator_user_id == "u_real"
+    assert len(joined.seats) == joined.max_players
+    assert any(seat.user_id == "u_real" and not seat.is_demo for seat in joined.seats)
+    assert any(seat.is_demo for seat in joined.seats)
+
+    started = service.start_table(table_id=seeded["table_id"], user_id="u_real")
+    assert started.current_turn_user_id == "u_real"
+    spun = service.spin(table_id=seeded["table_id"], user_id="u_real")
+
+    assert len(spun.seats[0].spins) == 1
+    assert all(len(seat.spins) == 1 for seat in spun.seats[1:])
+    assert spun.current_turn_user_id == "u_real"
 
 
 async def test_target_bootstrap_creates_valid_real_lobby_tables_and_transfers_creator(monkeypatch):

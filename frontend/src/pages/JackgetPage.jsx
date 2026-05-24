@@ -106,6 +106,12 @@ export default function JackgetPage() {
     navigate(`/jackget/${created.table_id}`);
   }
 
+  async function joinTable(joinTableId) {
+    const joined = await request(`/api/jackget/tables/${joinTableId}/join`, { method: "POST" });
+    setTable(joined);
+    navigate(`/jackget/${joined.table_id}`);
+  }
+
   async function action(path, body = null) {
     const updated = await request(path, {
       method: "POST",
@@ -186,16 +192,36 @@ export default function JackgetPage() {
             {loading && <div className="text-sm text-zinc-500">Loading Jackget tables...</div>}
             {!loading && tables.length === 0 && <div className="text-sm text-zinc-500">No Jackget tables yet.</div>}
             <div className="space-y-2">
-              {visibleTables.map((item) => (
-                <Link
-                  key={item.table_id}
-                  to={`/jackget/${item.table_id}`}
-                  className="flex items-center justify-between rounded border border-zinc-800 bg-black/30 p-3 text-sm hover:border-yellow-700/50"
-                >
-                  <span>{item.table_id}</span>
-                  <span className="text-zinc-500">{item.seats?.length || 0}/{item.max_players} seated / {item.status}</span>
-                </Link>
-              ))}
+              {visibleTables.map((item) => {
+                const isJoinable = ["waiting", "ready"].includes(item.status) && (item.seats?.length || 0) < item.max_players;
+                return (
+                  <div
+                    key={item.table_id}
+                    className="flex items-center justify-between rounded border border-zinc-800 bg-black/30 p-3 text-sm hover:border-yellow-700/50"
+                  >
+                    <div>
+                      <div>{item.table_id}</div>
+                      <div className="text-xs text-zinc-500">{item.seats?.length || 0}/{item.max_players} seated / {item.status}</div>
+                    </div>
+                    {isJoinable ? (
+                      <button
+                        type="button"
+                        onClick={() => joinTable(item.table_id)}
+                        className="rounded border border-yellow-700/60 px-3 py-2 text-xs uppercase tracking-widest text-yellow-300 hover:bg-yellow-500/10"
+                      >
+                        Join Table
+                      </button>
+                    ) : (
+                      <Link
+                        to={`/jackget/${item.table_id}`}
+                        className="rounded border border-zinc-700 px-3 py-2 text-xs uppercase tracking-widest text-zinc-300 hover:bg-zinc-900"
+                      >
+                        View Table
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
               {!showAllTables && tables.length > 5 && (
                 <button
                   type="button"

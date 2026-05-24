@@ -159,6 +159,7 @@ class JackgetService:
         )
         if is_local_demo_creator(table.creator_user_id) and len(table.seats) == 1:
             table.creator_user_id = user_id
+            self.add_demo_opponents(table_id=table_id)
         self._refresh_waiting_status(table)
         return table
 
@@ -166,6 +167,8 @@ class JackgetService:
         table = self.get_table(table_id)
         if table.status not in {"waiting", "ready"}:
             raise JackgetError("TABLE_NOT_JOINABLE")
+        if not any(not seat.is_demo for seat in table.seats):
+            raise JackgetError("REQUIRES_HUMAN_PLAYER", "Join the Jackget table before adding demo opponents")
         while len(table.seats) < table.max_players:
             idx = len(table.seats)
             table.seats.append(
