@@ -1,28 +1,28 @@
-# Axwins Documentation Index
+# Winsget Documentation Index
 
 ## Purpose
 
-This index maps the current Axwins documentation set and records the boundaries
+This index maps the current Winsget documentation set and records the boundaries
 that must remain clear during future development. It is intended for developers
 and reviewers who need a quick path through the current demo-release material.
 
 ## Product Boundaries
 
-- Axwins is the platform.
-- Target, Diceget, Flipget, and Jackget are games inside Axwins.
+- Winsget is the platform.
+- Target, Diceget, Flipget, and Jackget are games inside Winsget.
 - Target gameplay work is handled separately and should not be mixed into
   platform documentation or Tmarget work.
 - Tmarget is not a game. It is a separate demo prediction market product inside
-  Axwins.
+  Winsget.
 - Wallet, Ledger, Transaction History, and Internal Demo Credits are shared
-  Axwins platform core services.
+  Winsget platform core services.
 
 ## Required Internal Demo-Credit Disclaimer
 
 Use this exact disclaimer wherever user-facing demo-credit/payment boundaries
 need to be stated:
 
-> Axwins currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.
+> Winsget currently uses internal demo credits. Live deposits, withdrawals, card payments, crypto transfers, Telegram wallet linking, and real-money trading are not enabled.
 
 ## Document Map
 
@@ -30,7 +30,7 @@ need to be stated:
   - Release/demo scope, route inventory, demo flow, red flags, and next phase
     options.
 - `AXWINS_DEMO_WALKTHROUGH.md`
-  - Presenter script for safely walking through the Axwins demo, including
+  - Presenter script for safely walking through the Winsget demo, including
     product boundaries, talking points, known limitations, and stop conditions.
 - `AXWINS_LOCAL_DEV_STARTUP.md`
   - Windows PowerShell local startup guide for MongoDB, backend, frontend,
@@ -48,6 +48,14 @@ need to be stated:
 - `AXWINS_ADMIN_CONTROL_PLANE_PHASE0.md`
   - Planning-only admin control plane outline covering future roles, explicit
     product boundaries, audit logging, operational controls, and non-goals.
+- `WINSGET_ADMIN_CONTROL_PLANE_PHASE1.md`
+  - Planning-only Phase 1 architecture for future admin table management,
+    bot-seeded tables, tournaments/events, match inspection, promotional
+    campaign planning, roles, audit logs, risks, and tests.
+- `WINSGET_WALLET_PAYMENT_ROADMAP.md`
+  - Planning-only future wallet/payment roadmap for credit card, Solana,
+    Ethereum, Base L2, and Telegram connection options. It does not implement
+    provider SDKs or runtime funding behavior.
 - `EXTERNAL_TARGET_REFERENCE_AUDIT.md`
   - Read-only audit of the separate external Target reference repository and
     recommendations for future reviewed Target-only integration.
@@ -83,6 +91,10 @@ need to be stated:
   - Future durable repository plan for Tmarget, grounded in the current
     repository contract and contract tests. It does not implement durable
     storage.
+- `TMARGET_MARKET_ADMIN_ROADMAP.md`
+  - Planning-only Tmarget market lifecycle and moderation roadmap covering
+    draft/open/paused/closed/resolved/cancelled states, admin controls,
+    audit logging, operational safety, and non-goals.
 - `TMARGET_DURABLE_BACKEND_SELECTION.md`
   - Future durable backend evaluation and direction. It recommends Postgres as
     the future backend candidate and SQLite as a local-only fallback option.
@@ -111,29 +123,32 @@ need to be stated:
 5. `AXWINS_PRODUCT_IDENTITY_BOUNDARY_AUDIT.md`
 6. `AXWINS_PRODUCT_DECISION_PROPOSAL.md`
 7. `AXWINS_ADMIN_CONTROL_PLANE_PHASE0.md`
-8. `EXTERNAL_TARGET_REFERENCE_AUDIT.md`
-9. `TARGET_GAMEPLAY_INTEGRATION_PLAN.md`
-10. `TARGET_EXTERNAL_REFERENCE_COMPARISON.md`
-11. `WINSGET_FUTURE_PLATFORM_ROADMAP.md`
-12. `AXWINS_WALLET_LEDGER_MODEL.md`
-13. `DICEGET_FLIPGET_PLAYTEST_QA.md`
-14. `JACKGET_GAME_RULES_DRAFT.md`
-15. `AXWINS_DEPLOYMENT_PREP.md`
-16. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
-17. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
-18. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
-19. `TMARGET_DURABLE_BACKEND_SELECTION.md`
-20. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
-21. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
-22. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
-23. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
-24. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
+8. `WINSGET_ADMIN_CONTROL_PLANE_PHASE1.md`
+9. `WINSGET_WALLET_PAYMENT_ROADMAP.md`
+10. `EXTERNAL_TARGET_REFERENCE_AUDIT.md`
+11. `TARGET_GAMEPLAY_INTEGRATION_PLAN.md`
+12. `TARGET_EXTERNAL_REFERENCE_COMPARISON.md`
+13. `WINSGET_FUTURE_PLATFORM_ROADMAP.md`
+14. `AXWINS_WALLET_LEDGER_MODEL.md`
+15. `DICEGET_FLIPGET_PLAYTEST_QA.md`
+16. `JACKGET_GAME_RULES_DRAFT.md`
+17. `AXWINS_DEPLOYMENT_PREP.md`
+18. `AXWINS_HOSTING_DEPLOYMENT_PLAN.md`
+19. `AXWINS_INTERNAL_DEMO_DEPLOYMENT.md`
+20. `TMARGET_MARKET_ADMIN_ROADMAP.md`
+21. `TMARGET_DURABLE_REPOSITORY_PLAN.md`
+22. `TMARGET_DURABLE_BACKEND_SELECTION.md`
+23. `TMARGET_POSTGRES_SCHEMA_DRAFT.md`
+24. `TMARGET_POSTGRES_ADAPTER_MAPPING_PLAN.md`
+25. `TMARGET_POSTGRES_TEST_DB_STRATEGY.md`
+26. `TMARGET_POSTGRES_DOCKER_COMPOSE_PLAN.md`
+27. `TMARGET_POSTGRES_COMPOSE_DRAFT_RULES.md`
 
 ## Current Release / Demo State
 
 Current demo-ready scope includes:
 
-- Axwins platform shell.
+- Winsget platform shell.
 - Games navigation for Target, Diceget, Flipget, and Jackget.
 - Diceget demo game module.
 - Flipget demo game module.
@@ -168,7 +183,7 @@ Unless a future task explicitly scopes the work:
 
 Potential future phases, each requiring its own explicit scope:
 
-- Axwins deployment preparation and hosted demo validation.
+- Winsget deployment preparation and hosted demo validation.
 - Wallet/Ledger developer documentation expansion.
 - Tmarget durable repository implementation planning and inactive adapter
   scaffolding.
