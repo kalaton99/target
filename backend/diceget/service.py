@@ -7,6 +7,13 @@ from typing import Any, Callable, Optional
 
 from ledger.service import LedgerService
 
+from local_demo_bootstrap import (
+    LOCAL_DEMO_CREATOR_PREFIX,
+    LOCAL_TABLE_BOOTSTRAP_COUNT,
+    is_local_demo_creator,
+    local_table_bootstrap_enabled,
+)
+
 from .bots import should_bot_hold
 from .models import (
     DICEGET_SEATS,
@@ -41,7 +48,38 @@ class DicegetService:
         self._dice_rng = dice_rng or (lambda: random.SystemRandom().randint(1, 6))
 
     def list_tables(self) -> list[dict[str, Any]]:
+        if local_table_bootstrap_enabled():
+            self.ensure_default_local_tables()
         return [table.to_dict() for table in self.tables.values()]
+
+    def ensure_default_local_tables(self, desired_count: int = LOCAL_TABLE_BOOTSTRAP_COUNT) -> list[DicegetTable]:
+        joinable = [
+            table
+            for table in self.tables.values()
+            if table.status == "waiting"
+            and table.target_score in SUPPORTED_SCORE_GOALS
+            and len(table.seats) < DICEGET_SEATS
+        ]
+        modes = [40, 70, 120, 40, 70]
+        missing = max(0, desired_count - len(joinable))
+        for index in range(missing):
+            goal = modes[(len(joinable) + index) % len(modes)]
+            table_id = _new_id("dg_tbl")
+            self.tables[table_id] = DicegetTable(
+                id=table_id,
+                target_score=goal,
+                stake=100,
+                creator_user_id=f"{LOCAL_DEMO_CREATOR_PREFIX}_diceget",
+                created_at=_now(),
+                round_id=_new_id("dg_round"),
+            )
+        return [
+            table
+            for table in self.tables.values()
+            if table.status == "waiting"
+            and table.target_score in SUPPORTED_SCORE_GOALS
+            and len(table.seats) < DICEGET_SEATS
+        ]
 
     def get_table(self, table_id: str) -> DicegetTable:
         table = self.tables.get(table_id)
@@ -100,6 +138,8 @@ class DicegetService:
                 seat_index=len(table.seats),
             )
         )
+        if is_local_demo_creator(table.creator_user_id) and len(table.seats) == 1:
+            table.creator_user_id = user_id
         return table
 
     def add_bot(

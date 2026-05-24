@@ -7,6 +7,13 @@ from typing import Any, Callable, Optional
 
 from ledger.service import LedgerService
 
+from local_demo_bootstrap import (
+    LOCAL_DEMO_CREATOR_PREFIX,
+    LOCAL_TABLE_BOOTSTRAP_COUNT,
+    is_local_demo_creator,
+    local_table_bootstrap_enabled,
+)
+
 from .models import FLIPGET_MODES, FLIPGET_SEATS, SIDES, FlipgetRound, FlipgetSeat, FlipgetTable, Side
 from .wallet_bridge import FlipgetPayoutParticipant, settle_flipget_payout
 
@@ -32,7 +39,45 @@ class FlipgetService:
         self._coin_rng = coin_rng or (lambda: random.SystemRandom().choice(["heads", "tails"]))
 
     def list_tables(self) -> list[dict[str, Any]]:
+        if local_table_bootstrap_enabled():
+            self.ensure_default_local_tables()
         return [table.to_dict() for table in self.tables.values()]
+
+    def ensure_default_local_tables(self, desired_count: int = LOCAL_TABLE_BOOTSTRAP_COUNT) -> list[FlipgetTable]:
+        joinable = [
+            table
+            for table in self.tables.values()
+            if table.status in {"waiting", "ready"}
+            and table.mode in FLIPGET_MODES
+            and len(table.seats) < FLIPGET_SEATS
+        ]
+        modes = ["single_flip", "best_of_3", "best_of_5", "single_flip", "best_of_3"]
+        missing = max(0, desired_count - len(joinable))
+        for index in range(missing):
+            mode = modes[(len(joinable) + index) % len(modes)]
+            table_id = _new_id("fg_tbl")
+            opening_round = FlipgetRound(
+                id=_new_id("fg_round"),
+                table_id=table_id,
+                round_number=1,
+                created_at=_now(),
+            )
+            self.tables[table_id] = FlipgetTable(
+                id=table_id,
+                creator_user_id=f"{LOCAL_DEMO_CREATOR_PREFIX}_flipget",
+                stake_amount=100,
+                mode=mode,  # type: ignore[arg-type]
+                created_at=_now(),
+                round=opening_round,
+                rounds=[opening_round],
+            )
+        return [
+            table
+            for table in self.tables.values()
+            if table.status in {"waiting", "ready"}
+            and table.mode in FLIPGET_MODES
+            and len(table.seats) < FLIPGET_SEATS
+        ]
 
     def get_table(self, table_id: str) -> FlipgetTable:
         table = self.tables.get(table_id)
@@ -100,6 +145,8 @@ class FlipgetService:
                 joined_at=_now(),
             )
         )
+        if is_local_demo_creator(table.creator_user_id) and len(table.seats) == 1:
+            table.creator_user_id = user_id
         table.status = self._status_before_flip(table)
         return table
 

@@ -90,6 +90,7 @@ $env:CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 $env:ALLOW_GUEST_AUTH="1"
 $env:TARGET_ALLOW_BOTS="1"
 $env:TARGET_BOT_COUNT_MAX="4"
+$env:WINSGET_LOCAL_TABLE_BOOTSTRAP="1"
 $env:TMARGET_DEMO_ADMIN_ENABLED="1"
 
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8000 --reload
@@ -243,6 +244,14 @@ failed WebSocket requests to Axwins API paths.
 The `/play` quick bot flow depends on local dev bots. For this local guide,
 `TARGET_ALLOW_BOTS=1` and `TARGET_BOT_COUNT_MAX=4` enable that demo path. Target 31/41 tables can auto-fill 3 demo bot seats, while Target 51/61 tables can auto-fill 4 demo bot seats.
 Do not use bot settings to imply production gameplay or real-money behavior.
+
+### Local Lobby Bootstrap
+
+`WINSGET_LOCAL_TABLE_BOOTSTRAP=1` enables local/demo lobby bootstrap tables for
+Target, Diceget, Flipget, and Jackget. The backend creates only enough real
+waiting/open product tables to bring each normal lobby list up to five joinable
+rows. These are not separate quick-table panels, and the setting does not hard
+cap later user-created or admin-created tables.
 
 ## Non-Goals
 

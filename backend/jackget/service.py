@@ -5,6 +5,13 @@ import time
 import uuid
 from typing import Any, Callable, Optional
 
+from local_demo_bootstrap import (
+    LOCAL_DEMO_CREATOR_PREFIX,
+    LOCAL_TABLE_BOOTSTRAP_COUNT,
+    is_local_demo_creator,
+    local_table_bootstrap_enabled,
+)
+
 from .models import (
     JACKGET_MAX_PLAYERS,
     JACKGET_MIN_PLAYERS,
@@ -70,7 +77,36 @@ class JackgetService:
         self._reel_rng = reel_rng or (lambda: random.SystemRandom().choice(JACKGET_REEL_SYMBOLS))
 
     def list_tables(self) -> list[dict[str, Any]]:
+        if local_table_bootstrap_enabled():
+            self.ensure_default_local_tables()
         return [table.to_dict() for table in self.tables.values()]
+
+    def ensure_default_local_tables(self, desired_count: int = LOCAL_TABLE_BOOTSTRAP_COUNT) -> list[JackgetTable]:
+        joinable = [
+            table
+            for table in self.tables.values()
+            if table.status in {"waiting", "ready"}
+            and JACKGET_MIN_PLAYERS <= table.max_players <= JACKGET_MAX_PLAYERS
+            and len(table.seats) < table.max_players
+        ]
+        sizes = [2, 3, 4, 2, 4]
+        missing = max(0, desired_count - len(joinable))
+        for index in range(missing):
+            max_players = sizes[(len(joinable) + index) % len(sizes)]
+            table_id = _new_id("jg_tbl")
+            self.tables[table_id] = JackgetTable(
+                id=table_id,
+                creator_user_id=f"{LOCAL_DEMO_CREATOR_PREFIX}_jackget",
+                max_players=max_players,
+                created_at=_now(),
+            )
+        return [
+            table
+            for table in self.tables.values()
+            if table.status in {"waiting", "ready"}
+            and JACKGET_MIN_PLAYERS <= table.max_players <= JACKGET_MAX_PLAYERS
+            and len(table.seats) < table.max_players
+        ]
 
     def get_table(self, table_id: str) -> JackgetTable:
         table = self.tables.get(table_id)
@@ -121,6 +157,8 @@ class JackgetService:
                 seat_index=len(table.seats),
             )
         )
+        if is_local_demo_creator(table.creator_user_id) and len(table.seats) == 1:
+            table.creator_user_id = user_id
         self._refresh_waiting_status(table)
         return table
 

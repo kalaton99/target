@@ -19,12 +19,20 @@ from typing import Any, Dict, List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from core.constants import (
+    ALLOW_BOTS,
     DEFAULT_TARGET_SCORE,
     MAX_PLAYERS,
     MIN_PLAYERS,
     VALID_TARGET_SCORES,
+    max_bots_for_target,
     min_seated_for_target,
     seats_for_target,
+)
+from local_demo_bootstrap import (
+    LOCAL_DEMO_CREATOR_PREFIX,
+    LOCAL_TABLE_BOOTSTRAP_COUNT,
+    is_local_demo_creator,
+    local_table_bootstrap_enabled,
 )
 
 
@@ -153,11 +161,54 @@ async def create_table(
 
 
 async def list_tables(db: AsyncIOMotorDatabase, status: str = "LOBBY") -> List[Dict[str, Any]]:
+    if status == "LOBBY" and local_table_bootstrap_enabled():
+        await ensure_default_local_tables(db)
+    return await _list_tables(db, status=status)
+
+
+async def _list_tables(db: AsyncIOMotorDatabase, status: str = "LOBBY") -> List[Dict[str, Any]]:
     cursor = db["lobby_tables"].find(
         {"status": status, "target_score": {"$in": list(VALID_TARGET_SCORES)}},
         {"_id": 0},
     ).sort("created_at", -1)
     return [_public_table(d) async for d in cursor]
+
+
+async def ensure_default_local_tables(
+    db: AsyncIOMotorDatabase,
+    desired_count: int = LOCAL_TABLE_BOOTSTRAP_COUNT,
+) -> List[Dict[str, Any]]:
+    current = [
+        table
+        for table in await _list_tables(db, status="LOBBY")
+        if len(table.get("seats", [])) < int(table.get("max_players", 0))
+    ]
+    targets = [31, 41, 51, 61, 31]
+    missing = max(0, desired_count - len(current))
+    for index in range(missing):
+        target_score = targets[(len(current) + index) % len(targets)]
+        table_id = f"tbl_{uuid.uuid4().hex[:12]}"
+        doc = {
+            "table_id": table_id,
+            "name": f"Local Demo Target {target_score}",
+            "creator_user_id": f"{LOCAL_DEMO_CREATOR_PREFIX}_target",
+            "target_score": target_score,
+            "stake": 100,
+            "max_players": seats_for_target(target_score),
+            "min_players": min_seated_for_target(target_score),
+            "bot_count": max_bots_for_target(target_score) if ALLOW_BOTS else 0,
+            "status": "LOBBY",
+            "seats": [],
+            "created_at": _now(),
+            "started_at": None,
+            "local_demo_bootstrap": True,
+        }
+        await db["lobby_tables"].insert_one(dict(doc))
+    return [
+        table
+        for table in await _list_tables(db, status="LOBBY")
+        if len(table.get("seats", [])) < int(table.get("max_players", 0))
+    ]
 
 
 async def get_table(db: AsyncIOMotorDatabase, table_id: str) -> Optional[Dict[str, Any]]:
@@ -182,9 +233,12 @@ async def join_table(
     if len(seats) >= int(doc["max_players"]):
         raise LobbyError("TABLE_FULL")
     new_seat = {"user_id": user_id, "username": user["username"], "joined_at": _now()}
+    update: Dict[str, Any] = {"$push": {"seats": new_seat}}
+    if is_local_demo_creator(str(doc.get("creator_user_id", ""))) and len(seats) == 0:
+        update["$set"] = {"creator_user_id": user_id}
     upd = await db["lobby_tables"].find_one_and_update(
         {"table_id": table_id, "status": "LOBBY", f"seats.{int(doc['max_players']) - 1}": {"$exists": False}},
-        {"$push": {"seats": new_seat}},
+        update,
         return_document=True,
         projection={"_id": 0},
     )
